@@ -74,8 +74,10 @@ func (p *Parser) Parse(ctx context.Context, source []byte, oldTree *Tree) (*Tree
 	return &Tree{inner: result}, nil
 }
 
-// Close releases the underlying C resources. Must be called when the parser
-// is no longer needed.
+// Close releases the underlying C resources. Safe to call multiple times.
 func (p *Parser) Close() {
-	p.inner.Close()
+	if p != nil && p.inner != nil {
+		p.inner.Close()
+		p.inner = nil
+	}
 }

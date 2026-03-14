@@ -71,7 +71,10 @@ func (q *Query) Exec(node Node, source []byte) []Match {
 	return result
 }
 
-// Close releases the underlying C resources.
+// Close releases the underlying C resources. Safe to call multiple times.
 func (q *Query) Close() {
-	q.inner.Close()
+	if q != nil && q.inner != nil {
+		q.inner.Close()
+		q.inner = nil
+	}
 }

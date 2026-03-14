@@ -21,10 +21,11 @@ func (t *Tree) Edit(edit *tree_sitter.InputEdit) {
 	t.inner.Edit(edit)
 }
 
-// Close releases the underlying C resources.
+// Close releases the underlying C resources. Safe to call multiple times.
 func (t *Tree) Close() {
 	if t != nil && t.inner != nil {
 		t.inner.Close()
+		t.inner = nil
 	}
 }
 

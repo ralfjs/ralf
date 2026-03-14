@@ -1,0 +1,32 @@
+ignores = ["node_modules/**", "dist/**"]
+
+[rules.no-magic-timeouts]
+regex = 'setTimeout\([^,]+,\s*\d{4,}\)'
+message = "Extract timeout to named constant"
+severity = "warn"
+
+[rules.no-console-in-prod]
+pattern = "console.log($$$ARGS)"
+message = "No console.log in production code"
+severity = "error"
+fix = "// removed"
+
+[rules.no-console-in-prod.where]
+file = "src/**"
+
+[rules.require-error-boundary]
+message = "Page components must be wrapped in ErrorBoundary"
+severity = "error"
+
+[rules.require-error-boundary.ast]
+kind = "jsx_element"
+
+[rules.require-error-boundary.ast.parent.not]
+kind = "jsx_element"
+
+[[overrides]]
+files = ["*.test.js", "*.spec.js"]
+
+[overrides.rules.no-console-in-prod]
+severity = "off"
+regex = "placeholder"

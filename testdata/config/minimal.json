@@ -1,0 +1,9 @@
+{
+  "rules": {
+    "no-eval": {
+      "regex": "\\beval\\b",
+      "message": "Do not use eval()",
+      "severity": "error"
+    }
+  }
+}

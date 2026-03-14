@@ -660,11 +660,13 @@ internal/
     codelens.go              # inline code actions
     completion.go            # rule name completion in config
 
-  config/
-    loader.go                # parse .lintrc.js via goja (once at startup)
-    compiler.go              # compile declarative rules → engine representation
-    schema.go                # config validation
-    defaults.go              # built-in recommended ruleset
+  config/                      # ✅ Implemented (Sprint 1)
+    config.go                # Config/RuleConfig/Severity types, matcher stubs (AST, Imports, Naming, Where)
+    loader.go                # Load (dir search) + LoadFile (JSON/YAML/TOML dispatch)
+    validate.go              # Structural validation: one matcher, valid severity, override rules
+    merge.go                 # Override resolution: file-glob matching, later-wins semantics
+    defaults.go              # DefaultConfig (empty)
+    compiler.go              # (planned) compile declarative rules → engine representation
 
   plugin/
     host.go                  # WASM plugin host (Wazero)
@@ -701,7 +703,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 1 | Project scaffolding | Repo, `cmd/` + `internal/` layout, go.mod, Makefile, CI (lint + test), .golangci.yml |
 | 2 | librure vendoring + build | Static librure.a for macOS arm64/x64 + Linux x64. CGo build working. Smoke test: compile regex, match string. |
 | 3 | ✅ tree-sitter integration | `internal/parser/`: Lang registry, Parser wrapper (context + incremental), Tree/Node types, Walk/WalkNamed, Query wrapper. 17 tests, 6 fixtures. |
-| 4 | Config loader (JSON/YAML) | `internal/config/`: load `.lintrc.json` / `.lintrc.yaml`, deserialize to `*Config` struct. Validate schema. Override resolution. |
+| 4 | ✅ Config loader (JSON/YAML/TOML) | `internal/config/`: Config types, Load/LoadFile (JSON/YAML/TOML), Validate (rules + overrides), Merge with file-scoped overrides. 26 tests, 6 fixtures. Known limitations: no `**` globstar (#4), no JSONC (#5), no field-level override merge (#3). |
 
 **Month 2 — Regex Engine + CLI Shell**
 

@@ -625,9 +625,12 @@ cmd/
   linter --lsp               # LSP server mode (same binary)
 
 internal/
-  parser/
-    treesitter.go            # tree-sitter wrapper
-    treesitter_queries.go    # pre-built queries for JS/TS/JSX/TSX
+  parser/                      # ✅ Implemented (Sprint 1)
+    lang.go                  # Lang type, extension→grammar mapping (JS/JSX/TS/TSX)
+    parser.go                # Parser wrapper with context cancellation + incremental reparse
+    tree.go                  # Tree/Node/Point value types (isolates tree-sitter C internals)
+    walk.go                  # Walk/WalkNamed depth-first traversal via TreeCursor
+    query.go                 # S-expression query wrapper for AST pattern matching
 
   linter/
     engine.go                # rule execution orchestrator
@@ -697,7 +700,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 |---|---|---|
 | 1 | Project scaffolding | Repo, `cmd/` + `internal/` layout, go.mod, Makefile, CI (lint + test), .golangci.yml |
 | 2 | librure vendoring + build | Static librure.a for macOS arm64/x64 + Linux x64. CGo build working. Smoke test: compile regex, match string. |
-| 3 | tree-sitter integration | `internal/parser/`: load JS/TS/JSX/TSX grammars, parse file to AST, walk nodes. Tests: parse valid + invalid files. |
+| 3 | ✅ tree-sitter integration | `internal/parser/`: Lang registry, Parser wrapper (context + incremental), Tree/Node types, Walk/WalkNamed, Query wrapper. 17 tests, 6 fixtures. |
 | 4 | Config loader (JSON/YAML) | `internal/config/`: load `.lintrc.json` / `.lintrc.yaml`, deserialize to `*Config` struct. Validate schema. Override resolution. |
 
 **Month 2 — Regex Engine + CLI Shell**

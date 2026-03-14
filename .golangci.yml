@@ -3,9 +3,6 @@ version: "2"
 linters:
   default: standard
   enable:
-    # Formatting
-    - gofumpt
-
     # Bugs & correctness
     - gocritic
     - errcheck

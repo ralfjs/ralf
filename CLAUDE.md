@@ -4,7 +4,7 @@ BEPRO — fast, project-aware JS/TS linter + formatter written in Go.
 
 ## Quick Reference
 
-**Language:** Go 1.22+
+**Language:** Go 1.25+
 **Module:** `github.com/Hideart/bepro`
 **CGo deps:** rure-go (Rust regex), go-tree-sitter
 **Pure Go deps:** modernc.org/sqlite, fsnotify, goja, wazero, xxhash
@@ -128,6 +128,15 @@ internal/config → standalone (no internal deps)
 - Use `errors.Is()` / `errors.As()` — never `==` or type assertions on errors.
 - **Never panic for recoverable errors.** Use `Must*` prefix only for package-level init.
 - Define sentinel errors for public APIs: `var ErrRuleCompile = errors.New("rule compile failed")`.
+- Return early on error — keep the happy path left-aligned:
+  ```go
+  result, err := doSomething()
+  if err != nil {
+      return fmt.Errorf("do something: %w", err)
+  }
+  // happy path continues here, not nested
+  ```
+- No naked returns in functions longer than a few lines. Named return values are fine for documentation but always return explicitly.
 
 ### Interfaces
 
@@ -135,12 +144,28 @@ internal/config → standalone (no internal deps)
 - Define interfaces at the **consumer**, not the implementer.
 - Keep interfaces small (1-3 methods).
 
+### Context
+
+- Pass `context.Context` as the first parameter to all functions that do I/O, CGo calls, or may need cancellation.
+- CLI commands and LSP handlers create root contexts.
+- Engine and parser functions accept context for cancellation support.
+- Never store `context.Context` in a struct — pass it as a function parameter.
+
 ### Concurrency
 
 - `wg.Add(1)` before `go func()`, never inside the goroutine.
 - Semaphore pattern (`chan struct{}` sized to `runtime.NumCPU()`) for bounding CGo calls.
 - Channel direction in signatures: `chan<-` (send), `<-chan` (receive).
 - Never share `map` across goroutines without sync.
+
+### Logging
+
+- Use `log/slog` (structured logging) for all internal diagnostics and debug output.
+- `fmt.Println` / `fmt.Fprintf(os.Stdout, ...)` is for **CLI user-facing output only** (lint results, formatted code).
+- `slog.Debug` for verbose tracing (enabled with `--verbose`).
+- `slog.Info` for operational messages (cache status, file count).
+- `slog.Error` for errors that don't terminate the process.
+- Never use the `log` package directly — always `log/slog`.
 
 ### CGo (rure-go, tree-sitter)
 
@@ -191,11 +216,13 @@ func BenchmarkAnalyze(b *testing.B) {
 ### CI Flags
 
 ```bash
-go test -race -count=1 -coverprofile=coverage.out ./...
+CGO_ENABLED=1 go test -race -count=1 -coverprofile=coverage.out ./...
 ```
 
+- `CGO_ENABLED=1` required — project depends on CGo (rure-go, tree-sitter). Defaults to 1 on macOS but may be 0 on Linux CI.
 - `-race` mandatory (concurrent code with CGo).
 - `-count=1` disables cache (catches flaky tests).
+- `-coverprofile` for coverage tracking in CI.
 
 ---
 
@@ -213,6 +240,9 @@ go test -race -count=1 -coverprofile=coverage.out ./...
 - **Never** mutate shared state without synchronization.
 - **Never** use `sync.Mutex` when a channel or `sync.WaitGroup` is clearer.
 - **Never** ignore `golangci-lint` warnings — fix them or explicitly disable with a comment.
+- **Never** use `init()` for complex initialization — use explicit setup functions called from main. `init()` is acceptable only for registering codecs or similar static setup.
+- **Never** use naked returns in functions longer than a few lines.
+- **Never** store `context.Context` in a struct — always pass as first parameter.
 
 ### CGo
 - **Never** call CGo in a tight inner loop without batching.

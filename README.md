@@ -152,7 +152,7 @@ docs/                   # Architecture & design docs
 
 | Component | Technology | Why |
 |---|---|---|
-| Language | Go 1.22+ | Goroutine parallelism, fast compilation, single binary |
+| Language | Go 1.25+ | Goroutine parallelism, fast compilation, single binary |
 | Regex engine | rure-go (Rust regex via CGo) | 3.3x faster than Rust rayon in benchmarks |
 | Parser | tree-sitter (Phase 1), typescript-go (Phase 4) | Error-tolerant, incremental, full TS support |
 | Formatter | dprint WASM (Phase 3), native printer (later) | Prettier-compatible without writing a printer |

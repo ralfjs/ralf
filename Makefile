@@ -1,4 +1,4 @@
-.PHONY: build test test-race lint fmt clean bench install verify
+.PHONY: build test test-race coverage lint fmt clean bench install verify
 
 BINARY     := bepro
 VERSION    := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -15,14 +15,19 @@ install:
 
 ## Test
 test:
-	go test -count=1 ./...
+	CGO_ENABLED=$(CGO_ENABLED) go test -count=1 ./...
 
 test-race:
-	go test -race -count=1 ./...
+	CGO_ENABLED=$(CGO_ENABLED) go test -race -count=1 ./...
+
+## Coverage
+coverage:
+	CGO_ENABLED=$(CGO_ENABLED) go test -race -count=1 -coverprofile=coverage.out ./...
+	go tool cover -func=coverage.out
 
 ## Benchmark
 bench:
-	go test -bench=. -benchmem ./internal/engine/
+	CGO_ENABLED=$(CGO_ENABLED) go test -bench=. -benchmem ./internal/engine/
 
 ## Lint
 lint:

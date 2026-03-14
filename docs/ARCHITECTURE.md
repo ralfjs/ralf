@@ -912,7 +912,7 @@ AST pattern matching is the highest-risk, highest-value component. It's the core
 
 ### Build Requirements
 
-- Go 1.22+
+- Go 1.25+
 - Rust toolchain (for building librure from `github.com/rust-lang/regex` capi)
 - tree-sitter CLI (for grammar compilation)
 
@@ -1955,7 +1955,7 @@ yourlinter/
 // go.mod
 module github.com/yourorg/yourlinter
 
-go 1.22
+go 1.25
 
 require (
     github.com/BurntSushi/rure-go v0.0.0
@@ -1969,7 +1969,7 @@ require (
 ```
 
 - Module path must match repo path.
-- Pin Go version to minimum supported: `go 1.22` (range over integers, improved generics).
+- Pin Go version to minimum supported: `go 1.25`.
 - Run `go mod tidy` before every commit. CI must verify no diff.
 
 ---
@@ -2240,7 +2240,7 @@ go build -o yourlinter-linux-amd64 ./cmd/yourlinter
 ### Docker Build (Recommended for CI)
 
 ```dockerfile
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 RUN apk add --no-cache gcc musl-dev rust cargo
 
@@ -2353,7 +2353,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: docker://ghcr.io/goreleaser/goreleaser-cross:v1.22
+      - uses: docker://ghcr.io/goreleaser/goreleaser-cross:v1.25
         with:
           args: release --clean
         env:

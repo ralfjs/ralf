@@ -1,0 +1,39 @@
+package config
+
+import (
+	"path/filepath"
+)
+
+// Merge returns the effective rule set for a given file path by applying
+// matching overrides on top of the base rules. Later overrides win.
+func Merge(cfg *Config, filePath string) map[string]RuleConfig {
+	result := make(map[string]RuleConfig, len(cfg.Rules))
+	for name, rule := range cfg.Rules {
+		result[name] = rule
+	}
+
+	for _, o := range cfg.Overrides {
+		if !matchesAnyGlob(o.Files, filePath) {
+			continue
+		}
+		for name, rule := range o.Rules {
+			result[name] = rule
+		}
+	}
+
+	return result
+}
+
+func matchesAnyGlob(patterns []string, path string) bool {
+	for _, pattern := range patterns {
+		if matched, err := filepath.Match(pattern, path); err == nil && matched {
+			return true
+		}
+		// Also try matching against just the filename for simple globs
+		base := filepath.Base(path)
+		if matched, err := filepath.Match(pattern, base); err == nil && matched {
+			return true
+		}
+	}
+	return false
+}

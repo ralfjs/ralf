@@ -1,0 +1,9 @@
+{
+  "rules": {
+    "bad-severity": {
+      "regex": "foo",
+      "message": "Bad severity",
+      "severity": "critical"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "broken-rule": {
+      "message": "This rule has no matcher",
+      "severity": "error"
+    }
+  }
+}

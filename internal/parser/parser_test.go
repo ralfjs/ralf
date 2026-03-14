@@ -182,8 +182,7 @@ func TestParseContextCancellation(t *testing.T) {
 
 func readTestFile(t *testing.T, name string) []byte {
 	t.Helper()
-	p := filepath.Join("../../testdata/parser", filepath.Clean(name))
-	data, err := os.ReadFile(p) //nolint:gosec // test-only helper with fixed base path
+	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "parser", name)) //nolint:gosec // test helper with fixed base path
 	if err != nil {
 		t.Fatalf("failed to read test fixture %s: %v", name, err)
 	}

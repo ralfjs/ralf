@@ -1,7 +1,9 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -55,28 +57,62 @@ func TestLoadNotFound(t *testing.T) {
 	}
 }
 
-func TestLoadFileInvalidJSON(t *testing.T) {
+func TestLoadFileDoesNotValidateSemantics(t *testing.T) {
+	// invalid-severity.json is valid JSON but has bad severity value.
+	// LoadFile only parses — semantic validation is Validate's job.
 	_, err := LoadFile(filepath.Join(testdataDir, "invalid-severity.json"))
-	// This file is valid JSON, just has bad severity — LoadFile should succeed
 	if err != nil {
 		t.Fatalf("LoadFile should not fail on structurally valid JSON: %v", err)
 	}
 }
 
-func TestLoadSearchOrder(t *testing.T) {
-	// Load from the testdata dir which has valid.json, valid.yaml, valid.toml
-	// Should find .lintrc.json first — but testdata doesn't have .lintrc.* files.
-	// Instead, verify Load returns not-found error when no .lintrc.* exists.
-	_, err := Load(testdataDir)
+func TestLoadSearchPriority(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create both .lintrc.yaml and .lintrc.json — JSON has higher priority
+	yamlContent := []byte("rules:\n  yaml-rule:\n    regex: y\n    severity: warn\n")
+	jsonContent := []byte(`{"rules":{"json-rule":{"regex":"j","severity":"error"}}}`)
+
+	if err := os.WriteFile(filepath.Join(dir, ".lintrc.yaml"), yamlContent, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".lintrc.json"), jsonContent, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	// JSON is higher priority than YAML, so json-rule should be present
+	if _, ok := cfg.Rules["json-rule"]; !ok {
+		t.Error("expected json-rule (JSON has higher priority than YAML)")
+	}
+	if _, ok := cfg.Rules["yaml-rule"]; ok {
+		t.Error("yaml-rule should not be present (JSON has higher priority)")
+	}
+}
+
+func TestLoadNotFoundDir(t *testing.T) {
+	_, err := Load(t.TempDir())
 	if err == nil {
-		t.Fatal("expected not-found error (testdata has valid.json but not .lintrc.json)")
+		t.Fatal("expected not-found error for empty dir")
 	}
 }
 
 func TestLoadFileUnsupportedExtension(t *testing.T) {
-	_, err := LoadFile("config.xml")
+	// Create an actual file so os.ReadFile succeeds and we hit the extension check
+	path := filepath.Join(t.TempDir(), "config.xml")
+	if err := os.WriteFile(path, []byte("<config/>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadFile(path)
 	if err == nil {
 		t.Fatal("expected error for unsupported extension")
+	}
+	if !strings.Contains(err.Error(), "unsupported") {
+		t.Errorf("expected unsupported extension error, got: %v", err)
 	}
 }
 

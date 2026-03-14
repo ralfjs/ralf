@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -51,6 +52,8 @@ func Validate(cfg *Config) error {
 		for j, glob := range o.Files {
 			if strings.TrimSpace(glob) == "" {
 				errs = append(errs, FieldError{Rule: prefix, Field: fmt.Sprintf("files[%d]", j), Message: "glob must not be empty"})
+			} else if _, err := filepath.Match(glob, ""); err != nil {
+				errs = append(errs, FieldError{Rule: prefix, Field: fmt.Sprintf("files[%d]", j), Message: fmt.Sprintf("invalid glob syntax: %v", err)})
 			}
 		}
 

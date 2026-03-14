@@ -82,9 +82,9 @@ overrides:
 
 `Validate` checks both top-level rules and override rules:
 
-- **Severity** — must be `"error"`, `"warn"`, or `"off"` (empty = error)
+- **Severity** — required, must be `"error"`, `"warn"`, or `"off"` (missing severity is a validation error)
 - **Matcher** — exactly one of `regex`, `pattern`, `ast`, `imports`, `naming` must be set
-- **Override globs** — `files` array must be non-empty, no empty/whitespace strings
+- **Override globs** — `files` array must be non-empty, no empty/whitespace strings, no malformed glob syntax
 
 Returns `*ValidationError` containing `[]FieldError` with rule name, field, and message. Override rule errors use paths like `overrides[0].rules.rule-name`.
 

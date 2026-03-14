@@ -700,7 +700,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 1 | Project scaffolding | Repo, `cmd/` + `internal/` layout, go.mod, Makefile, CI (lint + test), .golangci.yml |
 | 2 | librure vendoring + build | Static librure.a for macOS arm64/x64 + Linux x64. CGo build working. Smoke test: compile regex, match string. |
 | 3 | tree-sitter integration | `internal/parser/`: load JS/TS/JSX/TSX grammars, parse file to AST, walk nodes. Tests: parse valid + invalid files. |
-| 4 | ✅ Config loader (JSON/YAML/TOML) | `internal/config/`: Config types, Load/LoadFile (JSON/YAML/TOML), Validate (rules + overrides), Merge with file-scoped overrides. 24 tests, 6 fixtures. Known limitations: no `**` globstar (#4), no JSONC (#5), no field-level override merge (#3). |
+| 4 | ✅ Config loader (JSON/YAML/TOML) | `internal/config/`: Config types, Load/LoadFile (JSON/YAML/TOML), Validate (rules + overrides), Merge with file-scoped overrides. 25 tests, 6 fixtures. Known limitations: no `**` globstar (#4), no JSONC (#5), no field-level override merge (#3). |
 
 **Month 2 — Regex Engine + CLI Shell**
 

@@ -120,6 +120,34 @@ func TestValidateEmptyOverrideFiles(t *testing.T) {
 	}
 }
 
+func TestValidateMalformedGlob(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"ok": {Severity: SeverityError, Regex: "x"},
+		},
+		Overrides: []Override{
+			{Files: []string{"[invalid"}, Rules: map[string]RuleConfig{}},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for malformed glob")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	found := false
+	for _, e := range ve.Errors {
+		if e.Field == "files[0]" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected files[0] field error for malformed glob")
+	}
+}
+
 func TestValidateEmptyRules(t *testing.T) {
 	cfg := &Config{Rules: map[string]RuleConfig{}}
 	if err := Validate(cfg); err != nil {

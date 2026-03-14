@@ -8,16 +8,16 @@ import (
 // matching overrides on top of the base rules. Later overrides win.
 func Merge(cfg *Config, filePath string) map[string]RuleConfig {
 	result := make(map[string]RuleConfig, len(cfg.Rules))
-	for name, rule := range cfg.Rules {
-		result[name] = rule
+	for name := range cfg.Rules {
+		result[name] = cfg.Rules[name]
 	}
 
-	for _, o := range cfg.Overrides {
-		if !matchesAnyGlob(o.Files, filePath) {
+	for i := range cfg.Overrides {
+		if !matchesAnyGlob(cfg.Overrides[i].Files, filePath) {
 			continue
 		}
-		for name, rule := range o.Rules {
-			result[name] = rule
+		for name := range cfg.Overrides[i].Rules {
+			result[name] = cfg.Overrides[i].Rules[name]
 		}
 	}
 

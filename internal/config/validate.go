@@ -34,7 +34,8 @@ func (e *ValidationError) Error() string {
 func Validate(cfg *Config) error {
 	var errs []FieldError
 
-	for name, rule := range cfg.Rules {
+	for name := range cfg.Rules {
+		rule := cfg.Rules[name]
 		// Check severity
 		switch rule.Severity {
 		case SeverityError, SeverityWarn, SeverityOff:
@@ -46,7 +47,7 @@ func Validate(cfg *Config) error {
 		}
 
 		// Check exactly one matcher
-		matcherCount := countMatchers(rule)
+		matcherCount := countMatchers(&rule)
 		if matcherCount == 0 {
 			errs = append(errs, FieldError{Rule: name, Field: "matcher", Message: "rule must have exactly one matcher (regex, pattern, ast, imports, or naming)"})
 		} else if matcherCount > 1 {
@@ -67,7 +68,7 @@ func Validate(cfg *Config) error {
 	return nil
 }
 
-func countMatchers(r RuleConfig) int {
+func countMatchers(r *RuleConfig) int {
 	count := 0
 	if r.Regex != "" {
 		count++

@@ -379,6 +379,92 @@ Use --output to specify output format (stylish, json, sarif).
 
 ---
 
+## Validation (MANDATORY)
+
+**Every code change must be validated before considering it complete.**
+
+### After Writing Code
+
+1. **Run tests:** `make test` — all tests must pass.
+2. **Run tests with race detector:** `make test-race` — no data races allowed.
+3. **Run linter:** `make lint` — zero warnings.
+4. **Check formatting:** `make fmt` then verify no diff.
+5. **If you added a lint rule:** there must be a corresponding fixture test in `testdata/rules/<rule-name>/`.
+6. **If you changed engine/parser/project:** run `make bench` and note any regressions.
+
+### Before Suggesting a Commit
+
+- Confirm all tests pass. If tests fail, fix the code — don't skip or disable tests.
+- If a new test is needed for the change, write it first or alongside the implementation.
+- Never commit code that doesn't compile. Run `make build` to verify.
+
+### Validation Sequence
+
+```bash
+make build      # must compile
+make test-race  # must pass with zero races
+make lint       # must pass with zero warnings
+make fmt        # then: git diff — must be clean
+```
+
+If any step fails, fix the issue before proceeding. Do not ask whether to skip.
+
+---
+
+## Branching & Git Workflow
+
+Full details: [docs/BRANCHING.md](docs/BRANCHING.md)
+
+### Branch Model
+
+- **`main`** — stable releases only. Every commit is a tagged release or hotfix.
+- **`develop`** — integration branch. Features merge here first.
+- **Feature branches** — `feat/<description>` from `develop`, PR back to `develop`.
+- **Release branches** — `release/v<version>` from `develop`, PR to `main`.
+- **Hotfix branches** — `hotfix/v<version>-<description>` from `main`, PR to `main`.
+
+### Branch Naming
+
+| Pattern | Example |
+|---|---|
+| `feat/<ticket>-<description>` | `feat/BP-42-ast-pattern-matching` |
+| `fix/<ticket>-<description>` | `fix/BP-55-duplicate-diagnostics` |
+| `refactor/<description>` | `refactor/extract-line-index` |
+| `test/<description>` | `test/add-pattern-fixtures` |
+| `docs/<description>` | `docs/update-architecture` |
+| `chore/<description>` | `chore/update-deps` |
+| `perf/<description>` | `perf/batch-cgo-calls` |
+| `release/v<version>` | `release/v0.1.0` |
+| `hotfix/v<version>-<description>` | `hotfix/v0.1.1-fix-crash` |
+
+Rules: lowercase, hyphen-separated, no nested slashes beyond prefix.
+
+### Workflow Rules
+
+- **Never push directly to `main` or `develop`.** Always use PRs.
+- **Feature → `develop`:** squash merge. One commit per feature.
+- **Release → `main`:** merge commit. Preserve release history.
+- **Hotfix → `main`:** merge commit. Then back-merge `main` into `develop`.
+- **Always run `make test-race` before pushing.** CI will catch it, but catch it locally first.
+- **Delete branches after merge.**
+- **Create branch from the correct base:** features from `develop`, hotfixes from `main`.
+
+### Release Process
+
+1. Create `release/v<version>` from `develop`
+2. Version bump, changelog update, final fixes only — NO new features
+3. PR to `main`, merge, tag with `v<version>`
+4. GoReleaser builds on tag push
+5. Back-merge `main` into `develop`
+
+### Versioning
+
+Semantic Versioning: `v<MAJOR>.<MINOR>.<PATCH>`
+- Pre-1.0: `MINOR` bumps may include breaking changes
+- Tags only on `main`, annotated (`git tag -a`)
+
+---
+
 ## Key Decisions (Do Not Change Without Discussion)
 
 1. **Go, not Rust** — goroutine-per-rule parallelism + rure-go proven 3.3x faster than Rust rayon.
@@ -389,6 +475,7 @@ Use --output to specify output format (stylish, json, sarif).
 6. **SQLite for cache** — pure Go (modernc.org/sqlite), concurrent reads, single file.
 7. **WASM for plugins** — Wazero runtime, sandboxed, language-agnostic. Also used for dprint formatter.
 8. **No `pkg/` directory** — everything in `internal/`. This is a CLI tool, not a library.
+9. **Git Flow branching** — `main` (releases) + `develop` (integration). See [docs/BRANCHING.md](docs/BRANCHING.md).
 
 ---
 

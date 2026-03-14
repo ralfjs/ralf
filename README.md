@@ -1,5 +1,9 @@
 # BEPRO
 
+[![CI](https://github.com/Hideart/bepro/actions/workflows/ci.yml/badge.svg)](https://github.com/Hideart/bepro/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/Hideart/bepro/branch/main/graph/badge.svg)](https://codecov.io/gh/Hideart/bepro)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Hideart/bepro)](https://goreportcard.com/report/github.com/Hideart/bepro)
+
 Fast, project-aware JS/TS linter and formatter with declarative custom rules and incremental cross-file analysis.
 
 Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https://github.com/BurntSushi/rure-go). AST parsing via [tree-sitter](https://tree-sitter.github.io/tree-sitter/).
@@ -165,6 +169,7 @@ docs/                   # Architecture & design docs
 ## Documentation
 
 - [Architecture & Design](docs/ARCHITECTURE.md) — full technical spec: benchmarks, architecture, declarative API, cross-file analysis, implementation plan, Go conventions
+- [Branching & Releases](docs/BRANCHING.md) — Git Flow, branch naming, release process, versioning, merge strategy
 
 ## License
 

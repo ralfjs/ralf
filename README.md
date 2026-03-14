@@ -170,7 +170,8 @@ docs/                   # Architecture & design docs
 
 - [Architecture & Design](docs/ARCHITECTURE.md) — full technical spec: benchmarks, architecture, declarative API, cross-file analysis, implementation plan, Go conventions
 - [Branching & Releases](docs/BRANCHING.md) — Git Flow, branch naming, release process, versioning, merge strategy
+- [Contributing](CONTRIBUTING.md) — dev setup, workflow, code style, testing
 
 ## License
 
-TBD
+[MIT](LICENSE)

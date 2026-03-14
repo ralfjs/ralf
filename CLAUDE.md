@@ -239,24 +239,113 @@ go test -race -count=1 -coverprofile=coverage.out ./...
 
 ---
 
-## Commit Messages
+## Commit Messages (Conventional Commits)
+
+Follows [Conventional Commits v1.0.0](https://www.conventionalcommits.org/).
+
+### Format
 
 ```
-<type>: <short description>
+<type>(<scope>): <description>
 
-<optional body — what and why, not how>
+[optional body]
+
+[optional footer(s)]
 ```
 
-Types: `feat`, `fix`, `refactor`, `test`, `docs`, `ci`, `build`, `perf`, `chore`.
+- **Subject line:** max 72 characters, lowercase, no period at end.
+- **Body:** wrap at 80 characters. Explain **what** and **why**, not how.
+- **Footer:** `BREAKING CHANGE:` for breaking changes, `Refs:` for issue references.
 
-Examples:
+### Types
+
+| Type | When to use |
+|---|---|
+| `feat` | New feature or capability |
+| `fix` | Bug fix |
+| `perf` | Performance improvement (no behavior change) |
+| `refactor` | Code change that neither fixes a bug nor adds a feature |
+| `test` | Adding or updating tests |
+| `docs` | Documentation only |
+| `build` | Build system, dependencies, Makefile, GoReleaser |
+| `ci` | CI/CD pipeline changes (GitHub Actions, workflows) |
+| `chore` | Maintenance (gitignore, tooling config, no production code) |
+
+### Scopes
+
+Scope maps to internal package or component:
+
+| Scope | Maps to |
+|---|---|
+| `engine` | `internal/engine/` — rule execution, regex, AST matching |
+| `parser` | `internal/parser/` — tree-sitter integration |
+| `formatter` | `internal/formatter/` — dprint WASM, printer |
+| `project` | `internal/project/` — cache, graph, watcher, scanner |
+| `lsp` | `internal/lsp/` — LSP server |
+| `config` | `internal/config/` — config loading, compilation |
+| `cli` | `internal/cli/` — CLI commands |
+| `plugin` | `internal/plugin/` — WASM plugin host |
+| `rules` | Built-in rule definitions |
+| `deps` | Dependency updates (go.mod, go.sum) |
+
+Scope is optional but recommended. Omit only for cross-cutting changes.
+
+### Examples
+
 ```
-feat: add regex rule engine with rure-go parallel scanning
-fix: prevent duplicate diagnostics on same line
-refactor: extract line index to separate package
-test: add fixture tests for no-var rule
-perf: batch CGo calls in regex scanner
+feat(engine): add regex rule engine with rure-go parallel scanning
+
+Implements semaphore-limited goroutine-per-rule architecture.
+Uses rure.Iter for bounded scanning with per-line dedup.
+
+Refs: #12
 ```
+
+```
+fix(engine): prevent duplicate diagnostics on same line
+
+The seen map was keyed by offset instead of line number,
+allowing multiple diagnostics per rule on the same line.
+```
+
+```
+perf(engine): batch CGo calls in regex scanner
+
+Replaces per-line IsMatchBytes with IterBytes (single CGo call
+per pattern). Reduces 2.5M CGo crossings to 30.
+```
+
+```
+refactor(parser): extract line index to lineindex.go
+```
+
+```
+test(rules): add fixture tests for no-var and no-console
+```
+
+```
+feat(config): support YAML and TOML config formats
+```
+
+```
+build(deps): update rure-go to v0.3.0
+```
+
+```
+feat(cli)!: rename --format flag to --output
+
+BREAKING CHANGE: --format is now used for the format command.
+Use --output to specify output format (stylish, json, sarif).
+```
+
+### Rules
+
+- **One logical change per commit.** Don't mix a feature with a refactor.
+- **`feat` and `fix` appear in the changelog.** Other types don't. Choose accordingly.
+- **Breaking changes** use `!` after type/scope AND a `BREAKING CHANGE:` footer.
+- **Never use generic messages** like "update code", "fix stuff", "wip".
+- **Reference issues** in the footer when applicable: `Refs: #42` or `Closes: #42`.
+- **Imperative mood** in description: "add", "fix", "remove" — not "added", "fixes", "removed".
 
 ---
 

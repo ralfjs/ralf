@@ -36,29 +36,28 @@ func Validate(cfg *Config) error {
 
 	for name := range cfg.Rules {
 		rule := cfg.Rules[name]
-		// Check severity
-		switch rule.Severity {
-		case SeverityError, SeverityWarn, SeverityOff:
-			// valid
-		case "":
-			errs = append(errs, FieldError{Rule: name, Field: "severity", Message: "required"})
-		default:
-			errs = append(errs, FieldError{Rule: name, Field: "severity", Message: fmt.Sprintf("invalid value %q (must be error, warn, or off)", rule.Severity)})
-		}
-
-		// Check exactly one matcher
-		matcherCount := countMatchers(&rule)
-		if matcherCount == 0 {
-			errs = append(errs, FieldError{Rule: name, Field: "matcher", Message: "rule must have exactly one matcher (regex, pattern, ast, imports, or naming)"})
-		} else if matcherCount > 1 {
-			errs = append(errs, FieldError{Rule: name, Field: "matcher", Message: fmt.Sprintf("rule has %d matchers but must have exactly one", matcherCount)})
-		}
+		validateRule(name, &rule, &errs)
 	}
 
-	// Validate override globs are non-empty
-	for i, o := range cfg.Overrides {
+	// Validate overrides
+	for i := range cfg.Overrides {
+		o := &cfg.Overrides[i]
+		prefix := fmt.Sprintf("overrides[%d]", i)
+
+		// Check file globs
 		if len(o.Files) == 0 {
-			errs = append(errs, FieldError{Rule: fmt.Sprintf("overrides[%d]", i), Field: "files", Message: "must have at least one file glob"})
+			errs = append(errs, FieldError{Rule: prefix, Field: "files", Message: "must have at least one file glob"})
+		}
+		for j, glob := range o.Files {
+			if strings.TrimSpace(glob) == "" {
+				errs = append(errs, FieldError{Rule: prefix, Field: fmt.Sprintf("files[%d]", j), Message: "glob must not be empty"})
+			}
+		}
+
+		// Validate override rules
+		for name := range o.Rules {
+			rule := o.Rules[name]
+			validateRule(fmt.Sprintf("%s.rules.%s", prefix, name), &rule, &errs)
 		}
 	}
 
@@ -66,6 +65,24 @@ func Validate(cfg *Config) error {
 		return &ValidationError{Errors: errs}
 	}
 	return nil
+}
+
+func validateRule(name string, rule *RuleConfig, errs *[]FieldError) {
+	switch rule.Severity {
+	case SeverityError, SeverityWarn, SeverityOff:
+		// valid
+	case "":
+		*errs = append(*errs, FieldError{Rule: name, Field: "severity", Message: "required"})
+	default:
+		*errs = append(*errs, FieldError{Rule: name, Field: "severity", Message: fmt.Sprintf("invalid value %q (must be error, warn, or off)", rule.Severity)})
+	}
+
+	matcherCount := countMatchers(rule)
+	if matcherCount == 0 {
+		*errs = append(*errs, FieldError{Rule: name, Field: "matcher", Message: "rule must have exactly one matcher (regex, pattern, ast, imports, or naming)"})
+	} else if matcherCount > 1 {
+		*errs = append(*errs, FieldError{Rule: name, Field: "matcher", Message: fmt.Sprintf("rule has %d matchers but must have exactly one", matcherCount)})
+	}
 }
 
 func countMatchers(r *RuleConfig) int {

@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,8 +24,12 @@ var searchNames = []string{
 func Load(dir string) (*Config, error) {
 	for _, name := range searchNames {
 		path := filepath.Join(dir, name)
-		if _, err := os.Stat(path); err == nil {
+		_, err := os.Stat(path)
+		if err == nil {
 			return LoadFile(path)
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("config: stat %s: %w", path, err)
 		}
 	}
 	return nil, fmt.Errorf("config: no config file found in %s (searched: %v)", dir, searchNames)

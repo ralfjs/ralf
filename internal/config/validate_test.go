@@ -127,6 +127,49 @@ func TestValidateEmptyRules(t *testing.T) {
 	}
 }
 
+func TestValidateEmptyGlobString(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"ok": {Severity: SeverityError, Regex: "x"},
+		},
+		Overrides: []Override{
+			{Files: []string{""}, Rules: map[string]RuleConfig{}},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for empty glob string")
+	}
+}
+
+func TestValidateInvalidOverrideRule(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"ok": {Severity: SeverityError, Regex: "x"},
+		},
+		Overrides: []Override{
+			{
+				Files: []string{"*.test.js"},
+				Rules: map[string]RuleConfig{
+					"bad-override": {Message: "no matcher or severity"},
+				},
+			},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for invalid override rule")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	// Should have errors for both missing severity and missing matcher
+	if len(ve.Errors) < 2 {
+		t.Errorf("expected at least 2 errors, got %d: %v", len(ve.Errors), ve)
+	}
+}
+
 func TestValidateAllMatcherTypes(t *testing.T) {
 	tests := []struct {
 		name string

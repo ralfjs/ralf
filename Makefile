@@ -1,17 +1,17 @@
 .PHONY: build test test-race coverage lint fmt clean bench install verify
 
-BINARY     := bepro
+BINARY     := ralf
 VERSION    := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS    := -s -w -X main.version=$(VERSION)
 CGO_ENABLED := 1
 
 ## Build
 build:
-	CGO_ENABLED=$(CGO_ENABLED) go build -ldflags="$(LDFLAGS)" -o $(BINARY) ./cmd/bepro
+	CGO_ENABLED=$(CGO_ENABLED) go build -ldflags="$(LDFLAGS)" -o $(BINARY) ./cmd/ralf
 
 ## Install locally
 install:
-	CGO_ENABLED=$(CGO_ENABLED) go install -ldflags="$(LDFLAGS)" ./cmd/bepro
+	CGO_ENABLED=$(CGO_ENABLED) go install -ldflags="$(LDFLAGS)" ./cmd/ralf
 
 ## Test
 test:

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/Hideart/bepro/internal/config"
+	"github.com/Hideart/ralf/internal/config"
 )
 
 // compiledRegex is a pre-compiled regex rule ready for matching.

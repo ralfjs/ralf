@@ -1,11 +1,11 @@
 # CLI Package
 
-Cobra-based command-line interface for bepro.
+Cobra-based command-line interface for ralf.
 
 ## Architecture
 
 ```
-cmd/bepro/main.go
+cmd/ralf/main.go
   └─ cli.Execute() → int (exit code)
        └─ newRootCmd()
             ├─ --config (global flag)
@@ -59,22 +59,22 @@ All formatters display columns as 1-based (engine stores 0-based).
 
 ```bash
 # Lint cwd with auto-discovered config
-bepro lint
+ralf lint
 
 # Lint specific paths
-bepro lint src/ tests/
+ralf lint src/ tests/
 
 # Explicit config
-bepro lint --config .lintrc.json src/
+ralf lint --config .lintrc.json src/
 
 # JSON output for CI
-bepro lint --format json src/
+ralf lint --format json src/
 
 # GitHub Actions annotations
-bepro lint --format github src/
+ralf lint --format github src/
 
 # Fail on any warnings
-bepro lint --max-warnings 0 src/
+ralf lint --max-warnings 0 src/
 ```
 
 ## Files

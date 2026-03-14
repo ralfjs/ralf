@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/Hideart/bepro/internal/parser"
+	"github.com/Hideart/ralf/internal/parser"
 	"github.com/bmatcuk/doublestar/v4"
 )
 

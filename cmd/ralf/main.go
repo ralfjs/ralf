@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/Hideart/bepro/internal/cli"
+	"github.com/Hideart/ralf/internal/cli"
 )
 
 func main() {

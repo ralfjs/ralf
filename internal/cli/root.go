@@ -1,11 +1,11 @@
-// Package cli implements the bepro command-line interface using cobra.
+// Package cli implements the ralf command-line interface using cobra.
 package cli
 
 import (
 	"fmt"
 	"os"
 
-	"github.com/Hideart/bepro/internal/version"
+	"github.com/Hideart/ralf/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -37,7 +37,7 @@ var exitCode int
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "bepro",
+		Use:     "ralf",
 		Short:   "Fast, project-aware JS/TS linter",
 		Version: version.Version,
 		// Silence cobra's default error/usage printing on RunE errors
@@ -46,7 +46,7 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 	}
 
-	cmd.SetVersionTemplate(fmt.Sprintf("bepro %s\n", version.Version))
+	cmd.SetVersionTemplate(fmt.Sprintf("ralf %s\n", version.Version))
 	cmd.SetOut(os.Stdout)
 	cmd.SetErr(os.Stderr)
 

@@ -1,5 +1,5 @@
 # Binaries
-/bepro
+/ralf
 *.exe
 *.dll
 *.so
@@ -27,4 +27,4 @@ vendor/librure/*.lib
 Thumbs.db
 
 # Cache
-.bepro/
+.ralf/

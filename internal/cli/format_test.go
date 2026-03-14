@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Hideart/bepro/internal/config"
-	"github.com/Hideart/bepro/internal/engine"
+	"github.com/Hideart/ralf/internal/config"
+	"github.com/Hideart/ralf/internal/engine"
 )
 
 func TestStylishFormatter(t *testing.T) {

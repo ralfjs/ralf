@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Hideart/bepro/internal/config"
+	"github.com/Hideart/ralf/internal/config"
 )
 
 func TestNew(t *testing.T) {

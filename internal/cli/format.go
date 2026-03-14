@@ -6,8 +6,8 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/Hideart/bepro/internal/config"
-	"github.com/Hideart/bepro/internal/engine"
+	"github.com/Hideart/ralf/internal/config"
+	"github.com/Hideart/ralf/internal/engine"
 )
 
 // Formatter writes diagnostics to a writer in a specific format.

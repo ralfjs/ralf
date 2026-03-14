@@ -1,4 +1,4 @@
-module github.com/Hideart/bepro
+module github.com/Hideart/ralf
 
 go 1.25.6
 

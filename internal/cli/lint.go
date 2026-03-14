@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Hideart/bepro/internal/config"
-	"github.com/Hideart/bepro/internal/engine"
+	"github.com/Hideart/ralf/internal/config"
+	"github.com/Hideart/ralf/internal/engine"
 	"github.com/spf13/cobra"
 )
 

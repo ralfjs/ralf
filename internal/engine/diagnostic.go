@@ -2,7 +2,7 @@
 // source files, and produce diagnostics.
 package engine
 
-import "github.com/Hideart/bepro/internal/config"
+import "github.com/Hideart/ralf/internal/config"
 
 // Diagnostic represents a single lint finding.
 type Diagnostic struct {

@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"github.com/Hideart/bepro/internal/config"
+	"github.com/Hideart/ralf/internal/config"
 	"github.com/bmatcuk/doublestar/v4"
 )
 

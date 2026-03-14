@@ -1,8 +1,8 @@
-# BEPRO
+# RALF
 
-[![CI](https://github.com/Hideart/bepro/actions/workflows/ci.yml/badge.svg)](https://github.com/Hideart/bepro/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/Hideart/bepro/branch/main/graph/badge.svg)](https://codecov.io/gh/Hideart/bepro)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Hideart/bepro)](https://goreportcard.com/report/github.com/Hideart/bepro)
+[![CI](https://github.com/Hideart/ralf/actions/workflows/ci.yml/badge.svg)](https://github.com/Hideart/ralf/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/Hideart/ralf/branch/main/graph/badge.svg)](https://codecov.io/gh/Hideart/ralf)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Hideart/ralf)](https://goreportcard.com/report/github.com/Hideart/ralf)
 
 Fast, project-aware JS/TS linter and formatter with declarative custom rules and incremental cross-file analysis.
 
@@ -12,7 +12,7 @@ Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https:
 
 ## Why
 
-| | ESLint | Biome | Prettier | BEPRO |
+| | ESLint | Biome | Prettier | RALF |
 |---|---|---|---|---|
 | Language | JS | Rust | JS | Go |
 | Speed | Slow | Fast | Slow | Fast |
@@ -103,12 +103,12 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 
 | Feature | Status | Description |
 |---|---|---|
-| `bepro lint` | Planned | Lint files with configurable rules |
-| `bepro format` | Planned | Format files |
-| `bepro check` | Planned | Lint + format check (for CI) |
-| `bepro init` | Planned | Generate config, migrate from ESLint/Biome |
-| `bepro lsp` | Planned | Start LSP server |
-| `bepro debug` | Planned | Inspect rules, AST, module graph |
+| `ralf lint` | Planned | Lint files with configurable rules |
+| `ralf format` | Planned | Format files |
+| `ralf check` | Planned | Lint + format check (for CI) |
+| `ralf init` | Planned | Generate config, migrate from ESLint/Biome |
+| `ralf lsp` | Planned | Start LSP server |
+| `ralf debug` | Planned | Inspect rules, AST, module graph |
 | Output formats | Planned | Stylish, JSON, SARIF, GitHub Actions annotations |
 
 ### Config
@@ -122,8 +122,8 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 | `extends` | Planned | Inherit from shared config packages |
 | `overrides` | Planned | Glob-scoped rule overrides |
 | Monorepo workspaces | Planned | Per-workspace config with shared base |
-| ESLint migration | Planned | `bepro init --from-eslint` |
-| Biome migration | Planned | `bepro init --from-biome` |
+| ESLint migration | Planned | `ralf init --from-eslint` |
+| Biome migration | Planned | `ralf init --from-biome` |
 
 ## Roadmap
 
@@ -138,7 +138,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 ## Project Structure
 
 ```
-cmd/bepro/              # CLI entry point (thin)
+cmd/ralf/              # CLI entry point (thin)
 internal/
   engine/               # Rule execution (regex, AST, structural, naming)
   parser/               # tree-sitter wrapper

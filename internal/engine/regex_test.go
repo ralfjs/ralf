@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"github.com/Hideart/bepro/internal/config"
+	"github.com/Hideart/ralf/internal/config"
 )
 
 func TestCompileRegexRules(t *testing.T) {

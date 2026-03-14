@@ -8,7 +8,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/Hideart/bepro/internal/config"
+	"github.com/Hideart/ralf/internal/config"
 	"golang.org/x/sync/errgroup"
 )
 

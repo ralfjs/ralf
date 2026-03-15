@@ -16,7 +16,7 @@ Engine.Lint()         partition files into worker batches, fan out via errgroup
   │       ├─ config.Merge()     effective rules for this file path (fast path: no overrides → no alloc)
   │       ├─ acquireCGo()       CGo semaphore (bounds OS threads to NumCPU)
   │       ├─ matchesWhere()     evaluate Where predicate (doublestar globs)
-  │       ├─ buildLineIndex()   byte offset → line:col via binary search
+  │       ├─ buildLineIndex()   SIMD-accelerated newline scan (bytes.IndexByte)
   │       ├─ matchRegex()       rure.IterBytes + dedup + max cap
   │       └─ slices.SortFunc()  sort diagnostics within file by line/col/rule
   └─ ... (parallel workers)
@@ -37,6 +37,7 @@ Result                sorted diagnostics + file errors
 | `regex.go` | `compiledRegex` type, `compileRegexRules`, `matchRegex` (rure-go) |
 | `semaphore.go` | CGo concurrency limiter (`acquireCGo`/`releaseCGo`) |
 | `where.go` | `matchesWhere` — evaluates `config.WherePredicate` against file paths |
+
 | `engine.go` | `Engine` orchestrator: `New`, `LintFile`, `Lint`, `sortDiagChunksByFile` |
 
 ## Diagnostic Conventions
@@ -51,6 +52,8 @@ Matches tree-sitter's coordinate system for consistency when AST-based rules are
 ## Line Index
 
 Standard approach from `go/token`: scan source once for `\n` positions, store `[]int` of line-start byte offsets. First entry is always 0. Pre-allocated based on estimated ~60 bytes/line. Binary search via `sort.SearchInts` per offset lookup.
+
+Uses `bytes.IndexByte` loop instead of byte-by-byte `range` iteration. Go's `bytes.IndexByte` uses SIMD assembly (AVX2 on amd64, NEON on arm64) — processes 16-32 bytes per cycle.
 
 Handles `\r\n` (CRLF) — `\n` positions are tracked, `\r` is an extra byte in the column offset.
 
@@ -92,6 +95,7 @@ This turns an O(N·log N) sort of 150K+ diagnostics into many O(K·log K) sorts 
 
 Current optimizations (all allocation/scheduling, no logic changes):
 
+- **SIMD newline scanning**: `buildLineIndex` uses `bytes.IndexByte` loop — Go's implementation uses AVX2/NEON assembly to scan 16-32 bytes per cycle instead of byte-by-byte iteration.
 - **Pre-allocated slices**: `lineStarts`, `seen` map, `diags` in `matchRegex`, `LintFile`, and `Lint`
 - **config.Merge fast path**: returns `cfg.Rules` directly when no overrides exist (zero allocation)
 - **Worker batching**: files partitioned statically across workers — no per-file goroutine spawn, no mutex during processing
@@ -129,9 +133,8 @@ When evaluating performance changes:
 
 These require more invasive changes and are deferred to a later sprint:
 
-- **mmap file reads**: replace `os.ReadFile` with `mmap` to eliminate the kernel→userspace copy. Particularly beneficial for large files where the copy dominates.
-- **Buffer pooling**: `sync.Pool` for `[]byte` read buffers and `[]Diagnostic` slices to reduce GC pressure across sequential lint runs (LSP mode, watch mode).
-- **SIMD newline scanning**: replace byte-by-byte `buildLineIndex` loop with SIMD-accelerated `bytes.IndexByte` or platform-specific intrinsics for bulk `\n` detection.
+- **mmap file reads**: benchmarked — adds syscall overhead (open→stat→mmap→munmap) on small warm-cache files that outweighs the eliminated userspace copy. With project cache (Phase 2), cold scans happen once at startup; steady-state is single-file re-lints where mmap loses. Revisit only if cold-scan performance becomes a concern before caching is implemented.
+- **Buffer pooling**: `sync.Pool` for `lineStarts []int` and `[]Diagnostic` slices to reduce GC pressure across sequential lint runs. Becomes load-bearing in LSP/watch mode (Phase 2) where `LintFile` is called thousands of times in a long-running process. Deferred because it changes `buildLineIndex` signature and touches test/bench files.
 - **Parallel file readahead**: separate I/O goroutines pre-read files into a bounded buffer pool while worker goroutines process already-loaded files, overlapping I/O and compute.
 
 ## Where Predicate

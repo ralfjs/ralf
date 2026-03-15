@@ -1,18 +1,28 @@
 package engine
 
-import "sort"
+import (
+	"bytes"
+	"sort"
+)
 
 // buildLineIndex scans source for newline positions and returns a slice of
 // byte offsets where each line starts. The first entry is always 0 (line 1
 // starts at byte 0).
+//
+// Uses bytes.IndexByte which leverages SIMD assembly (AVX2 on amd64, NEON on
+// arm64) to scan 16-32 bytes per cycle instead of byte-by-byte iteration.
 func buildLineIndex(source []byte) []int {
 	// Estimate ~60 bytes per line to pre-allocate.
 	starts := make([]int, 1, len(source)/60+1)
 	starts[0] = 0
-	for i, b := range source {
-		if b == '\n' {
-			starts = append(starts, i+1)
+	offset := 0
+	for {
+		i := bytes.IndexByte(source[offset:], '\n')
+		if i < 0 {
+			break
 		}
+		starts = append(starts, offset+i+1)
+		offset += i + 1
 	}
 	return starts
 }

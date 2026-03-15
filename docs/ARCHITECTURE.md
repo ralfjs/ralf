@@ -76,11 +76,14 @@ Cost of guardrails: ~9ms (13ms → 22ms). Acceptable for production safety.
 
 E2E benchmark (100 files × 300 lines × 5 rules, Apple M4 Pro): **~27ms, 6.7K allocs, 162MB**.
 
+### Current Optimizations
+
+- **SIMD newline scanning** — `buildLineIndex` uses `bytes.IndexByte` loop (AVX2/NEON assembly), scanning 16-32 bytes per cycle
+
 ### Future Optimizations
 
-- **mmap file reads** — replace `os.ReadFile` with `mmap` to eliminate kernel→userspace copy
-- **Buffer pooling** — `sync.Pool` for `[]byte` read buffers and `[]Diagnostic` slices, reducing GC pressure in LSP/watch mode
-- **SIMD newline scanning** — replace byte-by-byte `buildLineIndex` with SIMD-accelerated bulk `\n` detection
+- **mmap file reads** — benchmarked, deferred: syscall overhead on small warm-cache files outweighs eliminated copy. Revisit if cold-scan matters before project cache (Phase 2)
+- **Buffer pooling** — `sync.Pool` for `lineStarts` and `[]Diagnostic` slices, reducing GC pressure in LSP/watch mode (Phase 2)
 - **Parallel file readahead** — separate I/O goroutines pre-read files into a bounded buffer pool, overlapping I/O and compute
 
 ---
@@ -1664,11 +1667,12 @@ Results tracked over time. Regressions block merge.
 ### Optimization Priorities
 
 ```
-1. File I/O (parallel reads, mmap for large files)
-2. Regex matching (rure-go, batch per-rule)
-3. AST traversal (single pass, multiple rules per visitor)
-4. Cache hits (avoid redundant work)
-5. Memory (pool allocators for diagnostics, reuse tree-sitter parsers)
+1. File I/O (mmap benchmarked & deferred, parallel readahead deferred)
+2. Line indexing — SIMD-accelerated bytes.IndexByte (done)
+3. Regex matching (rure-go, batch per-rule)
+4. AST traversal (single pass, multiple rules per visitor)
+5. Cache hits (avoid redundant work)
+6. Memory (pool allocators for diagnostics, reuse tree-sitter parsers)
 ```
 
 ---

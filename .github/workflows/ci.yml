@@ -51,7 +51,7 @@ jobs:
           path: .
           coverprofile: coverage.out
           diff: diff.txt
-          module: github.com/Hideart/bepro
+          module: github.com/Hideart/ralf
       - name: Fail if new code coverage below 70%
         if: github.event_name == 'pull_request'
         run: |
@@ -91,4 +91,4 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Build
-        run: CGO_ENABLED=1 go build -o bepro ./cmd/bepro
+        run: CGO_ENABLED=1 go build -o ralf ./cmd/ralf

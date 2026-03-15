@@ -1,4 +1,4 @@
-# Contributing to BEPRO
+# Contributing to RALF
 
 ## Prerequisites
 
@@ -12,14 +12,14 @@
 ### 1. Clone the repo
 
 ```bash
-git clone git@github.com:Hideart/bepro.git
-cd bepro
+git clone git@github.com:Hideart/ralf.git
+cd ralf
 git checkout develop
 ```
 
 ### 2. Build librure (Rust regex C library)
 
-BEPRO uses [rure-go](https://github.com/BurntSushi/rure-go) which requires the Rust regex C API library.
+RALF uses [rure-go](https://github.com/BurntSushi/rure-go) which requires the Rust regex C API library.
 
 ```bash
 # Clone the Rust regex repo
@@ -103,7 +103,7 @@ PRs target `develop`, not `main`. See [docs/BRANCHING.md](docs/BRANCHING.md) for
 ## Project Structure
 
 ```
-cmd/bepro/           # CLI entry point (keep thin)
+cmd/ralf/           # CLI entry point (keep thin)
 internal/
   engine/            # Rule execution core
   parser/            # tree-sitter wrapper

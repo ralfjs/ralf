@@ -1,11 +1,11 @@
 # CLAUDE.md
 
-BEPRO — fast, project-aware JS/TS linter + formatter written in Go.
+RALF — fast, project-aware JS/TS linter + formatter written in Go.
 
 ## Quick Reference
 
 **Language:** Go 1.25+
-**Module:** `github.com/Hideart/bepro`
+**Module:** `github.com/Hideart/ralf`
 **CGo deps:** rure-go (Rust regex), go-tree-sitter
 **Pure Go deps:** modernc.org/sqlite, fsnotify, goja, wazero, xxhash
 
@@ -30,7 +30,7 @@ Full technical spec: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 ### Project Layout
 
 ```
-cmd/bepro/main.go           # Entry point — MUST stay thin (~30 lines)
+cmd/ralf/main.go           # Entry point — MUST stay thin (~30 lines)
                              # Parse flags, wire deps, call internal packages. No logic here.
 
 internal/
@@ -74,11 +74,11 @@ internal/
     defaults.go              # Built-in recommended ruleset
 
   cli/                       # CLI commands
-    lint.go                  # bepro lint
-    format.go                # bepro format
-    check.go                 # bepro check (lint + format)
-    init.go                  # bepro init, --from-eslint, --from-biome
-    debug.go                 # bepro debug (rules, parse, graph)
+    lint.go                  # ralf lint
+    format.go                # ralf format
+    check.go                 # ralf check (lint + format)
+    init.go                  # ralf init, --from-eslint, --from-biome
+    debug.go                 # ralf debug (rules, parse, graph)
 
   plugin/                    # WASM plugin system
     host.go                  # Load + run .wasm plugins via Wazero
@@ -93,7 +93,7 @@ testdata/                    # Test fixtures (Go tooling ignores during builds)
 ### Dependency Direction
 
 ```
-cmd/bepro → internal/cli → internal/engine, internal/config, internal/project
+cmd/ralf → internal/cli → internal/engine, internal/config, internal/project
 internal/engine → internal/parser
 internal/project → internal/parser, internal/engine
 internal/lsp → internal/engine, internal/project, internal/formatter
@@ -103,7 +103,7 @@ internal/config → standalone (no internal deps)
 ```
 
 **Rules:**
-- `cmd/bepro/main.go` imports only `internal/cli`. Never import engine/parser/etc directly from main.
+- `cmd/ralf/main.go` imports only `internal/cli`. Never import engine/parser/etc directly from main.
 - `internal/config` must have zero dependencies on other internal packages.
 - `internal/parser` must not depend on `internal/engine` (parser is a low-level primitive).
 - `internal/engine` must not depend on `internal/project` — the project layer calls engine, not the reverse.
@@ -229,7 +229,7 @@ CGO_ENABLED=1 go test -race -count=1 -coverprofile=coverage.out ./...
 ## Anti-Patterns (MUST NOT do)
 
 ### Architecture
-- **Never** put logic in `cmd/bepro/main.go` — it must be a thin wrapper.
+- **Never** put logic in `cmd/ralf/main.go` — it must be a thin wrapper.
 - **Never** import `internal/engine` from `internal/parser` — parser is lower-level.
 - **Never** import `internal/project` from `internal/engine` — project calls engine, not reverse.
 - **Never** use `pkg/` directory — everything goes in `internal/`.

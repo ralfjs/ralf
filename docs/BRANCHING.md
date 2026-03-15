@@ -206,7 +206,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/):
 ### Added
 - Regex rule engine with rure-go parallel scanning
 - AST pattern matching with $VAR syntax
-- CLI: `bepro lint`, `bepro check`, `bepro init`
+- CLI: `ralf lint`, `ralf check`, `ralf init`
 - 50 built-in rules (ESLint recommended + React plugin)
 - JSON, YAML, JS config support
 

@@ -632,15 +632,24 @@ internal/
     walk.go                  # Walk/WalkNamed depth-first traversal via TreeCursor
     query.go                 # S-expression query wrapper for AST pattern matching
 
-  linter/
-    engine.go                # rule execution orchestrator
-    regex.go                 # rure-go pattern rules
-    ast_pattern.go           # AST pattern matching ("console.log($$$)")
-    structural.go            # structural AST queries
-    naming.go                # naming convention checker
-    imports.go               # import ordering / grouping
-    complexity.go            # cyclomatic complexity
-    crossfile.go             # cross-file rule evaluation
+  engine/                      # ✅ Implemented (Sprint 2)
+    diagnostic.go            # Diagnostic, FileError, Result types
+    lineindex.go             # buildLineIndex (O(n)), offsetToLineCol (O(log n) binary search)
+    regex.go                 # compiledRegex, compileRegexRules, matchRegex (stdlib regexp, rure-go swap pending)
+    where.go                 # matchesWhere — Where predicate evaluation (doublestar globs)
+    engine.go                # Engine orchestrator: New, LintFile, Lint (parallel via errgroup)
+    ast_pattern.go           # (planned) AST pattern matching ("console.log($$$)")
+    structural.go            # (planned) structural AST queries
+    naming.go                # (planned) naming convention checker
+    imports.go               # (planned) import ordering / grouping
+    complexity.go            # (planned) cyclomatic complexity
+    crossfile.go             # (planned) cross-file rule evaluation
+
+  cli/                         # ✅ Implemented (Sprint 2)
+    root.go                  # Root cobra command, global flags, Execute entry point
+    discover.go              # File discovery: WalkDir, extension filter, hardcoded skips, doublestar ignores
+    lint.go                  # Lint subcommand: config → engine → discover → lint → format
+    format.go                # Output formatters: stylish, JSON, compact, GitHub Actions
 
   formatter/
     printer.go               # CST → formatted output
@@ -709,9 +718,9 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 5 | Regex rule engine | `internal/engine/regex.go`: compile rure-go patterns, parallel scan (semaphore, iter-based, dedup, match cap). Port from benchmark prototype. |
-| 6 | Line/col resolution | `internal/engine/lineindex.go`: `buildLineIndex`, `offsetToLine`. Diagnostic struct with file, line, col, end col, rule name, message, severity. |
-| 7 | CLI `lint` command | `internal/cli/lint.go`: file discovery (glob + ignore), parallel file processing (goroutine per file), output formatters (stylish, JSON). Exit codes. |
+| 5 | ✅ Regex rule engine | `internal/engine/regex.go`: compile stdlib `regexp` patterns (rure-go deferred to week 2), match with dedup + max cap. `internal/engine/where.go`: Where predicate evaluation with doublestar. 9 regex tests, 9 where tests. |
+| 6 | ✅ Line/col resolution | `internal/engine/lineindex.go`: `buildLineIndex` (O(n)), `offsetToLineCol` (O(log n) binary search). `internal/engine/diagnostic.go`: Diagnostic, FileError, Result types. 14 tests including CRLF. |
+| 7 | ✅ CLI `lint` command | `internal/cli/`: cobra root + lint subcommand, file discovery (WalkDir + doublestar ignores), 4 output formatters (stylish, JSON, compact, GitHub Actions). Exit codes 0/1/2/3. 7 discover tests, 6 format tests, 4 integration tests. |
 | 8 | First 20 regex rules | Built-in rules: no-var, no-console, no-eval, no-debugger, eqeqeq, no-alert, no-inner-html, etc. Fixture tests for each. |
 
 **Month 3 — AST Pattern Matching (Critical Path)**

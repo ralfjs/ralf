@@ -172,13 +172,20 @@ func pluralize(word string, n int) string {
 	return word + "s"
 }
 
+// cachedCwd is resolved once and reused across formatPath calls to avoid
+// a syscall per diagnostic.
+var cachedCwd string
+
+func init() {
+	cachedCwd, _ = filepath.Abs(".")
+}
+
 // formatPath attempts to show a relative path for readability.
 func formatPath(absPath string) string {
-	cwd, err := filepath.Abs(".")
-	if err != nil {
+	if cachedCwd == "" {
 		return absPath
 	}
-	rel, err := filepath.Rel(cwd, absPath)
+	rel, err := filepath.Rel(cachedCwd, absPath)
 	if err != nil {
 		return absPath
 	}

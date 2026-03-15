@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"os"
 	"path/filepath"
 	"testing"
 )
@@ -118,19 +117,15 @@ func TestLintIntegration(t *testing.T) {
 
 	t.Run("missing config exits 2", func(t *testing.T) {
 		emptyDir := t.TempDir()
-		exitCode = 0
-		configPath = ""
 
+		// Point --config at a non-existent file to trigger config error
+		// without relying on os.Chdir (which is process-global and unsafe
+		// with parallel tests).
 		cmd := newRootCmd()
 		cmd.SetOut(&bytes.Buffer{})
 		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs([]string{"lint", "--config", filepath.Join(emptyDir, ".lintrc.json")})
 
-		// We need to chdir for config search. Save and restore.
-		orig, _ := os.Getwd()
-		defer func() { _ = os.Chdir(orig) }()
-		_ = os.Chdir(emptyDir)
-
-		cmd.SetArgs([]string{"lint"})
 		_ = cmd.Execute()
 		if exitCode != ExitUsageError {
 			t.Errorf("expected exit code %d, got %d", ExitUsageError, exitCode)

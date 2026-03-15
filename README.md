@@ -103,24 +103,24 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 
 | Feature | Status | Description |
 |---|---|---|
-| `ralf lint` | Planned | Lint files with configurable rules |
+| `ralf lint` | ✅ Implemented | Lint files with configurable rules |
 | `ralf format` | Planned | Format files |
 | `ralf check` | Planned | Lint + format check (for CI) |
 | `ralf init` | Planned | Generate config, migrate from ESLint/Biome |
 | `ralf lsp` | Planned | Start LSP server |
 | `ralf debug` | Planned | Inspect rules, AST, module graph |
-| Output formats | Planned | Stylish, JSON, SARIF, GitHub Actions annotations |
+| Output formats | ✅ Implemented | Stylish, JSON, compact, GitHub Actions (SARIF planned) |
 
 ### Config
 
 | Feature | Status | Description |
 |---|---|---|
-| JSON config | Planned | `.lintrc.json` |
-| YAML config | Planned | `.lintrc.yaml` |
-| TOML config | Planned | `.lintrc.toml` |
+| JSON config | ✅ Implemented | `.lintrc.json` |
+| YAML config | ✅ Implemented | `.lintrc.yaml` |
+| TOML config | ✅ Implemented | `.lintrc.toml` |
 | JS config | Planned | `.lintrc.js` via goja (eval once) |
 | `extends` | Planned | Inherit from shared config packages |
-| `overrides` | Planned | Glob-scoped rule overrides |
+| `overrides` | ✅ Implemented | Glob-scoped rule overrides |
 | Monorepo workspaces | Planned | Per-workspace config with shared base |
 | ESLint migration | Planned | `ralf init --from-eslint` |
 | Biome migration | Planned | `ralf init --from-biome` |

@@ -22,13 +22,17 @@ var configPath string
 // Execute builds the command tree, runs it, and returns an exit code.
 // It does NOT call os.Exit — the caller is responsible.
 func Execute() int {
+	// Reset global state so Execute is safe to call more than once
+	// (e.g. in tests).
+	exitCode = 0
+	configPath = ""
+
 	root := newRootCmd()
 	if err := root.Execute(); err != nil {
 		// cobra already printed the error; just return code.
 		return ExitUsageError
 	}
 
-	// The lint subcommand sets exitCode via RunE.
 	return exitCode
 }
 

@@ -84,6 +84,9 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 	for _, fe := range result.Errors {
 		_, _ = fmt.Fprintf(w, "Error reading %s: %v\n", fe.File, fe.Err)
 	}
+	if len(result.Errors) > 0 {
+		exitCode = ExitInternal
+	}
 
 	formatter, err := newFormatter(format)
 	if err != nil {
@@ -103,9 +106,10 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 		return nil
 	}
 
-	if maxWarnings >= 0 && countWarnings(result.Diagnostics) > maxWarnings {
+	warnCount := countWarnings(result.Diagnostics)
+	if maxWarnings >= 0 && warnCount > maxWarnings {
 		_, _ = fmt.Fprintf(w, "Too many warnings (%d), max allowed is %d\n",
-			countWarnings(result.Diagnostics), maxWarnings)
+			warnCount, maxWarnings)
 		exitCode = ExitLintErrors
 		return nil
 	}

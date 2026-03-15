@@ -180,6 +180,55 @@ func TestParseContextCancellation(t *testing.T) {
 	}
 }
 
+func TestCollectChildren(t *testing.T) {
+	p := NewParser(LangJS)
+	t.Cleanup(p.Close)
+
+	// "f(1, 2)" has: call_expression -> [identifier, arguments]
+	// arguments -> ["(", number, ",", number, ")"]
+	source := []byte("f(1, 2)")
+	tree, err := p.Parse(context.Background(), source, nil)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	t.Cleanup(tree.Close)
+
+	// Find the arguments node.
+	var argsNode Node
+	Walk(tree, func(node Node, _ int) bool {
+		if node.Kind() == "arguments" {
+			argsNode = node
+			return false
+		}
+		return true
+	})
+	if argsNode.IsNull() {
+		t.Fatal("arguments node not found")
+	}
+
+	children := argsNode.CollectChildren()
+	if len(children) == 0 {
+		t.Fatal("expected non-empty children")
+	}
+
+	// Verify count matches ChildCount().
+	if uint(len(children)) != argsNode.ChildCount() {
+		t.Errorf("CollectChildren returned %d children, ChildCount() = %d",
+			len(children), argsNode.ChildCount())
+	}
+
+	// Verify expected structure: "(", number, ",", number, ")".
+	wantKinds := []string{"(", "number", ",", "number", ")"}
+	if len(children) != len(wantKinds) {
+		t.Fatalf("expected %d children, got %d", len(wantKinds), len(children))
+	}
+	for i, c := range children {
+		if c.Kind() != wantKinds[i] {
+			t.Errorf("child[%d].Kind() = %q, want %q", i, c.Kind(), wantKinds[i])
+		}
+	}
+}
+
 func readTestFile(t *testing.T, name string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "parser", name)) //nolint:gosec // test helper with fixed base path

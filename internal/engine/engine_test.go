@@ -40,7 +40,7 @@ func TestNew(t *testing.T) {
 		}
 	})
 
-	t.Run("skips unsupported matchers", func(t *testing.T) {
+	t.Run("compiles pattern and regex rules", func(t *testing.T) {
 		cfg := &config.Config{
 			Rules: map[string]config.RuleConfig{
 				"no-var":  {Severity: config.SeverityError, Regex: `\bvar\b`, Message: "No var"},
@@ -54,6 +54,9 @@ func TestNew(t *testing.T) {
 		}
 		if len(eng.regexRules) != 1 {
 			t.Fatalf("expected 1 regex rule, got %d", len(eng.regexRules))
+		}
+		if len(eng.patternRules) != 1 {
+			t.Fatalf("expected 1 pattern rule, got %d", len(eng.patternRules))
 		}
 	})
 }
@@ -208,6 +211,172 @@ func TestLint(t *testing.T) {
 		// Either errors or no output is acceptable.
 		_ = result
 	})
+}
+
+func TestLintFile_PatternRules(t *testing.T) {
+	t.Run("basic pattern match", func(t *testing.T) {
+		cfg := &config.Config{
+			Rules: map[string]config.RuleConfig{
+				"no-console": {
+					Severity: config.SeverityError,
+					Pattern:  "console.log($$$ARGS)",
+					Message:  "No console.log",
+				},
+			},
+		}
+		eng, errs := New(cfg)
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errors: %v", errs)
+		}
+
+		source := []byte("console.log(\"debug\");\nconst x = 1;")
+		diags := eng.LintFile(context.Background(), "test.js", source)
+		if len(diags) != 1 {
+			t.Fatalf("expected 1 diagnostic, got %d", len(diags))
+		}
+		if diags[0].Rule != "no-console" {
+			t.Errorf("rule = %q, want %q", diags[0].Rule, "no-console")
+		}
+		if diags[0].File != "test.js" {
+			t.Errorf("file = %q, want %q", diags[0].File, "test.js")
+		}
+	})
+
+	t.Run("no match", func(t *testing.T) {
+		cfg := &config.Config{
+			Rules: map[string]config.RuleConfig{
+				"no-console": {
+					Severity: config.SeverityError,
+					Pattern:  "console.log($$$ARGS)",
+					Message:  "No console.log",
+				},
+			},
+		}
+		eng, _ := New(cfg)
+
+		source := []byte("console.warn(\"ok\");\nconst x = 1;")
+		diags := eng.LintFile(context.Background(), "test.js", source)
+		if len(diags) != 0 {
+			t.Fatalf("expected 0 diagnostics, got %d", len(diags))
+		}
+	})
+
+	t.Run("override disables pattern rule", func(t *testing.T) {
+		cfg := &config.Config{
+			Rules: map[string]config.RuleConfig{
+				"no-console": {
+					Severity: config.SeverityError,
+					Pattern:  "console.log($$$ARGS)",
+					Message:  "No console.log",
+				},
+			},
+			Overrides: []config.Override{
+				{
+					Files: []string{"*.test.js"},
+					Rules: map[string]config.RuleConfig{
+						"no-console": {Severity: config.SeverityOff, Pattern: "console.log($$$ARGS)"},
+					},
+				},
+			},
+		}
+		eng, _ := New(cfg)
+
+		source := []byte("console.log(\"debug\");")
+		diags := eng.LintFile(context.Background(), "foo.test.js", source)
+		if len(diags) != 0 {
+			t.Fatalf("expected 0 diagnostics (disabled by override), got %d", len(diags))
+		}
+	})
+
+	t.Run("where predicate filters pattern rule", func(t *testing.T) {
+		cfg := &config.Config{
+			Rules: map[string]config.RuleConfig{
+				"no-console": {
+					Severity: config.SeverityError,
+					Pattern:  "console.log($$$ARGS)",
+					Message:  "No console.log",
+					Where:    &config.WherePredicate{File: "src/**/*.js"},
+				},
+			},
+		}
+		eng, _ := New(cfg)
+
+		source := []byte("console.log(\"debug\");")
+
+		// File matches where predicate.
+		diags := eng.LintFile(context.Background(), "src/index.js", source)
+		if len(diags) != 1 {
+			t.Fatalf("expected 1 diagnostic for matching path, got %d", len(diags))
+		}
+
+		// File does not match where predicate.
+		diags = eng.LintFile(context.Background(), "test/index.js", source)
+		if len(diags) != 0 {
+			t.Fatalf("expected 0 diagnostics for non-matching path, got %d", len(diags))
+		}
+	})
+
+	t.Run("non-JS file extension skips pattern rules", func(t *testing.T) {
+		cfg := &config.Config{
+			Rules: map[string]config.RuleConfig{
+				"no-console": {
+					Severity: config.SeverityError,
+					Pattern:  "console.log($$$ARGS)",
+					Message:  "No console.log",
+				},
+			},
+		}
+		eng, _ := New(cfg)
+
+		source := []byte("console.log(\"debug\");")
+		diags := eng.LintFile(context.Background(), "test.py", source)
+		if len(diags) != 0 {
+			t.Fatalf("expected 0 diagnostics for .py file, got %d", len(diags))
+		}
+	})
+}
+
+func TestLint_MixedRules(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "test.js"), "var x = 1;\nconsole.log(x);")
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleConfig{
+			"no-var": {
+				Severity: config.SeverityError,
+				Regex:    `\bvar\b`,
+				Message:  "No var",
+			},
+			"no-console": {
+				Severity: config.SeverityWarn,
+				Pattern:  "console.log($$$ARGS)",
+				Message:  "No console.log",
+			},
+		},
+	}
+	eng, errs := New(cfg)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+
+	result := eng.Lint(context.Background(), []string{filepath.Join(dir, "test.js")}, 1)
+	if len(result.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+	if len(result.Diagnostics) != 2 {
+		t.Fatalf("expected 2 diagnostics (1 regex + 1 pattern), got %d", len(result.Diagnostics))
+	}
+
+	rules := map[string]bool{}
+	for _, d := range result.Diagnostics {
+		rules[d.Rule] = true
+	}
+	if !rules["no-var"] {
+		t.Error("missing diagnostic for no-var (regex)")
+	}
+	if !rules["no-console"] {
+		t.Error("missing diagnostic for no-console (pattern)")
+	}
 }
 
 func writeFile(t *testing.T, path, content string) {

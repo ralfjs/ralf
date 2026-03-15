@@ -7,7 +7,7 @@ Lint pipeline: config → compile rules → discover files → parallel lint →
 ```
 Config
   ↓
-engine.New()          compile regex rules, skip unsupported matchers
+engine.New()          compile regex + pattern rules, skip unsupported matchers
   ↓
 Engine.Lint()         partition files into worker batches, fan out via errgroup
   ├─ Worker goroutine    processes batch of files sequentially, no mutex
@@ -18,6 +18,7 @@ Engine.Lint()         partition files into worker batches, fan out via errgroup
   │       ├─ matchesWhere()     evaluate Where predicate (doublestar globs)
   │       ├─ buildLineIndex()   SIMD-accelerated newline scan (bytes.IndexByte)
   │       ├─ matchRegex()       rure.IterBytes + dedup + max cap
+  │       ├─ matchPatterns()   AST pattern matching (single tree walk, all rules)
   │       └─ slices.SortFunc()  sort diagnostics within file by line/col/rule
   └─ ... (parallel workers)
   ↓
@@ -35,9 +36,10 @@ Result                sorted diagnostics + file errors
 | `diagnostic.go` | `Diagnostic`, `FileError`, `Result` types |
 | `lineindex.go` | `buildLineIndex` (O(n) scan), `offsetToLineCol` (O(log n) binary search) |
 | `regex.go` | `compiledRegex` type, `compileRegexRules`, `matchRegex` (rure-go) |
+| `ast_pattern.go` | `compiledPattern` type, `compilePatternRules`, `matchPatterns` (tree-sitter AST) |
 | `semaphore.go` | CGo concurrency limiter (`acquireCGo`/`releaseCGo`) |
 | `where.go` | `matchesWhere` — evaluates `config.WherePredicate` against file paths |
-| `engine.go` | `Engine` orchestrator: `New`, `LintFile`, `Lint`, `sortDiagChunksByFile` |
+| `engine.go` | `Engine` orchestrator: `New`, `LintFile`, `Lint`, `resolveRule`, `sortDiagChunksByFile` |
 
 ## Diagnostic Conventions
 
@@ -145,10 +147,21 @@ Evaluated per rule per file in `LintFile`. Rules whose predicate doesn't match a
 - `Not: { File: "test/**" }` → inverts inner predicate
 - `ImportCrosses` → not yet implemented, matches all (doesn't block linting)
 
+## AST Pattern Matcher
+
+Uses **tree-sitter** to parse pattern strings as JavaScript and build a `patternNode` tree. Metavariables (`$NAME` for single-node wildcard, `$$$NAME` or bare `$$$` for variadic zero-or-more) are detected via `strings.HasPrefix` on identifier nodes.
+
+- `compilePatternRules`: filters `Pattern != ""` and `Severity != Off`, parses each pattern as JS via tree-sitter, builds `patternNode` tree, collects all errors (no fail-fast)
+- `matchPatterns`: **single tree walk** over the target file — at each node, tries all active pattern rules. Dedup by (line, rule). Skips ERROR nodes. O(nodes × rules) with one walk instead of O(rules) walks.
+- `matchNode`: structural comparison — kind match for literals, exact text for leaves, recursive child matching
+- `matchChildrenRec`: recursive backtracking for variadic support — tries consuming max→0 target children
+- Trailing anonymous nodes (`;`) in target are stripped when pattern omits them
+- Parser created per-file inside `LintFile` (tree-sitter `Parser` is NOT thread-safe). Parser creation is cheap. CGo semaphore already held by `LintFile`.
+- Non-JS/TS files: `LangFromPath` guard skips pattern rules gracefully
+
 ## Future Matchers
 
 Planned but not implemented in this sprint:
-- **Pattern**: AST pattern matching (`console.log($$$)`) — month 3
 - **AST**: structural queries (`kind: "function_declaration"`) — month 3
 - **Imports**: import ordering rules — month 4
 - **Naming**: naming convention enforcement — month 4

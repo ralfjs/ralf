@@ -80,7 +80,7 @@ func (e *Engine) LintFile(_ context.Context, filePath string, source []byte) []D
 	return diags
 }
 
-func compareDiagsWithinFile(a, b Diagnostic) int {
+func compareDiagsWithinFile(a, b Diagnostic) int { //nolint:gocritic // slices.SortFunc requires value receiver signature
 	if c := cmp.Compare(a.Line, b.Line); c != 0 {
 		return c
 	}

@@ -23,7 +23,8 @@ func compileRegexRules(rules map[string]config.RuleConfig) ([]compiledRegex, []e
 	var compiled []compiledRegex
 	var errs []error
 
-	for name, rule := range rules {
+	for name := range rules {
+		rule := rules[name]
 		if rule.Regex == "" || rule.Severity == config.SeverityOff {
 			continue
 		}

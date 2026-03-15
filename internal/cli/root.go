@@ -4,6 +4,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/Hideart/ralf/internal/version"
 	"github.com/spf13/cobra"
@@ -26,6 +27,7 @@ func Execute() int {
 	// (e.g. in tests).
 	exitCode = 0
 	configPath = ""
+	cachedCwd, _ = filepath.Abs(".")
 
 	root := newRootCmd()
 	if err := root.Execute(); err != nil {

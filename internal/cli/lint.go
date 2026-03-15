@@ -101,12 +101,13 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 		return nil
 	}
 
-	if hasErrors(result.Diagnostics) {
+	errCount, warnCount := countBySeverity(result.Diagnostics)
+
+	if errCount > 0 {
 		exitCode = ExitLintErrors
 		return nil
 	}
 
-	warnCount := countWarnings(result.Diagnostics)
 	if maxWarnings >= 0 && warnCount > maxWarnings {
 		_, _ = fmt.Fprintf(w, "Too many warnings (%d), max allowed is %d\n",
 			warnCount, maxWarnings)
@@ -128,21 +129,16 @@ func loadConfig() (*config.Config, error) {
 	return config.Load(cwd)
 }
 
-func hasErrors(diags []engine.Diagnostic) bool {
+// countBySeverity returns the number of error and warning diagnostics in a
+// single pass.
+func countBySeverity(diags []engine.Diagnostic) (errors, warnings int) {
 	for _, d := range diags {
-		if d.Severity == config.SeverityError {
-			return true
+		switch d.Severity {
+		case config.SeverityError:
+			errors++
+		case config.SeverityWarn:
+			warnings++
 		}
 	}
-	return false
-}
-
-func countWarnings(diags []engine.Diagnostic) int {
-	n := 0
-	for _, d := range diags {
-		if d.Severity == config.SeverityWarn {
-			n++
-		}
-	}
-	return n
+	return errors, warnings
 }

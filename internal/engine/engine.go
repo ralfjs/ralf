@@ -51,8 +51,9 @@ func (e *Engine) LintFile(_ context.Context, filePath string, source []byte) []D
 			continue
 		}
 
-		// Evaluate Where predicate.
-		if !matchesWhere(cr.where, filePath) {
+		// Evaluate Where predicate from the effective (possibly overridden) rule,
+		// not from the compiled rule which holds the base config's predicate.
+		if !matchesWhere(rule.Where, filePath) {
 			continue
 		}
 

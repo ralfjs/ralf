@@ -63,9 +63,10 @@ func (stylishFormat) Format(w io.Writer, diagnostics []engine.Diagnostic) error 
 			return err
 		}
 
-		if d.Severity == config.SeverityError {
+		switch d.Severity {
+		case config.SeverityError:
 			errors++
-		} else {
+		case config.SeverityWarn:
 			warnings++
 		}
 	}

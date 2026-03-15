@@ -13,7 +13,6 @@ type compiledRegex struct {
 	re       *regexp.Regexp
 	message  string
 	severity config.Severity
-	where    *config.WherePredicate
 }
 
 // compileRegexRules extracts rules with Regex != "" and Severity != Off,
@@ -40,7 +39,6 @@ func compileRegexRules(rules map[string]config.RuleConfig) ([]compiledRegex, []e
 			re:       re,
 			message:  rule.Message,
 			severity: rule.Severity,
-			where:    rule.Where,
 		})
 	}
 

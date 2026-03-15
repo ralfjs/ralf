@@ -93,6 +93,9 @@ func compareDiagsWithinFile(a, b Diagnostic) int { //nolint:gocritic // slices.S
 // Lint processes multiple files in parallel and returns aggregated results.
 // threads controls concurrency; 0 means runtime.NumCPU().
 func (e *Engine) Lint(ctx context.Context, files []string, threads int) *Result {
+	if len(files) == 0 {
+		return &Result{}
+	}
 	if threads <= 0 {
 		threads = runtime.NumCPU()
 	}

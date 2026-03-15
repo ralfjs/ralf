@@ -19,6 +19,9 @@ func BenchmarkMatchRegex(b *testing.B) {
 	compiled, _ := compileRegexRules(rules)
 	lineStarts := buildLineIndex(source)
 
+	acquireCGo()
+	defer releaseCGo()
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		matchRegex(compiled[0], source, lineStarts, 0)

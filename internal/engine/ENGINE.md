@@ -64,6 +64,8 @@ Uses **rure-go** (Rust regex engine via CGo) for pattern matching. Requires `lib
 
 Rust regex syntax is largely compatible with Go's RE2. Both use the same RE2 semantics (no lookaheads/lookbehinds). Key advantage is performance: rure-go's DFA engine with C-side iteration is ~15x faster than Go stdlib on large inputs.
 
+**Known syntax difference:** `\b` in Rust regex is Unicode-aware by default (matches at boundaries between Unicode word characters and non-word characters), while Go's `regexp` treats `\b` as ASCII-only. This means patterns like `\bcafé\b` work correctly in rure-go but may not match as expected in Go stdlib. Rule authors can rely on full Unicode `\b` behavior.
+
 ## CGo Semaphore
 
 `semaphore.go` bounds concurrent CGo calls to `runtime.NumCPU()` via a buffered channel. CGo pins goroutines to OS threads — unbounded concurrent CGo calls cause unbounded OS thread creation and resource exhaustion. The semaphore is acquired once per file in `LintFile` (covers all regex rule calls for that file) and released on return.

@@ -73,6 +73,10 @@ func TestCompileRegexRules(t *testing.T) {
 }
 
 func TestMatchRegex(t *testing.T) {
+	// matchRegex requires the CGo semaphore to be held by the caller.
+	acquireCGo()
+	defer releaseCGo()
+
 	t.Run("single match", func(t *testing.T) {
 		rules := map[string]config.RuleConfig{
 			"no-var": {Severity: config.SeverityError, Regex: `\bvar\b`, Message: "No var"},

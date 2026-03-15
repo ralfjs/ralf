@@ -5,9 +5,13 @@ VENDOR_DIR="$(cd "$(dirname "$0")/.." && pwd)/vendor"
 REGEX_SRC="$VENDOR_DIR/regex-src"
 LIBRURE_DIR="$VENDOR_DIR/librure"
 
+# Pin to a specific tag for reproducible builds.
+# Update this when upgrading the Rust regex engine.
+REGEX_VERSION="regex-syntax-0.8.10"
+
 if [ ! -d "$REGEX_SRC" ]; then
-  echo "Cloning rust-lang/regex (shallow)..."
-  git clone --depth 1 https://github.com/rust-lang/regex.git "$REGEX_SRC"
+  echo "Cloning rust-lang/regex at $REGEX_VERSION..."
+  git clone --branch "$REGEX_VERSION" --depth 1 https://github.com/rust-lang/regex.git "$REGEX_SRC"
 fi
 
 echo "Building librure..."

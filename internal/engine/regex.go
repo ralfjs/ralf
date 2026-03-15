@@ -63,7 +63,7 @@ func matchRegex(cr compiledRegex, source []byte, lineStarts []int, maxMatches in
 	diags := make([]Diagnostic, 0, len(lineStarts)/4)
 	count := 0
 
-	for it.Next(nil) && count < maxMatches {
+	for count < maxMatches && it.Next(nil) {
 		start, end := it.Match()
 		startLine, startCol := offsetToLineCol(lineStarts, start)
 

@@ -191,8 +191,15 @@ func matchPatterns(ctx context.Context, patterns []compiledPattern, tree *parser
 	counts := make(map[string]int, len(patterns))
 	var diags []Diagnostic
 
+	// Walk returns false to skip children but does NOT abort traversal.
+	// Use a stopped flag to short-circuit the callback on cancellation.
+	stopped := false
 	parser.Walk(tree, func(node parser.Node, _ int) bool {
+		if stopped {
+			return false
+		}
 		if ctx.Err() != nil {
+			stopped = true
 			return false
 		}
 

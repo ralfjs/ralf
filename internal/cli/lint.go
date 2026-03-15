@@ -35,6 +35,15 @@ func lintCmd() *cobra.Command {
 func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarnings int) error {
 	w := cmd.ErrOrStderr()
 
+	// Validate format early so the user gets fast feedback on typos
+	// before waiting for config loading and linting.
+	formatter, err := newFormatter(format)
+	if err != nil {
+		_, _ = fmt.Fprintln(w, "Error:", err)
+		exitCode = ExitUsageError
+		return nil
+	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		_, _ = fmt.Fprintln(w, "Error:", err)
@@ -86,13 +95,6 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 	}
 	if len(result.Errors) > 0 {
 		exitCode = ExitInternal
-	}
-
-	formatter, err := newFormatter(format)
-	if err != nil {
-		_, _ = fmt.Fprintln(w, "Error:", err)
-		exitCode = ExitUsageError
-		return nil
 	}
 
 	if err := formatter.Format(cmd.OutOrStdout(), result.Diagnostics); err != nil {

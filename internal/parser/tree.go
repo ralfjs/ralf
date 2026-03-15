@@ -124,3 +124,13 @@ func (n Node) IsNamed() bool {
 func (n Node) HasError() bool {
 	return n.inner.HasError()
 }
+
+// CollectChildren returns all children (named + anonymous) as a slice.
+func (n Node) CollectChildren() []Node {
+	count := n.ChildCount()
+	children := make([]Node, count)
+	for i := range count {
+		children[i] = n.Child(i)
+	}
+	return children
+}

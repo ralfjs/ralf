@@ -41,8 +41,8 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 
 | Feature | Status | Description |
 |---|---|---|
-| Regex rules (rure-go) | Planned | Pattern-based lint rules via Rust regex engine |
-| AST pattern matching | Planned | ast-grep-style `$VAR` / `$$$ARGS` syntax |
+| Regex rules (rure-go) | ✅ Implemented | Pattern-based lint rules via Rust regex engine |
+| AST pattern matching | ✅ Implemented | ast-grep-style `$VAR` / `$$$ARGS` syntax |
 | Structural queries | Planned | `ast: { kind, parent, ancestor, capture }` |
 | Naming conventions | Planned | `naming: { match }` on AST captures |
 | Import ordering | Planned | `imports: { groups, alphabetize }` |
@@ -54,8 +54,8 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 
 | Feature | Status | Description |
 |---|---|---|
-| Regex rules in config | Planned | `regex: "pattern"` — compiled to rure-go |
-| AST patterns in config | Planned | `pattern: "console.log($$$)"` — native matching |
+| Regex rules in config | ✅ Implemented | `regex: "pattern"` — compiled to rure-go |
+| AST patterns in config | ✅ Implemented | `pattern: "console.log($$$)"` — native matching |
 | Structural queries in config | Planned | `ast: { kind, ancestor, enclosingFunction }` |
 | Capture + assertions | Planned | `capture: { name: "$X" }`, `assert: { "$X": ... }` |
 | Cross-file rules | Planned | `scope: "cross-file"` — module graph queries |

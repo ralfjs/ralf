@@ -659,7 +659,7 @@ internal/
     semaphore.go             # CGo concurrency limiter (NumCPU bound)
     where.go                 # matchesWhere — Where predicate evaluation (doublestar globs)
     engine.go                # Engine orchestrator: New, LintFile, Lint (parallel via errgroup)
-    ast_pattern.go           # (planned) AST pattern matching ("console.log($$$)")
+    ast_pattern.go           # AST pattern matching ("console.log($$$)" syntax)
     structural.go            # (planned) structural AST queries
     naming.go                # (planned) naming convention checker
     imports.go               # (planned) import ordering / grouping

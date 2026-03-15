@@ -180,6 +180,66 @@ func TestParseContextCancellation(t *testing.T) {
 	}
 }
 
+func TestCollectChildren(t *testing.T) {
+	p := NewParser(LangJS)
+	t.Cleanup(p.Close)
+
+	// "f(1, 2)" has: call_expression -> [identifier, arguments]
+	// arguments -> ["(", number, ",", number, ")"]
+	source := []byte("f(1, 2)")
+	tree, err := p.Parse(context.Background(), source, nil)
+	if err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	t.Cleanup(tree.Close)
+
+	// Find the arguments node.
+	var argsNode Node
+	Walk(tree, func(node Node, _ int) bool {
+		if node.Kind() == "arguments" {
+			argsNode = node
+			return false
+		}
+		return true
+	})
+	if argsNode.IsNull() {
+		t.Fatal("arguments node not found")
+	}
+
+	children := argsNode.CollectChildren()
+	if len(children) == 0 {
+		t.Fatal("expected non-empty children")
+	}
+
+	// Should include both named (number) and anonymous ("(", ",", ")") children.
+	kinds := make([]string, len(children))
+	for i, c := range children {
+		kinds[i] = c.Kind()
+	}
+
+	// Verify expected structure: "(", number, ",", number, ")"
+	if uint(len(children)) != argsNode.ChildCount() {
+		t.Errorf("CollectChildren returned %d children, ChildCount() = %d",
+			len(children), argsNode.ChildCount())
+	}
+
+	hasNamed := false
+	hasAnonymous := false
+	for _, c := range children {
+		if c.IsNamed() {
+			hasNamed = true
+		} else {
+			hasAnonymous = true
+		}
+	}
+	if !hasNamed {
+		t.Error("expected at least one named child")
+	}
+	if !hasAnonymous {
+		t.Error("expected at least one anonymous child")
+	}
+}
+
 func readTestFile(t *testing.T, name string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "parser", name)) //nolint:gosec // test helper with fixed base path

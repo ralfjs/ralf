@@ -19,7 +19,7 @@ func TestLintIntegration(t *testing.T) {
     }
   }
 }`
-	writeTestFile(t, filepath.Join(dir, ".lintrc.json"), configJSON)
+	writeTestFile(t, filepath.Join(dir, ".ralfrc.json"), configJSON)
 	writeTestFile(t, filepath.Join(dir, "bad.js"), "var x = 1;\nlet y = 2;")
 	writeTestFile(t, filepath.Join(dir, "clean.js"), "let a = 1;\nconst b = 2;")
 
@@ -32,7 +32,7 @@ func TestLintIntegration(t *testing.T) {
 		cmd := newRootCmd()
 		cmd.SetOut(&stdout)
 		cmd.SetErr(&stderr)
-		cmd.SetArgs([]string{"lint", "--config", filepath.Join(dir, ".lintrc.json"), dir})
+		cmd.SetArgs([]string{"lint", "--config", filepath.Join(dir, ".ralfrc.json"), dir})
 
 		if err := cmd.Execute(); err != nil {
 			t.Fatalf("unexpected cobra error: %v", err)
@@ -47,7 +47,7 @@ func TestLintIntegration(t *testing.T) {
 
 	t.Run("clean project exits 0", func(t *testing.T) {
 		cleanDir := t.TempDir()
-		writeTestFile(t, filepath.Join(cleanDir, ".lintrc.json"), configJSON)
+		writeTestFile(t, filepath.Join(cleanDir, ".ralfrc.json"), configJSON)
 		writeTestFile(t, filepath.Join(cleanDir, "clean.js"), "let a = 1;")
 
 		exitCode = 0
@@ -57,7 +57,7 @@ func TestLintIntegration(t *testing.T) {
 		cmd := newRootCmd()
 		cmd.SetOut(&stdout)
 		cmd.SetErr(&stderr)
-		cmd.SetArgs([]string{"lint", "--config", filepath.Join(cleanDir, ".lintrc.json"), cleanDir})
+		cmd.SetArgs([]string{"lint", "--config", filepath.Join(cleanDir, ".ralfrc.json"), cleanDir})
 
 		if err := cmd.Execute(); err != nil {
 			t.Fatalf("unexpected cobra error: %v", err)
@@ -76,7 +76,7 @@ func TestLintIntegration(t *testing.T) {
 		cmd := newRootCmd()
 		cmd.SetOut(&stdout)
 		cmd.SetErr(&bytes.Buffer{})
-		cmd.SetArgs([]string{"lint", "--format", "json", "--config", filepath.Join(dir, ".lintrc.json"), dir})
+		cmd.SetArgs([]string{"lint", "--format", "json", "--config", filepath.Join(dir, ".ralfrc.json"), dir})
 
 		if err := cmd.Execute(); err != nil {
 			t.Fatalf("unexpected cobra error: %v", err)
@@ -97,7 +97,7 @@ func TestLintIntegration(t *testing.T) {
     }
   }
 }`
-		writeTestFile(t, filepath.Join(warnDir, ".lintrc.json"), warnConfig)
+		writeTestFile(t, filepath.Join(warnDir, ".ralfrc.json"), warnConfig)
 		writeTestFile(t, filepath.Join(warnDir, "a.js"), "var x;\nvar y;")
 
 		exitCode = 0
@@ -107,7 +107,7 @@ func TestLintIntegration(t *testing.T) {
 		cmd := newRootCmd()
 		cmd.SetOut(&stdout)
 		cmd.SetErr(&stderr)
-		cmd.SetArgs([]string{"lint", "--max-warnings", "0", "--config", filepath.Join(warnDir, ".lintrc.json"), warnDir})
+		cmd.SetArgs([]string{"lint", "--max-warnings", "0", "--config", filepath.Join(warnDir, ".ralfrc.json"), warnDir})
 
 		_ = cmd.Execute()
 		if exitCode != ExitLintErrors {
@@ -124,7 +124,7 @@ func TestLintIntegration(t *testing.T) {
 		cmd := newRootCmd()
 		cmd.SetOut(&bytes.Buffer{})
 		cmd.SetErr(&bytes.Buffer{})
-		cmd.SetArgs([]string{"lint", "--config", filepath.Join(emptyDir, ".lintrc.json")})
+		cmd.SetArgs([]string{"lint", "--config", filepath.Join(emptyDir, ".ralfrc.json")})
 
 		_ = cmd.Execute()
 		if exitCode != ExitUsageError {

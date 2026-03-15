@@ -69,14 +69,14 @@ func TestLoadFileDoesNotValidateSemantics(t *testing.T) {
 func TestLoadSearchPriority(t *testing.T) {
 	dir := t.TempDir()
 
-	// Create both .lintrc.yaml and .lintrc.json — JSON has higher priority
+	// Create both .ralfrc.yaml and .ralfrc.json — JSON has higher priority
 	yamlContent := []byte("rules:\n  yaml-rule:\n    regex: y\n    severity: warn\n")
 	jsonContent := []byte(`{"rules":{"json-rule":{"regex":"j","severity":"error"}}}`)
 
-	if err := os.WriteFile(filepath.Join(dir, ".lintrc.yaml"), yamlContent, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".ralfrc.yaml"), yamlContent, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, ".lintrc.json"), jsonContent, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".ralfrc.json"), jsonContent, 0o600); err != nil {
 		t.Fatal(err)
 	}
 

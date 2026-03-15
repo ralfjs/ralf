@@ -141,6 +141,27 @@ make coverage      # with coverage report
 make bench         # benchmarks for engine
 ```
 
+### Benchmarking
+
+The engine has two benchmarks in `internal/engine/regex_bench_test.go`:
+
+- `BenchmarkMatchRegex` — single rule, 30K lines, no I/O (isolates regex engine)
+- `BenchmarkLintE2E` — 100 files × 300 lines × 5 rules, full pipeline (disk I/O, concurrency, sorting)
+
+```bash
+make bench                                          # quick run
+go test -bench=. -benchmem -count=5 ./internal/engine/  # stable comparison
+```
+
+For performance work, always use `-count=5` or more. Single runs have high variance. Profile before optimizing:
+
+```bash
+go test -bench=BenchmarkLintE2E -cpuprofile=cpu.prof ./internal/engine/
+go tool pprof -top cpu.prof
+```
+
+See [ENGINE.md — Benchmarking](internal/engine/ENGINE.md#benchmarking) for detailed guidance on interpreting results.
+
 ### Adding a lint rule
 
 1. Add rule definition in `internal/engine/`

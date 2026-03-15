@@ -13,10 +13,10 @@ import (
 
 // searchNames lists config file names in priority order.
 var searchNames = []string{
-	".lintrc.json",
-	".lintrc.yaml",
-	".lintrc.yml",
-	".lintrc.toml",
+	".ralfrc.json",
+	".ralfrc.yaml",
+	".ralfrc.yml",
+	".ralfrc.toml",
 }
 
 // Load searches dir for a config file and loads the first one found.

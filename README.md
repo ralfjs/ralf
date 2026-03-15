@@ -115,10 +115,10 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 
 | Feature | Status | Description |
 |---|---|---|
-| JSON config | ✅ Implemented | `.lintrc.json` |
-| YAML config | ✅ Implemented | `.lintrc.yaml` |
-| TOML config | ✅ Implemented | `.lintrc.toml` |
-| JS config | Planned | `.lintrc.js` via goja (eval once) |
+| JSON config | ✅ Implemented | `.ralfrc.json` |
+| YAML config | ✅ Implemented | `.ralfrc.yaml` |
+| TOML config | ✅ Implemented | `.ralfrc.toml` |
+| JS config | Planned | `.ralfrc.js` via goja (eval once) |
 | `extends` | Planned | Inherit from shared config packages |
 | `overrides` | ✅ Implemented | Glob-scoped rule overrides |
 | Monorepo workspaces | Planned | Per-workspace config with shared base |
@@ -162,7 +162,7 @@ docs/                   # Architecture & design docs
 | Formatter | dprint WASM (Phase 3), native printer (later) | Prettier-compatible without writing a printer |
 | Cache | SQLite (modernc.org/sqlite, pure Go) | Concurrent reads, single file, indexed |
 | WASM runtime | Wazero (pure Go) | Plugins + dprint, no CGo dependency |
-| Config eval | goja (pure Go) | Evaluate .lintrc.js once at startup |
+| Config eval | goja (pure Go) | Evaluate .ralfrc.js once at startup |
 | File watching | fsnotify | Cross-platform, standard Go library |
 | Hashing | xxhash | Fast content-based cache invalidation |
 

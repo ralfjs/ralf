@@ -6,7 +6,9 @@ import "sort"
 // byte offsets where each line starts. The first entry is always 0 (line 1
 // starts at byte 0).
 func buildLineIndex(source []byte) []int {
-	starts := []int{0}
+	// Estimate ~60 bytes per line to pre-allocate.
+	starts := make([]int, 1, len(source)/60+1)
+	starts[0] = 0
 	for i, b := range source {
 		if b == '\n' {
 			starts = append(starts, i+1)

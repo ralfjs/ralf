@@ -1,11 +1,11 @@
 # internal/config — Configuration Loader
 
-Loads, validates, and resolves linter configuration from `.lintrc.{json,yaml,yml,toml}` files.
+Loads, validates, and resolves linter configuration from `.ralfrc.{json,yaml,yml,toml}` files.
 
 ## Architecture
 
 ```
-  .lintrc.yaml (or .json / .toml)
+  .ralfrc.yaml (or .json / .toml)
          │
          ▼
   ┌──────────────┐
@@ -41,10 +41,10 @@ Loads, validates, and resolves linter configuration from `.lintrc.{json,yaml,yml
 
 `Load(dir)` searches for config files in this priority order:
 
-1. `.lintrc.json`
-2. `.lintrc.yaml`
-3. `.lintrc.yml`
-4. `.lintrc.toml`
+1. `.ralfrc.json`
+2. `.ralfrc.yaml`
+3. `.ralfrc.yml`
+4. `.ralfrc.toml`
 
 First match wins. Non-existence errors are skipped; other `os.Stat` errors (permission denied, etc.) are surfaced immediately.
 
@@ -105,8 +105,8 @@ These are tracked as GitHub issues for future sprints:
 
 - **No `**` globstar** (#4) — `filepath.Match` only supports `*` (single level). Override patterns like `**/*.test.*` won't match. Will switch to `doublestar` when the engine integrates config.
 - **No field-level override merge** (#3) — overrides replace the entire `RuleConfig`. An override that only changes severity must also restate the matcher. Will add field-level merging when the engine consumes overrides.
-- **No JSONC support** (#5) — JSON config files don't support comments. Use YAML if comments are needed. JSONC support will come with `.lintrc.js` loader (week 17).
-- **No `.lintrc.js` support** — JS config via `goja` is planned for week 17.
+- **No JSONC support** (#5) — JSON config files don't support comments. Use YAML if comments are needed. JSONC support will come with `.ralfrc.js` loader (week 17).
+- **No `.ralfrc.js` support** — JS config via `goja` is planned for week 17.
 - **No `extends` resolution** — the `Extends` field is deserialized but not resolved. Will be implemented with the config compiler.
 
 ## Dependencies

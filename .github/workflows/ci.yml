@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main, develop]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOFLAGS: -mod=mod
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -14,6 +21,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build librure
+        run: ./scripts/build-librure.sh
       - uses: golangci/golangci-lint-action@v7
         with:
           version: v2.11.3
@@ -27,9 +37,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build librure
+        run: ./scripts/build-librure.sh
       - name: Run tests with coverage
-        run: |
-          CGO_ENABLED=1 go test -race -count=1 -coverprofile=coverage.out ./...
+        run: make coverage
       - name: Check overall coverage threshold
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
@@ -90,5 +102,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build librure
+        run: ./scripts/build-librure.sh
       - name: Build
-        run: CGO_ENABLED=1 go build -o ralf ./cmd/ralf
+        run: make build

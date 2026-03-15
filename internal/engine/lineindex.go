@@ -9,8 +9,8 @@ import (
 // byte offsets where each line starts. The first entry is always 0 (line 1
 // starts at byte 0).
 //
-// Uses bytes.IndexByte which leverages SIMD assembly (AVX2 on amd64, NEON on
-// arm64) to scan 16-32 bytes per cycle instead of byte-by-byte iteration.
+// Uses bytes.IndexByte which leverages platform-optimized assembly (SIMD on
+// supported architectures) to scan multiple bytes per cycle.
 func buildLineIndex(source []byte) []int {
 	// Estimate ~60 bytes per line to pre-allocate.
 	starts := make([]int, 1, len(source)/60+1)

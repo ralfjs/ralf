@@ -78,7 +78,7 @@ E2E benchmark (100 files × 300 lines × 5 rules, Apple M4 Pro): **~27ms, 6.7K a
 
 ### Current Optimizations
 
-- **SIMD newline scanning** — `buildLineIndex` uses `bytes.IndexByte` loop (AVX2/NEON assembly), scanning 16-32 bytes per cycle
+- **SIMD newline scanning** — `buildLineIndex` uses `bytes.IndexByte` loop (platform-optimized assembly, SIMD on supported architectures)
 
 ### Future Optimizations
 

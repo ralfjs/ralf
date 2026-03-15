@@ -37,7 +37,6 @@ Result                sorted diagnostics + file errors
 | `regex.go` | `compiledRegex` type, `compileRegexRules`, `matchRegex` (rure-go) |
 | `semaphore.go` | CGo concurrency limiter (`acquireCGo`/`releaseCGo`) |
 | `where.go` | `matchesWhere` — evaluates `config.WherePredicate` against file paths |
-
 | `engine.go` | `Engine` orchestrator: `New`, `LintFile`, `Lint`, `sortDiagChunksByFile` |
 
 ## Diagnostic Conventions
@@ -53,7 +52,7 @@ Matches tree-sitter's coordinate system for consistency when AST-based rules are
 
 Standard approach from `go/token`: scan source once for `\n` positions, store `[]int` of line-start byte offsets. First entry is always 0. Pre-allocated based on estimated ~60 bytes/line. Binary search via `sort.SearchInts` per offset lookup.
 
-Uses `bytes.IndexByte` loop instead of byte-by-byte `range` iteration. Go's `bytes.IndexByte` uses SIMD assembly (AVX2 on amd64, NEON on arm64) — processes 16-32 bytes per cycle.
+Uses `bytes.IndexByte` loop instead of byte-by-byte `range` iteration. Go's `bytes.IndexByte` uses platform-optimized assembly (SIMD on supported architectures) to scan multiple bytes per cycle.
 
 Handles `\r\n` (CRLF) — `\n` positions are tracked, `\r` is an extra byte in the column offset.
 
@@ -95,7 +94,7 @@ This turns an O(N·log N) sort of 150K+ diagnostics into many O(K·log K) sorts 
 
 Current optimizations (all allocation/scheduling, no logic changes):
 
-- **SIMD newline scanning**: `buildLineIndex` uses `bytes.IndexByte` loop — Go's implementation uses AVX2/NEON assembly to scan 16-32 bytes per cycle instead of byte-by-byte iteration.
+- **SIMD newline scanning**: `buildLineIndex` uses `bytes.IndexByte` loop — Go's implementation uses platform-optimized assembly (SIMD on supported architectures) to scan multiple bytes per cycle instead of byte-by-byte iteration.
 - **Pre-allocated slices**: `lineStarts`, `seen` map, `diags` in `matchRegex`, `LintFile`, and `Lint`
 - **config.Merge fast path**: returns `cfg.Rules` directly when no overrides exist (zero allocation)
 - **Worker batching**: files partitioned statically across workers — no per-file goroutine spawn, no mutex during processing

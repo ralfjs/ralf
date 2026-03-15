@@ -19,7 +19,7 @@ type patternNodeKind uint8
 const (
 	patternLiteral  patternNodeKind = iota // exact match on kind + text
 	patternWild                            // $NAME — matches any single node
-	patternVariadic                        // $$$NAME — matches zero or more nodes
+	patternVariadic                        // $$$NAME or $$$ — matches zero or more nodes
 )
 
 // patternNode is a node in the compiled pattern tree.

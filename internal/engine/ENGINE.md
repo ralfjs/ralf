@@ -149,7 +149,7 @@ Evaluated per rule per file in `LintFile`. Rules whose predicate doesn't match a
 
 ## AST Pattern Matcher
 
-Uses **tree-sitter** to parse pattern strings as JavaScript and build a `patternNode` tree. Metavariables (`$NAME` for single-node wildcard, `$$$NAME` for variadic zero-or-more) are detected via `strings.HasPrefix` on identifier nodes.
+Uses **tree-sitter** to parse pattern strings as JavaScript and build a `patternNode` tree. Metavariables (`$NAME` for single-node wildcard, `$$$NAME` or bare `$$$` for variadic zero-or-more) are detected via `strings.HasPrefix` on identifier nodes.
 
 - `compilePatternRules`: filters `Pattern != ""` and `Severity != Off`, parses each pattern as JS via tree-sitter, builds `patternNode` tree, collects all errors (no fail-fast)
 - `matchPatterns`: **single tree walk** over the target file — at each node, tries all active pattern rules. Dedup by (line, rule). Skips ERROR nodes. O(nodes × rules) with one walk instead of O(rules) walks.

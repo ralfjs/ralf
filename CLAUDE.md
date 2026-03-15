@@ -392,18 +392,20 @@ Use --output to specify output format (stylish, json, sarif).
 5. **If you added a lint rule:** there must be a corresponding fixture test in `testdata/rules/<rule-name>/`.
 6. **If you changed engine/parser/project:** run `make bench` and note any regressions.
 
-### Before Suggesting a Commit
+### Before Committing or Creating a PR
+
+**BLOCKING: You MUST run the full validation sequence and confirm all steps pass before committing code or creating a PR.** Do not skip any step. CI runs `make lint` with gocritic, which catches issues like `rangeValCopy` (large struct copies in range loops) and `hugeParam` (large value parameters) that compile and test fine locally but fail CI.
 
 - Confirm all tests pass. If tests fail, fix the code — don't skip or disable tests.
 - If a new test is needed for the change, write it first or alongside the implementation.
-- Never commit code that doesn't compile. Run `make build` to verify.
+- Never commit code that doesn't compile.
 
 ### Validation Sequence
 
 ```bash
 make build      # must compile
 make test-race  # must pass with zero races
-make lint       # must pass with zero warnings
+make lint       # MUST pass with zero warnings — CI will reject the PR otherwise
 make fmt        # then: git diff — must be clean
 ```
 

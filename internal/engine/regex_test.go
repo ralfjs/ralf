@@ -146,4 +146,23 @@ func TestMatchRegex(t *testing.T) {
 			t.Fatalf("expected 0 diagnostics, got %d", len(diags))
 		}
 	})
+
+	t.Run("unicode word boundary via rure", func(t *testing.T) {
+		// Verify rure-go engine handles Unicode word boundaries correctly.
+		// Rust regex treats \b as Unicode-aware by default.
+		rules := map[string]config.RuleConfig{
+			"find-café": {Severity: config.SeverityError, Regex: `\bcafé\b`, Message: "Found café"},
+		}
+		compiled, errs := compileRegexRules(rules)
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errors: %v", errs)
+		}
+		source := []byte("I love café and coffee")
+		lineStarts := buildLineIndex(source)
+
+		diags := matchRegex(compiled[0], source, lineStarts, 0)
+		if len(diags) != 1 {
+			t.Fatalf("expected 1 diagnostic, got %d", len(diags))
+		}
+	})
 }

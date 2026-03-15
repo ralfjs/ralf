@@ -2,7 +2,8 @@ package engine
 
 import (
 	"fmt"
-	"regexp"
+
+	"github.com/BurntSushi/rure-go"
 
 	"github.com/Hideart/ralf/internal/config"
 )
@@ -10,7 +11,7 @@ import (
 // compiledRegex is a pre-compiled regex rule ready for matching.
 type compiledRegex struct {
 	name     string
-	re       *regexp.Regexp
+	re       *rure.Regex
 	message  string
 	severity config.Severity
 }
@@ -22,13 +23,12 @@ func compileRegexRules(rules map[string]config.RuleConfig) ([]compiledRegex, []e
 	var compiled []compiledRegex
 	var errs []error
 
-	for name := range rules {
-		rule := rules[name]
+	for name, rule := range rules {
 		if rule.Regex == "" || rule.Severity == config.SeverityOff {
 			continue
 		}
 
-		re, err := regexp.Compile(rule.Regex)
+		re, err := rure.Compile(rule.Regex)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("rule %q: invalid regex: %w", name, err))
 			continue
@@ -51,28 +51,27 @@ const defaultMaxMatches = 10000
 // matchRegex runs a compiled regex against source and returns diagnostics.
 // It deduplicates by line (one diagnostic per rule per line) and stops after
 // maxMatches. If maxMatches <= 0, defaultMaxMatches is used.
+// Caller must hold the CGo semaphore (see LintFile).
 func matchRegex(cr compiledRegex, source []byte, lineStarts []int, maxMatches int) []Diagnostic {
 	if maxMatches <= 0 {
 		maxMatches = defaultMaxMatches
 	}
 
-	matches := cr.re.FindAllIndex(source, maxMatches)
-	if len(matches) == 0 {
-		return nil
-	}
+	it := cr.re.IterBytes(source)
+	seen := make(map[int]struct{}, len(lineStarts)/4)
+	diags := make([]Diagnostic, 0, len(lineStarts)/4)
+	count := 0
 
-	seen := make(map[int]struct{})
-	var diags []Diagnostic
-
-	for _, m := range matches {
-		startLine, startCol := offsetToLineCol(lineStarts, m[0])
+	for it.Next(nil) && count < maxMatches {
+		start, end := it.Match()
+		startLine, startCol := offsetToLineCol(lineStarts, start)
 
 		if _, dup := seen[startLine]; dup {
 			continue
 		}
 		seen[startLine] = struct{}{}
 
-		endLine, endCol := offsetToLineCol(lineStarts, m[1])
+		endLine, endCol := offsetToLineCol(lineStarts, end)
 
 		diags = append(diags, Diagnostic{
 			Line:     startLine,
@@ -83,6 +82,7 @@ func matchRegex(cr compiledRegex, source []byte, lineStarts []int, maxMatches in
 			Message:  cr.message,
 			Severity: cr.severity,
 		})
+		count++
 	}
 
 	return diags

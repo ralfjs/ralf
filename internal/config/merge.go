@@ -7,17 +7,21 @@ import (
 // Merge returns the effective rule set for a given file path by applying
 // matching overrides on top of the base rules. Later overrides win.
 func Merge(cfg *Config, filePath string) map[string]RuleConfig {
+	if len(cfg.Overrides) == 0 {
+		return cfg.Rules
+	}
+
 	result := make(map[string]RuleConfig, len(cfg.Rules))
-	for name := range cfg.Rules {
-		result[name] = cfg.Rules[name]
+	for name, rule := range cfg.Rules {
+		result[name] = rule
 	}
 
 	for i := range cfg.Overrides {
 		if !matchesAnyGlob(cfg.Overrides[i].Files, filePath) {
 			continue
 		}
-		for name := range cfg.Overrides[i].Rules {
-			result[name] = cfg.Overrides[i].Rules[name]
+		for name, rule := range cfg.Overrides[i].Rules {
+			result[name] = rule
 		}
 	}
 

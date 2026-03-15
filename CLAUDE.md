@@ -68,7 +68,7 @@ internal/
     codelens.go              # Inline code actions
 
   config/                    # Configuration
-    loader.go                # Load .lintrc.{json,yaml,toml,js} → *Config struct
+    loader.go                # Load .ralfrc.{json,yaml,toml,js} → *Config struct
     compiler.go              # Compile declarative rules → engine representation
     schema.go                # Config validation
     defaults.go              # Built-in recommended ruleset

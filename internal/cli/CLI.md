@@ -51,7 +51,7 @@ All formatters display columns as 1-based (engine stores 0-based).
 ## Config Loading
 
 1. If `--config` flag is set, load that specific file
-2. Otherwise, search cwd for `.lintrc.json` → `.lintrc.yaml` → `.lintrc.yml` → `.lintrc.toml`
+2. Otherwise, search cwd for `.ralfrc.json` → `.ralfrc.yaml` → `.ralfrc.yml` → `.ralfrc.toml`
 3. Validate config via `config.Validate`
 4. Create engine via `engine.New` (compiles regex rules)
 
@@ -65,7 +65,7 @@ ralf lint
 ralf lint src/ tests/
 
 # Explicit config
-ralf lint --config .lintrc.json src/
+ralf lint --config .ralfrc.json src/
 
 # JSON output for CI
 ralf lint --format json src/

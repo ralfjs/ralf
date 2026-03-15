@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VENDOR_DIR="$(cd "$(dirname "$0")/.." && pwd)/vendor"
+REGEX_SRC="$VENDOR_DIR/regex-src"
+LIBRURE_DIR="$VENDOR_DIR/librure"
+
+if [ ! -d "$REGEX_SRC" ]; then
+  echo "Cloning rust-lang/regex (shallow)..."
+  git clone --depth 1 https://github.com/rust-lang/regex.git "$REGEX_SRC"
+fi
+
+echo "Building librure..."
+cargo build --release --manifest-path "$REGEX_SRC/regex-capi/Cargo.toml"
+
+mkdir -p "$LIBRURE_DIR"
+cp "$REGEX_SRC/target/release/librure.a" "$LIBRURE_DIR/"
+echo "librure.a built at $LIBRURE_DIR/librure.a"

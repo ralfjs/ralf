@@ -9,13 +9,21 @@ Config
   ↓
 engine.New()          compile regex rules, skip unsupported matchers
   ↓
-Engine.Lint()         fan out files via errgroup with bounded concurrency
-  ├─ Engine.LintFile()   per-file: merge overrides → filter rules → match → collect
-  │   ├─ config.Merge()     effective rules for this file path
-  │   ├─ matchesWhere()     evaluate Where predicate (doublestar globs)
-  │   ├─ buildLineIndex()   byte offset → line:col via binary search
-  │   └─ matchRegex()       FindAllIndex + dedup + max cap
-  └─ ... (parallel)
+Engine.Lint()         partition files into worker batches, fan out via errgroup
+  ├─ Worker goroutine    processes batch of files sequentially, no mutex
+  │   ├─ os.ReadFile()       read source from disk
+  │   └─ Engine.LintFile()   per-file: merge overrides → filter rules → match → sort
+  │       ├─ config.Merge()     effective rules for this file path (fast path: no overrides → no alloc)
+  │       ├─ acquireCGo()       CGo semaphore (bounds OS threads to NumCPU)
+  │       ├─ matchesWhere()     evaluate Where predicate (doublestar globs)
+  │       ├─ buildLineIndex()   byte offset → line:col via binary search
+  │       ├─ matchRegex()       rure.IterBytes + dedup + max cap
+  │       └─ slices.SortFunc()  sort diagnostics within file by line/col/rule
+  └─ ... (parallel workers)
+  ↓
+Merge worker results  concat per-worker slices (no mutex, no shared state)
+  ↓
+sortDiagChunksByFile  sort contiguous per-file chunks by filename (O(N + C·log C))
   ↓
 Result                sorted diagnostics + file errors
 ```
@@ -26,9 +34,10 @@ Result                sorted diagnostics + file errors
 |---|---|
 | `diagnostic.go` | `Diagnostic`, `FileError`, `Result` types |
 | `lineindex.go` | `buildLineIndex` (O(n) scan), `offsetToLineCol` (O(log n) binary search) |
-| `regex.go` | `compiledRegex` type, `compileRegexRules`, `matchRegex` |
+| `regex.go` | `compiledRegex` type, `compileRegexRules`, `matchRegex` (rure-go) |
+| `semaphore.go` | CGo concurrency limiter (`acquireCGo`/`releaseCGo`) |
 | `where.go` | `matchesWhere` — evaluates `config.WherePredicate` against file paths |
-| `engine.go` | `Engine` orchestrator: `New`, `LintFile`, `Lint` |
+| `engine.go` | `Engine` orchestrator: `New`, `LintFile`, `Lint`, `sortDiagChunksByFile` |
 
 ## Diagnostic Conventions
 
@@ -41,17 +50,87 @@ Matches tree-sitter's coordinate system for consistency when AST-based rules are
 
 ## Line Index
 
-Standard approach from `go/token`: scan source once for `\n` positions, store `[]int` of line-start byte offsets. First entry is always 0. Binary search via `sort.SearchInts` per offset lookup.
+Standard approach from `go/token`: scan source once for `\n` positions, store `[]int` of line-start byte offsets. First entry is always 0. Pre-allocated based on estimated ~60 bytes/line. Binary search via `sort.SearchInts` per offset lookup.
 
 Handles `\r\n` (CRLF) — `\n` positions are tracked, `\r` is an extra byte in the column offset.
 
 ## Regex Matcher
 
-- `compileRegexRules`: filters `Regex != ""` and `Severity != Off`, compiles each via `regexp.Compile`, collects all errors (no fail-fast)
-- `matchRegex`: `re.FindAllIndex` → `offsetToLineCol` → dedup by line (one diagnostic per rule per line) → cap at `maxMatches` (default 10,000)
-- Pre-compiled `*regexp.Regexp` is concurrent-safe (Go 1.12+). No per-rule parallelism — parallelism is at file level.
+Uses **rure-go** (Rust regex engine via CGo) for pattern matching. Requires `librure.a` — built from `github.com/rust-lang/regex` capi via `scripts/build-librure.sh`.
 
-**Placeholder engine**: uses Go stdlib `regexp`. The API shape matches rure-go's — swapping to `rure.MustCompile` + `rure.Iter` is a single-function change when librure is vendored.
+- `compileRegexRules`: filters `Regex != ""` and `Severity != Off`, compiles each via `rure.Compile`, collects all errors (no fail-fast)
+- `matchRegex`: `rure.IterBytes` → iterate matches in C (single CGo call) → `offsetToLineCol` → dedup by line (one diagnostic per rule per line) → cap at `maxMatches` (default 10,000)
+- Pre-compiled `*rure.Regex` is concurrent-safe. `*rure.Iter` is per-call (not shared). No per-rule parallelism — parallelism is at file level.
+
+Rust regex syntax is largely compatible with Go's RE2. Both use the same RE2 semantics (no lookaheads/lookbehinds). Key advantage is performance: rure-go's DFA engine with C-side iteration is ~15x faster than Go stdlib on large inputs.
+
+## CGo Semaphore
+
+`semaphore.go` bounds concurrent CGo calls to `runtime.NumCPU()` via a buffered channel. CGo pins goroutines to OS threads — unbounded concurrent CGo calls cause unbounded OS thread creation and resource exhaustion. The semaphore is acquired once per file in `LintFile` (covers all regex rule calls for that file) and released on return.
+
+## Parallelism
+
+`Engine.Lint` partitions files into equal batches (one per worker, up to `runtime.NumCPU()` workers). Each worker goroutine processes its batch sequentially, collecting diagnostics and errors into a local slice — no mutex during the hot path. After all workers finish, results are concatenated and sorted.
+
+`LintFile` sorts diagnostics within a single file by line/col/rule. `Lint` then sorts the contiguous per-file chunks by filename via `sortDiagChunksByFile` — O(N + C·log C) where C is the number of files, vs O(N·log N) for a full sort of all diagnostics.
+
+Context cancellation is checked before each file read. If cancelled, remaining files in the batch are skipped and an error is recorded.
+
+## Sorting Strategy
+
+Diagnostics must be sorted for deterministic output: file, then line, then col, then rule. Instead of one large sort over all diagnostics:
+
+1. **`LintFile`** sorts per-file diagnostics by line/col/rule (small sorts, ~hundreds of items)
+2. **`Lint`** merges worker results into contiguous per-file chunks
+3. **`sortDiagChunksByFile`** identifies chunk boundaries and sorts them by filename (sorts ~C chunk descriptors, then reassembles)
+
+This turns an O(N·log N) sort of 150K+ diagnostics into many O(K·log K) sorts of ~1.5K items + one O(C·log C) sort of ~100 file chunks.
+
+## Performance Optimizations
+
+Current optimizations (all allocation/scheduling, no logic changes):
+
+- **Pre-allocated slices**: `lineStarts`, `seen` map, `diags` in `matchRegex`, `LintFile`, and `Lint`
+- **config.Merge fast path**: returns `cfg.Rules` directly when no overrides exist (zero allocation)
+- **Worker batching**: files partitioned statically across workers — no per-file goroutine spawn, no mutex during processing
+- **Chunk sort**: two-level sort strategy avoids O(N·log N) on the full diagnostic set
+- **`slices.SortFunc`**: avoids interface boxing overhead of `sort.Slice`
+
+### Benchmarking
+
+Two benchmarks live in `internal/engine/regex_bench_test.go`:
+
+| Benchmark | What it measures |
+|---|---|
+| `BenchmarkMatchRegex` | Single rule on 30K lines. Isolates rure-go iterator + dedup + line resolution. No I/O, no concurrency. |
+| `BenchmarkLintE2E` | Full `Engine.Lint` pipeline: 100 files × 300 lines × 5 rules. Includes disk I/O, worker batching, CGo semaphore, config merging, per-file sort, chunk sort. |
+
+Run benchmarks:
+
+```bash
+make bench                          # both benchmarks, single iteration
+make bench | grep Benchmark         # just the numbers
+
+# For stable comparisons, use -count:
+go test -bench=. -benchmem -count=5 ./internal/engine/
+```
+
+When evaluating performance changes:
+
+- **Always compare with `-count=5`** (or more). Single runs have high variance due to OS scheduling and thermal throttling.
+- **`MatchRegex`** is the low-noise benchmark — use it for regex engine changes.
+- **`LintE2E`** has higher variance (~±15%) due to disk I/O and goroutine scheduling. Look at median, not best/worst.
+- **Watch allocs, not just wall time.** Allocation reductions pay off under sustained load (LSP mode, watch mode) even when wall time doesn't visibly improve in isolated benchmarks.
+- **Use `go test -cpuprofile` and `go tool pprof`** to identify bottlenecks before optimizing. The current breakdown (~27ms): regex matching ~10ms, file I/O ~8ms, sort+merge ~5ms, lineindex ~4ms.
+
+### Future Optimizations
+
+These require more invasive changes and are deferred to a later sprint:
+
+- **mmap file reads**: replace `os.ReadFile` with `mmap` to eliminate the kernel→userspace copy. Particularly beneficial for large files where the copy dominates.
+- **Buffer pooling**: `sync.Pool` for `[]byte` read buffers and `[]Diagnostic` slices to reduce GC pressure across sequential lint runs (LSP mode, watch mode).
+- **SIMD newline scanning**: replace byte-by-byte `buildLineIndex` loop with SIMD-accelerated `bytes.IndexByte` or platform-specific intrinsics for bulk `\n` detection.
+- **Parallel file readahead**: separate I/O goroutines pre-read files into a bounded buffer pool while worker goroutines process already-loaded files, overlapping I/O and compute.
 
 ## Where Predicate
 
@@ -61,12 +140,6 @@ Evaluated per rule per file in `LintFile`. Rules whose predicate doesn't match a
 - `File: "src/**/*.js"` → matched via `doublestar.Match` (supports `**`)
 - `Not: { File: "test/**" }` → inverts inner predicate
 - `ImportCrosses` → not yet implemented, matches all (doesn't block linting)
-
-## Parallelism
-
-`Engine.Lint` uses `errgroup.SetLimit(threads)` (default `runtime.NumCPU()`). Each goroutine reads one file and calls `LintFile`. Results are collected under a mutex, then sorted by file/line/col/rule for deterministic output.
-
-Context cancellation is checked before each file read. If cancelled, remaining files are skipped and an error is recorded.
 
 ## Future Matchers
 

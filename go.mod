@@ -3,6 +3,7 @@ module github.com/Hideart/ralf
 go 1.25.6
 
 require (
+	github.com/BurntSushi/rure-go v0.0.0-20231211185014-8a0f52724b91
 	github.com/BurntSushi/toml v1.6.0
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/spf13/cobra v1.10.2

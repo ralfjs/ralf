@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/Hideart/ralf/internal/config"
@@ -66,21 +67,35 @@ func TestCompilePatternRules(t *testing.T) {
 		}
 	})
 
-	t.Run("multiple errors collected", func(t *testing.T) {
-		// tree-sitter is error-tolerant, so we can't easily produce a compile
-		// error from malformed JS. Instead test that valid patterns compile
-		// and the error slice is nil.
+	t.Run("syntax error returns wrapped ErrPatternCompile", func(t *testing.T) {
 		rules := map[string]config.RuleConfig{
-			"rule-a": {Severity: config.SeverityError, Pattern: "console.log()", Message: "A"},
-			"rule-b": {Severity: config.SeverityError, Pattern: "var $NAME = $VALUE", Message: "B"},
+			"bad": {Severity: config.SeverityError, Pattern: "function(", Message: "Bad"},
 		}
 
 		compiled, errs := compilePatternRules(rules)
-		if len(errs) != 0 {
-			t.Fatalf("unexpected errors: %v", errs)
+		if len(errs) != 1 {
+			t.Fatalf("expected 1 error, got %d: %v", len(errs), errs)
 		}
-		if len(compiled) != 2 {
-			t.Fatalf("expected 2 compiled patterns, got %d", len(compiled))
+		if !errors.Is(errs[0], ErrPatternCompile) {
+			t.Errorf("expected ErrPatternCompile, got %v", errs[0])
+		}
+		if len(compiled) != 0 {
+			t.Fatalf("expected 0 compiled patterns, got %d", len(compiled))
+		}
+	})
+
+	t.Run("collects errors without fail-fast", func(t *testing.T) {
+		rules := map[string]config.RuleConfig{
+			"good": {Severity: config.SeverityError, Pattern: "console.log()", Message: "A"},
+			"bad":  {Severity: config.SeverityError, Pattern: "function(", Message: "B"},
+		}
+
+		compiled, errs := compilePatternRules(rules)
+		if len(errs) != 1 {
+			t.Fatalf("expected 1 error, got %d: %v", len(errs), errs)
+		}
+		if len(compiled) != 1 {
+			t.Fatalf("expected 1 compiled pattern, got %d", len(compiled))
 		}
 	})
 }

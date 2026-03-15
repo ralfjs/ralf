@@ -211,32 +211,21 @@ func TestCollectChildren(t *testing.T) {
 		t.Fatal("expected non-empty children")
 	}
 
-	// Should include both named (number) and anonymous ("(", ",", ")") children.
-	kinds := make([]string, len(children))
-	for i, c := range children {
-		kinds[i] = c.Kind()
-	}
-
-	// Verify expected structure: "(", number, ",", number, ")"
+	// Verify count matches ChildCount().
 	if uint(len(children)) != argsNode.ChildCount() {
 		t.Errorf("CollectChildren returned %d children, ChildCount() = %d",
 			len(children), argsNode.ChildCount())
 	}
 
-	hasNamed := false
-	hasAnonymous := false
-	for _, c := range children {
-		if c.IsNamed() {
-			hasNamed = true
-		} else {
-			hasAnonymous = true
+	// Verify expected structure: "(", number, ",", number, ")".
+	wantKinds := []string{"(", "number", ",", "number", ")"}
+	if len(children) != len(wantKinds) {
+		t.Fatalf("expected %d children, got %d", len(wantKinds), len(children))
+	}
+	for i, c := range children {
+		if c.Kind() != wantKinds[i] {
+			t.Errorf("child[%d].Kind() = %q, want %q", i, c.Kind(), wantKinds[i])
 		}
-	}
-	if !hasNamed {
-		t.Error("expected at least one named child")
-	}
-	if !hasAnonymous {
-		t.Error("expected at least one anonymous child")
 	}
 }
 

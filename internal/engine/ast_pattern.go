@@ -84,6 +84,12 @@ func compilePattern(name string, rule *config.RuleConfig) (compiledPattern, erro
 		return compiledPattern{}, fmt.Errorf("rule %q: %w: empty parse tree", name, ErrPatternCompile)
 	}
 
+	// Reject patterns with syntax errors — they would silently never match
+	// since matchPatterns skips ERROR nodes.
+	if root.HasError() {
+		return compiledPattern{}, fmt.Errorf("rule %q: %w: pattern has syntax errors", name, ErrPatternCompile)
+	}
+
 	// Unwrap program > expression_statement wrappers to get the meaningful node.
 	inner := unwrapPattern(root)
 

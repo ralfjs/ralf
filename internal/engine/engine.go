@@ -94,39 +94,39 @@ func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) [
 
 	// --- Pattern rules ---
 	if len(e.patternRules) > 0 {
-		lang, ok := parser.LangFromPath(filePath)
-		if ok {
-			p := parser.NewParser(lang)
-			tree, err := p.Parse(ctx, source, nil)
-			p.Close()
+		// Resolve active patterns before parsing — skip tree-sitter entirely
+		// when all pattern rules are disabled for this file.
+		active := make([]compiledPattern, 0, len(e.patternRules))
+		for i := range e.patternRules {
+			cp := &e.patternRules[i]
+			sev, msg, ok := resolveRule(effective, cp.name, cp.message, filePath)
+			if !ok {
+				continue
+			}
+			resolved := *cp
+			resolved.severity = sev
+			resolved.message = msg
+			active = append(active, resolved)
+		}
 
-			if err != nil {
-				slog.Debug("pattern rules: parse failed, skipping",
-					"file", filePath, "error", err)
-			} else {
-				// Collect active patterns with resolved severity/message.
-				active := make([]compiledPattern, 0, len(e.patternRules))
-				for i := range e.patternRules {
-					cp := &e.patternRules[i]
-					sev, msg, ok := resolveRule(effective, cp.name, cp.message, filePath)
-					if !ok {
-						continue
-					}
-					resolved := *cp
-					resolved.severity = sev
-					resolved.message = msg
-					active = append(active, resolved)
-				}
+		if len(active) > 0 {
+			lang, ok := parser.LangFromPath(filePath)
+			if ok {
+				p := parser.NewParser(lang)
+				tree, err := p.Parse(ctx, source, nil)
+				p.Close()
 
-				if len(active) > 0 {
+				if err != nil {
+					slog.Debug("pattern rules: parse failed, skipping",
+						"file", filePath, "error", err)
+				} else {
 					found := matchPatterns(ctx, active, tree, source, lineStarts)
 					for j := range found {
 						found[j].File = filePath
 					}
 					diags = append(diags, found...)
+					tree.Close()
 				}
-
-				tree.Close()
 			}
 		}
 	}

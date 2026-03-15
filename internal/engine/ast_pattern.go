@@ -279,7 +279,8 @@ func matchChildren(patterns []patternNode, targets []parser.Node, source []byte)
 			trimmed = trimmed[:len(trimmed)-1]
 		}
 	}
-	return matchChildrenRec(patterns, trimmed, 0, 0, source)
+	steps := maxBacktrackSteps
+	return matchChildrenRec(patterns, trimmed, 0, 0, source, &steps)
 }
 
 // endsWithAnonymousLiteral checks if the pattern ends with an anonymous literal node.
@@ -291,9 +292,19 @@ func endsWithAnonymousLiteral(patterns []patternNode) bool {
 	return last.kind == patternLiteral && !last.isNamed
 }
 
+// maxBacktrackSteps bounds recursive backtracking to prevent combinatorial
+// explosion with multiple variadics or deeply nested child lists.
+const maxBacktrackSteps = 10000
+
 // matchChildrenRec is the recursive backtracking implementation for matching
 // pattern children against target children with variadic support.
-func matchChildrenRec(patterns []patternNode, targets []parser.Node, pi, ti int, source []byte) bool {
+// steps is decremented on each call; matching fails when exhausted.
+func matchChildrenRec(patterns []patternNode, targets []parser.Node, pi, ti int, source []byte, steps *int) bool {
+	*steps--
+	if *steps <= 0 {
+		return false
+	}
+
 	// Base case: both exhausted.
 	if pi == len(patterns) {
 		return ti == len(targets)
@@ -305,7 +316,7 @@ func matchChildrenRec(patterns []patternNode, targets []parser.Node, pi, ti int,
 		// Try consuming max..0 target children (greedy backtracking).
 		remaining := len(targets) - ti
 		for consume := remaining; consume >= 0; consume-- {
-			if matchChildrenRec(patterns, targets, pi+1, ti+consume, source) {
+			if matchChildrenRec(patterns, targets, pi+1, ti+consume, source, steps) {
 				return true
 			}
 		}
@@ -321,5 +332,5 @@ func matchChildrenRec(patterns []patternNode, targets []parser.Node, pi, ti int,
 		return false
 	}
 
-	return matchChildrenRec(patterns, targets, pi+1, ti+1, source)
+	return matchChildrenRec(patterns, targets, pi+1, ti+1, source, steps)
 }

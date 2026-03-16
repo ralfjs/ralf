@@ -749,16 +749,16 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 9 | Pattern parser | Parse `"console.log($$$ARGS)"` into a pattern AST. Handle `$NAME` (single node) and `$$$NAME` (variadic). |
-| 10 | Pattern matcher | Match pattern AST against tree-sitter AST. Capture bindings. Handle nested patterns. |
-| 11 | Pattern integration | Wire pattern matcher into engine. Config: `pattern: "..."` field compiles to matcher. Tests: 10+ pattern-based rules. |
+| 9 | ✅ Pattern parser | Parse `"console.log($$$ARGS)"` into a pattern AST. Handle `$NAME` (single node) and `$$$NAME` (variadic). |
+| 10 | ✅ Pattern matcher | Match pattern AST against tree-sitter AST. Capture bindings. Handle nested patterns. |
+| 11 | ✅ Pattern integration | Wire pattern matcher into engine. Config: `pattern: "..."` field compiles to matcher. Auto-fix with `--fix` and `--fix-dry-run` CLI flags. Tests: 10+ pattern-based rules. |
 | 12 | ✅ Structural queries | `ast: { kind, name, parent, not }` — Phase 1 fields. Compiled to native walker with symbol ID optimization (KindID). Kind-indexed rule dispatch, cached ChildByFieldID for name extraction. Shared tree parsing with pattern rules. |
 
 **Month 4 — Naming Rules + Rule Expansion**
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 13 | Naming convention engine | `naming: { match }` on captures. Integrate with structural queries. Rules: component naming, prop naming, file naming. |
+| 13 | ✅ Naming convention engine | `naming: { match }` as modifier on `ast` rules. `compiledNaming` with rure regex, `extractNameField` (no full-text fallback). Validation: naming requires ast, rejects standalone use. |
 | 14 | Import analysis | `imports: { groups, alphabetize }` — parse import statements, detect ordering violations. |
 | 15 | 30 more built-in rules | Total: 50 rules. Cover ESLint recommended + React plugin essentials. Each with fixture test. |
 | 16 | Inline suppression | Parse `// lint-disable-next-line`, `// lint-disable`, `/* lint-disable-file */`. Skip diagnostics for suppressed ranges. |

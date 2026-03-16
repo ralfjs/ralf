@@ -662,7 +662,7 @@ internal/
     ast_pattern.go           # AST pattern matching ("console.log($$$)" syntax), capture bindings for fix templates
     fix.go                   # Auto-fix: Fix/Conflict types, ApplyFixes (single-pass, conflict detection), expandToStatement
     structural.go            # Structural AST queries: kind, name (exact/regex), parent, not. Symbol ID optimization (KindID)
-    naming.go                # Naming convention checker: compiledNaming, compileNaming, regex validation on AST captures
+    naming.go                # Naming convention checker: compiledNaming, compileNaming, regex validation on AST node name fields
     imports.go               # (planned) import ordering / grouping
     complexity.go            # (planned) cyclomatic complexity
     crossfile.go             # (planned) cross-file rule evaluation

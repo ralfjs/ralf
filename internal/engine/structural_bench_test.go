@@ -160,7 +160,7 @@ func BenchmarkMatchStructural_NameRegex(b *testing.B) {
 }
 
 // BenchmarkMatchStructural_Naming measures structural matching with a naming
-// convention constraint — exercises extractNodeNameByID + rure naming regex
+// convention constraint — exercises extractNameField + rure naming regex
 // on every AST-matched node.
 func BenchmarkMatchStructural_Naming(b *testing.B) {
 	const numFunctions = 500

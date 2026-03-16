@@ -43,12 +43,14 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 |---|---|---|
 | Regex rules (rure-go) | ✅ Implemented | Pattern-based lint rules via Rust regex engine |
 | AST pattern matching | ✅ Implemented | ast-grep-style `$VAR` / `$$$ARGS` syntax |
-| Structural queries | Planned | `ast: { kind, parent, ancestor, capture }` |
-| Naming conventions | Planned | `naming: { match }` on AST captures |
+| Structural queries | ✅ Implemented | `ast: { kind, name, parent, not }` with symbol ID optimization |
+| Naming conventions | ✅ Implemented | `naming: { match }` as modifier on `ast` rules |
+| Auto-fix | ✅ Implemented | `--fix` / `--fix-dry-run`, conflict resolution |
+| Built-in rules (20) | ✅ Implemented | ESLint recommended equivalents with zero-config fallback |
 | Import ordering | Planned | `imports: { groups, alphabetize }` |
 | Complexity checks | Planned | Cyclomatic complexity threshold |
 | Inline suppression | Planned | `// lint-disable-next-line`, block disables |
-| Built-in rules (50+) | Planned | ESLint recommended + React plugin equivalents |
+| Built-in rules (50+) | Planned | Expand to 50+ with React plugin equivalents |
 
 ### Custom Rules (Declarative)
 
@@ -56,7 +58,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 |---|---|---|
 | Regex rules in config | ✅ Implemented | `regex: "pattern"` — compiled to rure-go |
 | AST patterns in config | ✅ Implemented | `pattern: "console.log($$$)"` — native matching |
-| Structural queries in config | Planned | `ast: { kind, ancestor, enclosingFunction }` |
+| Structural queries in config | ✅ Implemented | `ast: { kind, name, parent, not }` + `naming: { match }` |
 | Capture + assertions | Planned | `capture: { name: "$X" }`, `assert: { "$X": ... }` |
 | Cross-file rules | Planned | `scope: "cross-file"` — module graph queries |
 | WASM plugin escape hatch | Planned | Imperative rules in Go/Rust/AS compiled to WASM |
@@ -95,9 +97,9 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 
 | Feature | Status | Description |
 |---|---|---|
-| Template fixes | Planned | `fix: { replace: "const $NAME = $VALUE" }` |
-| Safe / unsafe categories | Planned | `--fix` (safe), `--fix-unsafe` (all), `--fix-dry-run` |
-| Conflict resolution | Planned | Overlapping fixes resolved by severity + specificity |
+| Template fixes | ✅ Implemented | `fix: "replacement"` with capture substitution |
+| Safe / unsafe categories | ✅ Implemented | `--fix` (apply), `--fix-dry-run` (preview) |
+| Conflict resolution | ✅ Implemented | Overlapping fixes resolved, non-conflicting applied |
 
 ### CLI
 

@@ -38,7 +38,7 @@ internal/
     engine.go                # Orchestrator: takes config + files, returns diagnostics
     regex.go                 # rure-go pattern matching (parallel, semaphore-limited)
     ast_pattern.go           # AST pattern matching ("console.log($$$)" syntax)
-    structural.go            # Structural AST queries (kind, parent, ancestor, capture)
+    structural.go            # Structural AST queries (kind, name, parent, not). Symbol ID optimization
     naming.go                # Naming convention checks on AST captures
     imports.go               # Import ordering / grouping analysis
     complexity.go            # Cyclomatic complexity

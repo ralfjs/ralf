@@ -648,12 +648,12 @@ internal/
   parser/                      # ✅ Implemented (Sprint 1)
     lang.go                  # Lang type, extension→grammar mapping (JS/JSX/TS/TSX)
     parser.go                # Parser wrapper with context cancellation + incremental reparse
-    tree.go                  # Tree/Node/Point value types (isolates tree-sitter C internals)
+    tree.go                  # Tree/Node/Point value types (isolates tree-sitter C internals). KindID/SymbolForKind (zero-alloc symbol IDs), FieldID/ChildByFieldID (cached field lookups)
     walk.go                  # Walk/WalkNamed depth-first traversal via TreeCursor
     query.go                 # S-expression query wrapper for AST pattern matching
 
   engine/                      # ✅ Implemented (Sprint 2)
-    diagnostic.go            # Diagnostic, FileError, Result types
+    diagnostic.go            # Diagnostic, FileError, Result types. Shared helpers: nodeDiag, nodeFix, setFilePath
     lineindex.go             # buildLineIndex (O(n)), offsetToLineCol (O(log n) binary search)
     regex.go                 # compiledRegex, compileRegexRules, matchRegex (rure-go via CGo)
     semaphore.go             # CGo concurrency limiter (NumCPU bound)
@@ -661,7 +661,7 @@ internal/
     engine.go                # Engine orchestrator: New, LintFile, Lint (parallel via errgroup)
     ast_pattern.go           # AST pattern matching ("console.log($$$)" syntax), capture bindings for fix templates
     fix.go                   # Auto-fix: Fix/Conflict types, ApplyFixes (single-pass, conflict detection), expandToStatement
-    structural.go            # (planned) structural AST queries
+    structural.go            # Structural AST queries: kind, name (exact/regex), parent, not. Symbol ID optimization (KindID)
     naming.go                # (planned) naming convention checker
     imports.go               # (planned) import ordering / grouping
     complexity.go            # (planned) cyclomatic complexity
@@ -752,7 +752,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 9 | Pattern parser | Parse `"console.log($$$ARGS)"` into a pattern AST. Handle `$NAME` (single node) and `$$$NAME` (variadic). |
 | 10 | Pattern matcher | Match pattern AST against tree-sitter AST. Capture bindings. Handle nested patterns. |
 | 11 | Pattern integration | Wire pattern matcher into engine. Config: `pattern: "..."` field compiles to matcher. Tests: 10+ pattern-based rules. |
-| 12 | Structural queries | `ast: { kind, parent, children, capture }` syntax. Compile to tree-sitter query or custom walker. |
+| 12 | ✅ Structural queries | `ast: { kind, name, parent, not }` — Phase 1 fields. Compiled to native walker with symbol ID optimization (KindID). Kind-indexed rule dispatch, cached ChildByFieldID for name extraction. Shared tree parsing with pattern rules. |
 
 **Month 4 — Naming Rules + Rule Expansion**
 

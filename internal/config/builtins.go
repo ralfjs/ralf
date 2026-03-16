@@ -38,10 +38,10 @@ func BuiltinRules() map[string]RuleConfig {
 			Regex:    `\bconsole\.(log|warn|error|info|debug|trace|dir|dirxml|table|time|timeEnd|timeLog|timeStamp|assert|clear|count|countReset|group|groupCollapsed|groupEnd|profile|profileEnd)\s*\(`,
 			Message:  "Unexpected console statement",
 		},
-		// ESLint: no-eval — flags eval() calls and indirect eval via (0, eval).
+		// ESLint: no-eval — flags eval() calls and indirect eval via (0, eval)().
 		"no-eval": {
 			Severity: SeverityError,
-			Regex:    `\beval[ \t]*\(|\(\s*0\s*,\s*eval\s*\)`,
+			Regex:    `\beval[ \t]*\(|\(\s*0\s*,\s*eval\s*\)[ \t]*\(`,
 			Message:  "`eval` is dangerous and should not be used",
 		},
 		// ESLint: no-debugger — flags debugger statements.

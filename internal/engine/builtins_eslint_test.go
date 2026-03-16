@@ -16,8 +16,8 @@ func TestBuiltinRules_ESLintParity(t *testing.T) {
 
 	cases := []struct {
 		rule      string
-		shouldHit []string // each string is a one-line snippet that MUST produce ≥1 diagnostic
-		shouldOK  []string // each string MUST produce 0 diagnostics
+		shouldHit []string // each snippet MUST produce ≥1 diagnostic (may be multi-line)
+		shouldOK  []string // each snippet MUST produce 0 diagnostics
 	}{
 		{
 			rule: "no-var",
@@ -89,6 +89,9 @@ func TestBuiltinRules_ESLintParity(t *testing.T) {
 				"const evaluation = 1;",
 				// comma expression with other function
 				"(0, myFunc)(x);",
+				// indirect eval without call — ESLint flags this but
+				// regex only flags when actually invoked
+				"const f = (0, eval);",
 			},
 		},
 		{

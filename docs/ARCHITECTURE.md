@@ -659,7 +659,8 @@ internal/
     semaphore.go             # CGo concurrency limiter (NumCPU bound)
     where.go                 # matchesWhere — Where predicate evaluation (doublestar globs)
     engine.go                # Engine orchestrator: New, LintFile, Lint (parallel via errgroup)
-    ast_pattern.go           # AST pattern matching ("console.log($$$)" syntax)
+    ast_pattern.go           # AST pattern matching ("console.log($$$)" syntax), capture bindings for fix templates
+    fix.go                   # Auto-fix: Fix/Conflict types, ApplyFixes (single-pass, conflict detection), expandToStatement
     structural.go            # (planned) structural AST queries
     naming.go                # (planned) naming convention checker
     imports.go               # (planned) import ordering / grouping
@@ -669,7 +670,7 @@ internal/
   cli/                         # ✅ Implemented (Sprint 2)
     root.go                  # Root cobra command, global flags, Execute entry point
     discover.go              # File discovery: WalkDir, extension filter, hardcoded skips, doublestar ignores
-    lint.go                  # Lint subcommand: config → engine → discover → lint → format
+    lint.go                  # Lint subcommand: config → engine → discover → lint → format. --fix / --fix-dry-run (atomic writes, unified diff)
     format.go                # Output formatters: stylish, JSON, compact, GitHub Actions
 
   formatter/
@@ -822,9 +823,9 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 37 | Fix infrastructure | `internal/engine/fix.go`: fix types (replacement, deletion, insertion). Range-based. Conflict resolution (priority, overlap detection). |
-| 38 | Template fixes | `fix: { replace: "const $NAME = $VALUE" }` — substitution using captured variables from pattern/AST match. |
-| 39 | Safe vs unsafe fixes | Categorize all built-in rule fixes. `--fix` (safe only), `--fix-unsafe` (all), `--fix-dry-run` (show diff). |
+| 37 | ✅ Fix infrastructure | `internal/engine/fix.go`: Fix/Conflict types (replacement, deletion, delete-statement). Single-pass forward application with exact-alloc output buffer. Overlap detection (leftmost wins). `Diagnostic.Fix` optional field. Wired into `compiledRegex` + `compiledPattern`. 7 unit tests, 6 integration tests, 3 benchmarks. |
+| 38 | ✅ Template fixes | `fix: "const $NAME = $VALUE"` — string field on `RuleConfig`, substitution using captured metavariables from pattern match. Captures collected via unified `matchNode`/`matchChildren` with optional bindings map. |
+| 39 | Partial: safe vs unsafe fixes | `--fix` and `--fix-dry-run` implemented in CLI (atomic writes, unified diff output). `--fix-unsafe` and safe/unsafe categorization deferred. |
 | 40 | Fix in LSP | Code actions return fixes. "Fix all auto-fixable" command. Format after fix. |
 
 **Month 10-11 — Import Fixer + Polish**
@@ -1182,68 +1183,114 @@ These cover <5% of use cases. The recommendation is YAML or JSON for most projec
 
 ## Auto-Fix Architecture
 
-### Fix Types
+### Fix Types (Implemented)
+
+| Type | Config syntax | What it does |
+|---|---|---|
+| **Replacement** | `fix: "const $NAME = $VALUE"` | Replace matched range with template string |
+| **Deletion** | `fix: ""` | No fix (empty string = no fix attached) |
+| **Delete statement** | `fix: "delete-statement"` | Delete the entire line(s) containing the match |
+
+The `Fix` field on `RuleConfig` is a plain string. Convention:
+- Empty string → no fix
+- `"delete-statement"` → delete enclosing line(s) including trailing newline
+- Anything else → replacement template (may contain `$NAME`/`$$$NAME` captures for pattern rules)
+
+### Fix Types (Planned)
 
 | Type | Description | Example |
 |---|---|---|
-| **Replacement** | Replace matched range with new text | `var x` → `const x` |
-| **Template** | Pattern-based substitution using captures | `$X == null` → `$X === null` |
-| **Deletion** | Remove matched code | Remove `console.log(...)` |
 | **Insertion** | Add code before/after match | Add missing `ErrorBoundary` wrapper |
 | **Import fix** | Add/remove/reorder imports | Auto-sort, remove unused |
 
-### Fix Definition in Config
+### Core Types (`internal/engine/fix.go`)
 
-```js
-"no-var": {
-  pattern: "var $NAME = $VALUE",
-  fix: {
-    // Simple replacement template
-    replace: "const $NAME = $VALUE"
-  }
-},
+```go
+// Fix represents a concrete source code edit.
+type Fix struct {
+    StartByte int    // inclusive byte offset in source
+    EndByte   int    // exclusive byte offset in source
+    NewText   string // replacement text (empty = deletion)
+}
 
-"no-console-in-prod": {
-  pattern: "console.log($$$ARGS)",
-  fix: {
-    // Delete the entire statement
-    action: "delete-statement"
-  }
-},
-
-"prefer-template": {
-  pattern: "$A + $B + $C",
-  where: {
-    "$A": { kind: "string" },
-    "$C": { kind: "string" }
-  },
-  fix: {
-    // Template literal conversion
-    replace: "`${$A.stripQuotes}${$B}${$C.stripQuotes}`"
-  }
+// Conflict records a fix skipped due to overlap.
+type Conflict struct {
+    Fix    Fix
+    Reason string
 }
 ```
 
-### Conflict Resolution
+`Diagnostic` carries an optional fix:
 
-When multiple fixes target overlapping ranges:
+```go
+type Diagnostic struct {
+    // ... line, col, rule, message, severity ...
+    Fix *Fix // nil if rule has no fix
+}
+```
 
+Byte offsets live only on `Fix`, not on `Diagnostic`. Display uses line/col; editing uses byte offsets.
+
+### Fix Definition in Config
+
+```jsonc
+// Replacement template with captures
+"no-var": {
+  "pattern": "var $NAME = $VALUE",
+  "fix": "const $NAME = $VALUE"
+}
+
+// Delete the entire statement line
+"no-console-in-prod": {
+  "pattern": "console.log($$$ARGS)",
+  "fix": "delete-statement"
+}
+
+// Regex rule with literal replacement
+"no-var-regex": {
+  "regex": "\\bvar\\b",
+  "fix": "let"
+}
+
+// Pattern rule: rewrite console.log → console.debug
+"log-to-debug": {
+  "pattern": "console.log($$$ARGS)",
+  "fix": "console.debug($$$ARGS)"
+}
 ```
-1. Sort fixes by range start position (ascending)
-2. If two fixes overlap:
-   a. Higher-severity rule wins
-   b. Same severity → smaller range (more specific) wins
-   c. Same range → first rule in config order wins
-3. Losing fix is reported as "unfixable conflict" in output
-4. User can re-run to apply remaining fixes iteratively
-```
+
+### Fix Application (`ApplyFixes`)
+
+Fixes are applied in a single forward pass with O(1) allocations:
+
+1. Sort fixes by `StartByte` ascending (skip copy if already sorted — common case from `LintFile`)
+2. Scan for overlaps: fix B overlaps fix A if `B.StartByte < A.EndByte`
+3. Keep the first (leftmost) non-overlapping fix, skip conflicts
+4. Compute exact output size, allocate once
+5. Interleave unchanged source segments with fix replacements in one forward pass
+
+**Performance:** 10k fixes on a large file: ~53us, 1 allocation (output buffer only).
+
+### Capture Substitution
+
+For pattern rules with `$VAR` or `$$$VAR` in the fix template:
+- `matchNode` collects capture bindings (name → matched source text) via an optional `captures map[string]string` parameter
+- `substituteCaptures` replaces `$$$NAME` and `$NAME` tokens in the template (longer keys first to avoid partial matches)
+- Variadic captures (`$$$ARGS`) record the concatenated source text of all consumed nodes
+
+### CLI Flags
+
+- `--fix`: Apply fixes and write files back (atomic: temp file + rename)
+- `--fix-dry-run`: Print unified diffs per file without writing
+- Fixed diagnostics are removed from output; unfixed diagnostics still reported
 
 ### Safety
 
 - **Dry-run mode** (`--fix-dry-run`): Show diffs without applying. Output unified diff format.
-- **Fix categories**: `safe` (always correct, e.g., `==` → `===`) vs `unsafe` (might change semantics, e.g., `var` → `const` in loops). `--fix` applies safe only. `--fix-unsafe` applies both.
-- **Atomic writes**: Fixes applied per-file atomically — either all fixes for a file succeed or none are written.
-- **Formatter re-run**: After fixes are applied, formatter runs on changed files to ensure consistent style.
+- **Atomic writes**: Fixes written to temp file in same directory, then renamed over original. Original file permissions preserved.
+- **Conflict reporting**: Overlapping fixes logged via `slog.Debug`, count reported to stderr.
+- **Fix categories** (planned): `safe` vs `unsafe` classification. `--fix-unsafe` flag deferred.
+- **Formatter re-run** (planned): After fixes are applied, formatter runs on changed files to ensure consistent style.
 
 ---
 
@@ -1910,7 +1957,8 @@ yourlinter/
 │   │   ├── engine.go            # Rule execution orchestrator
 │   │   ├── engine_test.go       # Table-driven tests
 │   │   ├── regex.go             # rure-go pattern rules
-│   │   ├── ast_pattern.go       # AST pattern matching
+│   │   ├── ast_pattern.go       # AST pattern matching + capture bindings
+│   │   ├── fix.go               # Auto-fix application + conflict resolution
 │   │   ├── structural.go        # Structural AST queries
 │   │   ├── naming.go            # Naming convention checker
 │   │   ├── imports.go           # Import ordering / grouping

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -158,6 +159,98 @@ func TestLintIntegration(t *testing.T) {
 		_ = cmd.Execute()
 		if exitCode != ExitUsageError {
 			t.Errorf("expected exit code %d, got %d", ExitUsageError, exitCode)
+		}
+	})
+
+	t.Run("--fix applies fixes and writes file", func(t *testing.T) {
+		fixDir := t.TempDir()
+		fixConfig := `{
+  "rules": {
+    "no-var": {
+      "severity": "error",
+      "regex": "\\bvar\\b",
+      "message": "Use let or const",
+      "fix": "let"
+    }
+  }
+}`
+		writeTestFile(t, filepath.Join(fixDir, ".ralfrc.json"), fixConfig)
+		writeTestFile(t, filepath.Join(fixDir, "a.js"), "var x = 1;\nlet y = 2;\nvar z = 3;")
+
+		exitCode = 0
+		configPath = ""
+
+		var stdout, stderr bytes.Buffer
+		cmd := newRootCmd()
+		cmd.SetOut(&stdout)
+		cmd.SetErr(&stderr)
+		cmd.SetArgs([]string{"lint", "--fix", "--config", filepath.Join(fixDir, ".ralfrc.json"), fixDir})
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpected cobra error: %v", err)
+		}
+
+		// File should be fixed.
+		fixedPath := filepath.Join(fixDir, "a.js")
+		got, err := os.ReadFile(fixedPath) //nolint:gosec // test-only, path is from t.TempDir
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "let x = 1;\nlet y = 2;\nlet z = 3;"
+		if string(got) != want {
+			t.Errorf("file content = %q, want %q", got, want)
+		}
+
+		// Stderr should report fix count.
+		if !bytes.Contains(stderr.Bytes(), []byte("Fixed")) {
+			t.Errorf("expected fix report in stderr, got: %s", stderr.String())
+		}
+
+		// All diagnostics were fixable, so exit 0.
+		if exitCode != ExitOK {
+			t.Errorf("expected exit code %d, got %d\nstdout: %s\nstderr: %s",
+				ExitOK, exitCode, stdout.String(), stderr.String())
+		}
+	})
+
+	t.Run("--fix-dry-run shows diff without writing", func(t *testing.T) {
+		dryDir := t.TempDir()
+		dryConfig := `{
+  "rules": {
+    "no-var": {
+      "severity": "error",
+      "regex": "\\bvar\\b",
+      "message": "Use let or const",
+      "fix": "let"
+    }
+  }
+}`
+		writeTestFile(t, filepath.Join(dryDir, ".ralfrc.json"), dryConfig)
+		writeTestFile(t, filepath.Join(dryDir, "a.js"), "var x = 1;")
+
+		exitCode = 0
+		configPath = ""
+
+		var stdout, stderr bytes.Buffer
+		cmd := newRootCmd()
+		cmd.SetOut(&stdout)
+		cmd.SetErr(&stderr)
+		cmd.SetArgs([]string{"lint", "--fix-dry-run", "--config", filepath.Join(dryDir, ".ralfrc.json"), dryDir})
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpected cobra error: %v", err)
+		}
+
+		// Stdout should contain diff.
+		if !bytes.Contains(stdout.Bytes(), []byte("---")) {
+			t.Errorf("expected diff in stdout, got: %s", stdout.String())
+		}
+
+		// File should NOT be modified.
+		dryPath := filepath.Join(dryDir, "a.js")
+		got, _ := os.ReadFile(dryPath) //nolint:gosec // test-only, path is from t.TempDir
+		if string(got) != "var x = 1;" {
+			t.Errorf("file should not be modified in dry-run, got %q", got)
 		}
 	})
 }

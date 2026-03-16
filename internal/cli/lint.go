@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/Hideart/ralf/internal/config"
 	"github.com/Hideart/ralf/internal/engine"
@@ -16,6 +17,8 @@ func lintCmd() *cobra.Command {
 		format      string
 		threads     int
 		maxWarnings int
+		fix         bool
+		fixDryRun   bool
 	)
 
 	cmd := &cobra.Command{
@@ -23,18 +26,20 @@ func lintCmd() *cobra.Command {
 		Short: "Lint files for rule violations",
 		Long:  "Lint JavaScript and TypeScript files using rules defined in config.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLint(cmd, args, format, threads, maxWarnings)
+			return runLint(cmd, args, format, threads, maxWarnings, fix, fixDryRun)
 		},
 	}
 
 	cmd.Flags().StringVar(&format, "format", "stylish", "output format (stylish|json|compact|github)")
 	cmd.Flags().IntVar(&threads, "threads", 0, "number of parallel workers (0 = num CPUs)")
 	cmd.Flags().IntVar(&maxWarnings, "max-warnings", -1, "max warnings before non-zero exit (-1 = unlimited)")
+	cmd.Flags().BoolVar(&fix, "fix", false, "apply auto-fixes and write files back")
+	cmd.Flags().BoolVar(&fixDryRun, "fix-dry-run", false, "show unified diffs without writing")
 
 	return cmd
 }
 
-func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarnings int) error {
+func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarnings int, fix, fixDryRun bool) error {
 	w := cmd.ErrOrStderr()
 
 	// Validate format early so the user gets fast feedback on typos
@@ -99,6 +104,30 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 		exitCode = ExitInternal
 	}
 
+	// Apply fixes if requested.
+	if fix || fixDryRun {
+		fixCount, conflictCount := applyFixResults(cmd, result.Diagnostics, fixDryRun)
+
+		// Remove fixed diagnostics from output.
+		var unfixed []engine.Diagnostic
+		for _, d := range result.Diagnostics {
+			if d.Fix == nil {
+				unfixed = append(unfixed, d)
+			}
+		}
+
+		if fixCount > 0 || conflictCount > 0 {
+			_, _ = fmt.Fprintf(w, "Fixed %d %s", fixCount, pluralize("problem", fixCount))
+			if conflictCount > 0 {
+				_, _ = fmt.Fprintf(w, " (%d conflicting %s skipped)",
+					conflictCount, pluralize("fix", conflictCount))
+			}
+			_, _ = fmt.Fprintln(w)
+		}
+
+		result.Diagnostics = unfixed
+	}
+
 	if err := formatter.Format(cmd.OutOrStdout(), result.Diagnostics); err != nil {
 		_, _ = fmt.Fprintln(w, "Error formatting output:", err)
 		exitCode = ExitInternal
@@ -120,6 +149,154 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 	}
 
 	return nil
+}
+
+// applyFixResults groups fixable diagnostics by file, applies fixes, and
+// either writes the files back (--fix) or prints unified diffs (--fix-dry-run).
+// Returns the number of fixes applied and conflicts encountered.
+func applyFixResults(cmd *cobra.Command, diags []engine.Diagnostic, dryRun bool) (fixCount, conflictCount int) {
+	w := cmd.ErrOrStderr()
+	out := cmd.OutOrStdout()
+
+	// Group fixable diagnostics by file.
+	byFile := make(map[string][]engine.Fix)
+	for _, d := range diags {
+		if d.Fix != nil {
+			byFile[d.File] = append(byFile[d.File], *d.Fix)
+		}
+	}
+
+	for filePath, fixes := range byFile {
+		source, err := os.ReadFile(filePath) //nolint:gosec // paths from discoverFiles
+		if err != nil {
+			_, _ = fmt.Fprintf(w, "Error reading %s for fix: %v\n", filePath, err)
+			continue
+		}
+
+		result, conflicts := engine.ApplyFixes(source, fixes)
+		fixCount += len(fixes) - len(conflicts)
+		conflictCount += len(conflicts)
+
+		for _, c := range conflicts {
+			slog.Debug("fix conflict", "file", filePath, "reason", c.Reason)
+		}
+
+		if dryRun {
+			diff := unifiedDiff(filePath, string(source), string(result))
+			if diff != "" {
+				_, _ = fmt.Fprintln(out, diff)
+			}
+			continue
+		}
+
+		if err := atomicWrite(filePath, result); err != nil {
+			_, _ = fmt.Fprintf(w, "Error writing %s: %v\n", filePath, err)
+		}
+	}
+
+	return fixCount, conflictCount
+}
+
+// atomicWrite writes data to a temporary file in the same directory and renames
+// it over the target to avoid partial writes.
+func atomicWrite(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".ralf-fix-*")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	// Preserve original file permissions.
+	info, err := os.Stat(path)
+	if err == nil {
+		if chErr := tmp.Chmod(info.Mode()); chErr != nil {
+			_ = tmp.Close()
+			_ = os.Remove(tmpPath)
+			return fmt.Errorf("chmod temp file: %w", chErr)
+		}
+	}
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("write temp file: %w", err)
+	}
+
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("rename temp file: %w", err)
+	}
+
+	return nil
+}
+
+// unifiedDiff produces a minimal unified diff between two strings.
+// Returns empty string if there is no difference.
+func unifiedDiff(path, a, b string) string {
+	if a == b {
+		return ""
+	}
+
+	aLines := splitLines(a)
+	bLines := splitLines(b)
+
+	var result string
+	result += fmt.Sprintf("--- %s\n+++ %s\n", path, path)
+
+	// Simple line-by-line diff — sufficient for fix preview.
+	ai, bi := 0, 0
+	for ai < len(aLines) || bi < len(bLines) {
+		if ai < len(aLines) && bi < len(bLines) && aLines[ai] == bLines[bi] {
+			ai++
+			bi++
+			continue
+		}
+
+		// Find the extent of the change.
+		aStart, bStart := ai, bi
+		// Advance past differing lines.
+		for ai < len(aLines) && (bi >= len(bLines) || aLines[ai] != bLines[bi]) {
+			ai++
+		}
+		for bi < len(bLines) && (ai >= len(aLines) || aLines[ai] != bLines[bi]) {
+			bi++
+		}
+
+		result += fmt.Sprintf("@@ -%d,%d +%d,%d @@\n", aStart+1, ai-aStart, bStart+1, bi-bStart)
+		for i := aStart; i < ai; i++ {
+			result += "-" + aLines[i] + "\n"
+		}
+		for i := bStart; i < bi; i++ {
+			result += "+" + bLines[i] + "\n"
+		}
+	}
+
+	return result
+}
+
+// splitLines splits a string into lines, preserving empty trailing line.
+func splitLines(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var lines []string
+	start := 0
+	for i := range len(s) {
+		if s[i] == '\n' {
+			lines = append(lines, s[start:i])
+			start = i + 1
+		}
+	}
+	if start < len(s) {
+		lines = append(lines, s[start:])
+	}
+	return lines
 }
 
 func loadConfig() (*config.Config, error) {

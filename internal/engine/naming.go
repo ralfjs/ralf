@@ -25,6 +25,10 @@ func compileNaming(ruleName string, nm *config.NamingMatcher) (*compiledNaming, 
 		return nil, nil
 	}
 
+	if nm.Match == "" {
+		return nil, fmt.Errorf("rule %q: %w: naming.match is required", ruleName, ErrNamingCompile)
+	}
+
 	re, err := rure.Compile(nm.Match)
 	if err != nil {
 		return nil, fmt.Errorf("rule %q: %w: invalid naming regex %q: %w", ruleName, ErrNamingCompile, nm.Match, err)

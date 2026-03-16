@@ -799,6 +799,38 @@ func TestMatchStructural_NamingCustomMessage(t *testing.T) {
 	}
 }
 
+func TestMatchStructural_NamingSkipsNoNameField(t *testing.T) {
+	// binary_expression has no "name" field — naming should be skipped,
+	// not evaluated against full node text like "x + y".
+	source := []byte("x + y")
+	p := parser.NewParser(parser.LangJS)
+	tree, err := p.Parse(context.Background(), source, nil)
+	p.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tree.Close()
+
+	nm, err := compileNaming("test", &config.NamingMatcher{Match: "^[a-z]$"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lineStarts := buildLineIndex(source)
+	rules := []compiledStructural{{
+		name:     "test",
+		matcher:  compiledASTMatcher{kind: "binary_expression"},
+		naming:   nm,
+		message:  "bad name",
+		severity: config.SeverityError,
+	}}
+
+	diags := matchStructural(context.Background(), rules, tree, source, lineStarts)
+	if len(diags) != 0 {
+		t.Fatalf("expected 0 diagnostics (no name field), got %d", len(diags))
+	}
+}
+
 func TestMatchStructural_NamingWithKindAndName(t *testing.T) {
 	// AST name filter (exact match "foo") + naming regex (must start lowercase).
 	// "foo" matches both AST name and naming → no diagnostic.

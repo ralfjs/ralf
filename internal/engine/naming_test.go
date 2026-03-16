@@ -38,6 +38,17 @@ func TestCompileNaming(t *testing.T) {
 		}
 	})
 
+	t.Run("empty match", func(t *testing.T) {
+		t.Parallel()
+		_, err := compileNaming("test", &config.NamingMatcher{Match: ""})
+		if err == nil {
+			t.Fatal("expected error for empty match")
+		}
+		if !errors.Is(err, ErrNamingCompile) {
+			t.Errorf("error should wrap ErrNamingCompile, got: %v", err)
+		}
+	})
+
 	t.Run("nil input", func(t *testing.T) {
 		t.Parallel()
 		cn, err := compileNaming("test", nil)

@@ -293,13 +293,18 @@ func matchStructural(ctx context.Context, rules []compiledStructural, tree *pars
 				continue
 			}
 
-			// Naming convention check: extract name, test regex.
-			// If name conforms → no violation, skip.
+			// Naming convention check: extract the "name" field child
+			// and test regex. Skip if node has no name field (don't
+			// fall back to full node text — that would cause false
+			// positives/negatives on e.g. "function Foo() {}").
 			msg := r.message
 			if r.naming != nil {
-				name := extractNodeNameByID(node, source, nameFieldID)
-				if r.naming.matches(name) {
-					continue
+				nodeName, ok := extractNameField(node, source, nameFieldID)
+				if !ok {
+					continue // no name field → naming not applicable
+				}
+				if r.naming.matches(nodeName) {
+					continue // name conforms, no violation
 				}
 				if r.naming.message != "" {
 					msg = r.naming.message
@@ -386,6 +391,25 @@ func extractNodeNameByID(node parser.Node, source []byte, nameFieldID uint16) st
 		}
 	}
 	return node.Text(source)
+}
+
+// extractNameField extracts the "name" field text from a node, returning false
+// if the node has no "name" field. Unlike extractNodeNameByID, it does NOT fall
+// back to the full node text — used by naming checks where the full text would
+// be meaningless (e.g. "function Foo() {}").
+func extractNameField(node parser.Node, source []byte, nameFieldID uint16) (string, bool) {
+	if nameFieldID != 0 {
+		nameChild := node.ChildByFieldID(nameFieldID)
+		if !nameChild.IsNull() {
+			return nameChild.Text(source), true
+		}
+		return "", false
+	}
+	nameChild := node.ChildByFieldName("name")
+	if !nameChild.IsNull() {
+		return nameChild.Text(source), true
+	}
+	return "", false
 }
 
 // extractNodeName extracts the "name" text from a node. Uses the tree-sitter

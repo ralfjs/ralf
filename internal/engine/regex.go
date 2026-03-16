@@ -14,6 +14,7 @@ type compiledRegex struct {
 	re       *rure.Regex
 	message  string
 	severity config.Severity
+	fix      string // raw fix template from config (empty = no fix)
 }
 
 // compileRegexRules extracts rules with Regex != "" and Severity != Off,
@@ -40,6 +41,7 @@ func compileRegexRules(rules map[string]config.RuleConfig) ([]compiledRegex, []e
 			re:       re,
 			message:  rule.Message,
 			severity: rule.Severity,
+			fix:      rule.Fix,
 		})
 	}
 
@@ -74,7 +76,7 @@ func matchRegex(cr compiledRegex, source []byte, lineStarts []int, maxMatches in
 
 		endLine, endCol := offsetToLineCol(lineStarts, end)
 
-		diags = append(diags, Diagnostic{
+		d := Diagnostic{
 			Line:     startLine,
 			Col:      startCol,
 			EndLine:  endLine,
@@ -82,7 +84,19 @@ func matchRegex(cr compiledRegex, source []byte, lineStarts []int, maxMatches in
 			Rule:     cr.name,
 			Message:  cr.message,
 			Severity: cr.severity,
-		})
+		}
+
+		if cr.fix != "" {
+			fs, fe := start, end
+			newText := cr.fix
+			if newText == fixDeleteStatement {
+				fs, fe = expandToStatement(source, start, end)
+				newText = ""
+			}
+			d.Fix = &Fix{StartByte: fs, EndByte: fe, NewText: newText}
+		}
+
+		diags = append(diags, d)
 		count++
 	}
 

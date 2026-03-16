@@ -14,6 +14,7 @@ type Diagnostic struct {
 	Rule     string          // rule name from config
 	Message  string          // human-readable description
 	Severity config.Severity // error, warn, off
+	Fix      *Fix            // nil if rule has no fix
 }
 
 // FileError records a file that could not be read or processed.

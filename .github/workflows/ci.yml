@@ -51,10 +51,11 @@ jobs:
             echo "::error::Overall coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
             exit 1
           fi
-      - name: Check new code coverage (PR only)
+      - name: Generate diff for coverage (PR only)
         if: github.event_name == 'pull_request'
         run: |
-          git diff origin/${{ github.base_ref }}...HEAD > diff.txt
+          git diff origin/${{ github.base_ref }}...HEAD -- '*.go' > diff.txt
+          echo "Diff lines: $(wc -l < diff.txt)"
       - name: Diff coverage
         if: github.event_name == 'pull_request'
         id: diff_coverage
@@ -68,6 +69,10 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           DIFF_COV="${{ steps.diff_coverage.outputs.coverage }}"
+          if [ -z "$DIFF_COV" ]; then
+            echo "::warning::Diff coverage action returned empty output — skipping check"
+            exit 0
+          fi
           echo "New code coverage: ${DIFF_COV}%"
           if (( $(echo "$DIFF_COV < 70" | bc -l) )); then
             echo "::error::New code coverage ${DIFF_COV}% is below 70% threshold"

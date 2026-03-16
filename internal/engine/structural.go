@@ -23,6 +23,7 @@ const maxASTMatcherDepth = 10
 type compiledStructural struct {
 	name     string
 	matcher  compiledASTMatcher
+	naming   *compiledNaming
 	message  string
 	severity config.Severity
 	fix      string
@@ -61,9 +62,16 @@ func compileStructuralRules(rules map[string]config.RuleConfig) ([]compiledStruc
 			continue
 		}
 
+		nm, err := compileNaming(name, rule.Naming)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
 		compiled = append(compiled, compiledStructural{
 			name:     name,
 			matcher:  m,
+			naming:   nm,
 			message:  rule.Message,
 			severity: rule.Severity,
 			fix:      rule.Fix,
@@ -158,6 +166,9 @@ func compileNameMatch(ruleName string, nameVal interface{}) (compiledNameMatch, 
 // name constraint, which requires the more expensive ChildByFieldID lookup.
 func rulesNeedName(rules []compiledStructural) bool {
 	for i := range rules {
+		if rules[i].naming != nil {
+			return true
+		}
 		if matcherNeedsName(&rules[i].matcher) {
 			return true
 		}
@@ -282,7 +293,20 @@ func matchStructural(ctx context.Context, rules []compiledStructural, tree *pars
 				continue
 			}
 
-			d := nodeDiag(node, lineStarts, r.name, r.message, r.severity)
+			// Naming convention check: extract name, test regex.
+			// If name conforms → no violation, skip.
+			msg := r.message
+			if r.naming != nil {
+				name := extractNodeNameByID(node, source, nameFieldID)
+				if r.naming.matches(name) {
+					continue
+				}
+				if r.naming.message != "" {
+					msg = r.naming.message
+				}
+			}
+
+			d := nodeDiag(node, lineStarts, r.name, msg, r.severity)
 			key := seenKey{line: d.Line, rule: r.name}
 			if _, dup := seen[key]; dup {
 				continue

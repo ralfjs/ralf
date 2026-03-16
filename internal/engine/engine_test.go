@@ -575,6 +575,122 @@ func TestLint_MixedRulesAllThreeTypes(t *testing.T) {
 	}
 }
 
+func TestLintFile_NamingRules(t *testing.T) {
+	t.Run("flags non-camelCase function", func(t *testing.T) {
+		cfg := &config.Config{
+			Rules: map[string]config.RuleConfig{
+				"camelcase-fn": {
+					Severity: config.SeverityError,
+					AST:      &config.ASTMatcher{Kind: "function_declaration"},
+					Naming:   &config.NamingMatcher{Match: "^[a-z][a-zA-Z0-9]*$", Message: "must be camelCase"},
+				},
+			},
+		}
+		eng, errs := New(cfg)
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errors: %v", errs)
+		}
+
+		source := []byte("function BadName() {}\nfunction goodName() {}")
+		diags := eng.LintFile(context.Background(), "test.js", source)
+		if len(diags) != 1 {
+			t.Fatalf("expected 1 diagnostic, got %d", len(diags))
+		}
+		if diags[0].Rule != "camelcase-fn" {
+			t.Errorf("rule = %q, want %q", diags[0].Rule, "camelcase-fn")
+		}
+		if diags[0].Message != "must be camelCase" {
+			t.Errorf("message = %q, want %q", diags[0].Message, "must be camelCase")
+		}
+		if diags[0].Line != 1 {
+			t.Errorf("line = %d, want 1", diags[0].Line)
+		}
+	})
+
+	t.Run("no violations when all names conform", func(t *testing.T) {
+		cfg := &config.Config{
+			Rules: map[string]config.RuleConfig{
+				"camelcase-fn": {
+					Severity: config.SeverityError,
+					AST:      &config.ASTMatcher{Kind: "function_declaration"},
+					Naming:   &config.NamingMatcher{Match: "^[a-z][a-zA-Z0-9]*$"},
+					Message:  "must be camelCase",
+				},
+			},
+		}
+		eng, errs := New(cfg)
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errors: %v", errs)
+		}
+
+		source := []byte("function goodName() {}\nfunction anotherGood() {}")
+		diags := eng.LintFile(context.Background(), "test.js", source)
+		if len(diags) != 0 {
+			t.Fatalf("expected 0 diagnostics, got %d", len(diags))
+		}
+	})
+}
+
+func TestLint_AllFourRuleTypes(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "test.js"),
+		"var x = 1;\nconsole.log(x);\nfunction Foo() {}\nfunction bar() {}")
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleConfig{
+			"no-var": {
+				Severity: config.SeverityError,
+				Regex:    `\bvar\b`,
+				Message:  "No var",
+			},
+			"no-console": {
+				Severity: config.SeverityWarn,
+				Pattern:  "console.log($$$ARGS)",
+				Message:  "No console.log",
+			},
+			"no-fn": {
+				Severity: config.SeverityError,
+				AST:      &config.ASTMatcher{Kind: "function_declaration"},
+				Message:  "No functions",
+			},
+			"camelcase-fn": {
+				Severity: config.SeverityError,
+				AST:      &config.ASTMatcher{Kind: "function_declaration"},
+				Naming:   &config.NamingMatcher{Match: "^[a-z]", Message: "must be camelCase"},
+			},
+		},
+	}
+	eng, errs := New(cfg)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+
+	result := eng.Lint(context.Background(), []string{filepath.Join(dir, "test.js")}, 1)
+	if len(result.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	rules := map[string]int{}
+	for _, d := range result.Diagnostics {
+		rules[d.Rule]++
+	}
+
+	if rules["no-var"] != 1 {
+		t.Errorf("no-var: got %d, want 1", rules["no-var"])
+	}
+	if rules["no-console"] != 1 {
+		t.Errorf("no-console: got %d, want 1", rules["no-console"])
+	}
+	// no-fn matches both Foo and bar but they're on different lines.
+	if rules["no-fn"] != 2 {
+		t.Errorf("no-fn: got %d, want 2", rules["no-fn"])
+	}
+	// camelcase-fn should only flag Foo (doesn't start lowercase).
+	if rules["camelcase-fn"] != 1 {
+		t.Errorf("camelcase-fn: got %d, want 1", rules["camelcase-fn"])
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {

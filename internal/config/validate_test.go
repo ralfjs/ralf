@@ -207,7 +207,6 @@ func TestValidateAllMatcherTypes(t *testing.T) {
 		{"pattern", RuleConfig{Severity: SeverityWarn, Pattern: "bar"}},
 		{"ast", RuleConfig{Severity: SeverityWarn, AST: &ASTMatcher{Kind: "x"}}},
 		{"imports", RuleConfig{Severity: SeverityWarn, Imports: &ImportsMatcher{Groups: []string{"a"}}}},
-		{"naming", RuleConfig{Severity: SeverityWarn, Naming: &NamingMatcher{Match: "^[a-z]"}}},
 	}
 
 	for _, tt := range tests {
@@ -217,5 +216,112 @@ func TestValidateAllMatcherTypes(t *testing.T) {
 				t.Errorf("valid %s rule failed: %v", tt.name, err)
 			}
 		})
+	}
+}
+
+func TestValidateNamingStandaloneError(t *testing.T) {
+	// Naming alone (without ast) is not a valid matcher.
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"bad": {Severity: SeverityWarn, Naming: &NamingMatcher{Match: "^[a-z]"}},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for standalone naming")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	// Should have errors: no matcher + naming requires ast
+	foundMatcher := false
+	foundNaming := false
+	for _, e := range ve.Errors {
+		if e.Field == "matcher" {
+			foundMatcher = true
+		}
+		if e.Field == "naming" {
+			foundNaming = true
+		}
+	}
+	if !foundMatcher {
+		t.Error("expected matcher field error")
+	}
+	if !foundNaming {
+		t.Error("expected naming field error")
+	}
+}
+
+func TestValidateASTWithNaming(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"camelcase-fn": {
+				Severity: SeverityError,
+				AST:      &ASTMatcher{Kind: "function_declaration"},
+				Naming:   &NamingMatcher{Match: "^[a-z][a-zA-Z0-9]*$", Message: "must be camelCase"},
+			},
+		},
+	}
+	if err := Validate(cfg); err != nil {
+		t.Errorf("ast+naming should be valid: %v", err)
+	}
+}
+
+func TestValidateNamingWithoutAST(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"bad": {
+				Severity: SeverityError,
+				Regex:    "foo",
+				Naming:   &NamingMatcher{Match: "^[a-z]"},
+			},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected error for naming without ast")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	foundNaming := false
+	for _, e := range ve.Errors {
+		if e.Field == "naming" && e.Message == "naming can only be combined with ast" {
+			foundNaming = true
+		}
+	}
+	if !foundNaming {
+		t.Error("expected 'naming can only be combined with ast' error")
+	}
+}
+
+func TestValidateNamingEmptyMatch(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"bad": {
+				Severity: SeverityError,
+				AST:      &ASTMatcher{Kind: "function_declaration"},
+				Naming:   &NamingMatcher{Message: "no match field"},
+			},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected error for empty naming.match")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	found := false
+	for _, e := range ve.Errors {
+		if e.Field == "naming.match" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected naming.match field error")
 	}
 }

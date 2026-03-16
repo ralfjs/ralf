@@ -82,9 +82,22 @@ func validateRule(name string, rule *RuleConfig, errs *[]FieldError) {
 
 	matcherCount := countMatchers(rule)
 	if matcherCount == 0 {
-		*errs = append(*errs, FieldError{Rule: name, Field: "matcher", Message: "rule must have exactly one matcher (regex, pattern, ast, imports, or naming)"})
+		*errs = append(*errs, FieldError{Rule: name, Field: "matcher", Message: "rule must have exactly one matcher (regex, pattern, ast, or imports)"})
 	} else if matcherCount > 1 {
 		*errs = append(*errs, FieldError{Rule: name, Field: "matcher", Message: fmt.Sprintf("rule has %d matchers but must have exactly one", matcherCount)})
+	}
+
+	// Naming is a modifier on AST, not a standalone matcher.
+	if rule.Naming != nil {
+		if rule.AST == nil {
+			*errs = append(*errs, FieldError{Rule: name, Field: "naming", Message: "naming requires ast matcher"})
+		}
+		if rule.Naming.Match == "" {
+			*errs = append(*errs, FieldError{Rule: name, Field: "naming.match", Message: "naming.match is required"})
+		}
+		if rule.Regex != "" || rule.Pattern != "" || rule.Imports != nil {
+			*errs = append(*errs, FieldError{Rule: name, Field: "naming", Message: "naming can only be combined with ast"})
+		}
 	}
 }
 
@@ -100,9 +113,6 @@ func countMatchers(r *RuleConfig) int {
 		count++
 	}
 	if r.Imports != nil {
-		count++
-	}
-	if r.Naming != nil {
 		count++
 	}
 	return count

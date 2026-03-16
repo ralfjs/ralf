@@ -23,8 +23,8 @@ type Engine struct {
 }
 
 // New creates an Engine from the given config. It compiles all regex, pattern,
-// and structural rules, returning any compilation errors. Unsupported matcher
-// types (imports, naming) are silently skipped.
+// and structural rules (including naming constraints), returning any
+// compilation errors. Unsupported matcher types (imports) are silently skipped.
 func New(cfg *config.Config) (*Engine, []error) {
 	regexCompiled, regexErrs := compileRegexRules(cfg.Rules)
 	patternCompiled, patternErrs := compilePatternRules(cfg.Rules)

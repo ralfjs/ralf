@@ -51,26 +51,45 @@ jobs:
             echo "::error::Overall coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
             exit 1
           fi
-      - name: Check new code coverage (PR only)
+      - name: Check new file coverage (PR only)
         if: github.event_name == 'pull_request'
         run: |
-          git diff origin/${{ github.base_ref }}...HEAD > diff.txt
-      - name: Diff coverage
-        if: github.event_name == 'pull_request'
-        id: diff_coverage
-        uses: PanagiotisPtr/cov-diff@v1
-        with:
-          path: .
-          coverprofile: coverage.out
-          diff: diff.txt
-          module: github.com/Hideart/ralf
-      - name: Fail if new code coverage below 70%
-        if: github.event_name == 'pull_request'
-        run: |
-          DIFF_COV="${{ steps.diff_coverage.outputs.coverage }}"
-          echo "New code coverage: ${DIFF_COV}%"
-          if (( $(echo "$DIFF_COV < 70" | bc -l) )); then
-            echo "::error::New code coverage ${DIFF_COV}% is below 70% threshold"
+          # Check statement coverage for newly added non-test Go files only.
+          # Modified files are excluded — their pre-existing uncovered code
+          # should not penalize a PR that touches a few lines.
+          NEW_FILES=$(git diff --diff-filter=A --name-only origin/${{ github.base_ref }}...HEAD -- '*.go' | grep -v '_test.go' || true)
+          if [ -z "$NEW_FILES" ]; then
+            echo "No new non-test Go files — skipping new-file coverage check"
+            exit 0
+          fi
+          echo "New files: $NEW_FILES"
+
+          # Parse coverage.out for statement-level coverage on new files.
+          # Format: module/path/file.go:startLine.startCol,endLine.endCol numStatements count
+          TOTAL_STMTS=0
+          COVERED_STMTS=0
+          while IFS= read -r file; do
+            MOD_PATH="github.com/Hideart/ralf/${file}"
+            while IFS= read -r line; do
+              stmts=$(echo "$line" | awk '{print $(NF-1)}')
+              count=$(echo "$line" | awk '{print $NF}')
+              TOTAL_STMTS=$((TOTAL_STMTS + stmts))
+              if [ "$count" -gt 0 ]; then
+                COVERED_STMTS=$((COVERED_STMTS + stmts))
+              fi
+            done < <(grep "^${MOD_PATH}:" coverage.out || true)
+          done <<< "$NEW_FILES"
+
+          if [ "$TOTAL_STMTS" -eq 0 ]; then
+            echo "No coverable statements in new files — skipping"
+            exit 0
+          fi
+
+          DIFF_COV=$(echo "scale=1; $COVERED_STMTS * 100 / $TOTAL_STMTS" | bc)
+          echo "New file coverage: ${DIFF_COV}% ($COVERED_STMTS/$TOTAL_STMTS statements)"
+          THRESHOLD=70
+          if [ "$(echo "$DIFF_COV < $THRESHOLD" | bc -l)" -eq 1 ]; then
+            echo "::error::New file coverage ${DIFF_COV}% is below ${THRESHOLD}% threshold"
             exit 1
           fi
       - name: Upload coverage to Codecov

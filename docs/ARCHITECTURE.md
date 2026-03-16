@@ -695,7 +695,7 @@ internal/
     loader.go                # Load (dir search) + LoadFile (JSON/YAML/TOML dispatch)
     validate.go              # Structural validation: one matcher, valid severity, override rules
     merge.go                 # Override resolution: file-glob matching, later-wins semantics
-    defaults.go              # DefaultConfig (empty)
+    builtins.go              # BuiltinRules (20 regex rules) + RecommendedConfig (zero-config fallback)
     compiler.go              # (planned) compile declarative rules → engine representation
 
   plugin/
@@ -742,7 +742,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 5 | ✅ Regex rule engine | `internal/engine/regex.go`: compile regex patterns + match with dedup + max cap (now rure-go, swapped in week 2). `internal/engine/where.go`: Where predicate evaluation with doublestar. 9 regex tests, 9 where tests. |
 | 6 | ✅ Line/col resolution | `internal/engine/lineindex.go`: `buildLineIndex` (O(n)), `offsetToLineCol` (O(log n) binary search). `internal/engine/diagnostic.go`: Diagnostic, FileError, Result types. 14 tests including CRLF. |
 | 7 | ✅ CLI `lint` command | `internal/cli/`: cobra root + lint subcommand, file discovery (WalkDir + doublestar ignores), 4 output formatters (stylish, JSON, compact, GitHub Actions). Exit codes 0/1/2/3. 7 discover tests, 6 format tests, 4 integration tests. |
-| 8 | First 20 regex rules | Built-in rules: no-var, no-console, no-eval, no-debugger, eqeqeq, no-alert, no-inner-html, etc. Fixture tests for each. |
+| 8 | ✅ First 20 regex rules | `internal/config/builtins.go`: 20 ESLint-equivalent regex rules + `RecommendedConfig` zero-config fallback. `ErrNoConfig` sentinel in loader. CLI falls back to built-ins when no `.ralfrc` found. Fixture tests (valid.js + invalid.js) for each rule. ESLint parity test suite. |
 
 **Month 3 — AST Pattern Matching (Critical Path)**
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -98,6 +99,9 @@ func TestLoadNotFoundDir(t *testing.T) {
 	_, err := Load(t.TempDir())
 	if err == nil {
 		t.Fatal("expected not-found error for empty dir")
+	}
+	if !errors.Is(err, ErrNoConfig) {
+		t.Errorf("expected ErrNoConfig, got: %v", err)
 	}
 }
 

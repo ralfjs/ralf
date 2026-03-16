@@ -2,7 +2,10 @@
 // source files, and produce diagnostics.
 package engine
 
-import "github.com/Hideart/ralf/internal/config"
+import (
+	"github.com/Hideart/ralf/internal/config"
+	"github.com/Hideart/ralf/internal/parser"
+)
 
 // Diagnostic represents a single lint finding.
 type Diagnostic struct {
@@ -27,4 +30,41 @@ type FileError struct {
 type Result struct {
 	Diagnostics []Diagnostic
 	Errors      []FileError
+}
+
+// nodeDiag builds a Diagnostic from an AST node's position. Used by both
+// pattern and structural matchers to avoid duplicating offset → line/col
+// resolution and Diagnostic construction.
+func nodeDiag(node parser.Node, lineStarts []int, rule, message string, severity config.Severity) Diagnostic {
+	startLine, startCol := offsetToLineCol(lineStarts, int(node.StartByte())) //nolint:gosec // tree-sitter offsets fit in int
+	endLine, endCol := offsetToLineCol(lineStarts, int(node.EndByte()))       //nolint:gosec // tree-sitter offsets fit in int
+	return Diagnostic{
+		Line:     startLine,
+		Col:      startCol,
+		EndLine:  endLine,
+		EndCol:   endCol,
+		Rule:     rule,
+		Message:  message,
+		Severity: severity,
+	}
+}
+
+// nodeFix builds a Fix from an AST node's byte range. Handles the
+// fixDeleteStatement sentinel by expanding to the full statement line.
+func nodeFix(node parser.Node, source []byte, fixText string) *Fix {
+	sb := int(node.StartByte()) //nolint:gosec // tree-sitter offsets fit in int
+	eb := int(node.EndByte())   //nolint:gosec // tree-sitter offsets fit in int
+	newText := fixText
+	if newText == fixDeleteStatement {
+		sb, eb = expandToStatement(source, sb, eb)
+		newText = ""
+	}
+	return &Fix{StartByte: sb, EndByte: eb, NewText: newText}
+}
+
+// setFilePath sets the File field on a slice of diagnostics.
+func setFilePath(diags []Diagnostic, filePath string) {
+	for i := range diags {
+		diags[i].File = filePath
+	}
 }

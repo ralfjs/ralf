@@ -227,35 +227,19 @@ func matchPatterns(ctx context.Context, patterns []compiledPattern, tree *parser
 				continue
 			}
 
-			startLine, startCol := offsetToLineCol(lineStarts, int(node.StartByte())) //nolint:gosec // tree-sitter offsets fit in int
-			key := seenKey{line: startLine, rule: p.name}
+			d := nodeDiag(node, lineStarts, p.name, p.message, p.severity)
+			key := seenKey{line: d.Line, rule: p.name}
 			if _, dup := seen[key]; dup {
 				continue
 			}
 			seen[key] = struct{}{}
 
-			endLine, endCol := offsetToLineCol(lineStarts, int(node.EndByte())) //nolint:gosec // tree-sitter offsets fit in int
-			d := Diagnostic{
-				Line:     startLine,
-				Col:      startCol,
-				EndLine:  endLine,
-				EndCol:   endCol,
-				Rule:     p.name,
-				Message:  p.message,
-				Severity: p.severity,
-			}
-
 			if p.fix != "" {
-				sb := int(node.StartByte()) //nolint:gosec // tree-sitter offsets fit in int
-				eb := int(node.EndByte())   //nolint:gosec // tree-sitter offsets fit in int
-				newText := p.fix
-				if newText == fixDeleteStatement {
-					sb, eb = expandToStatement(source, sb, eb)
-					newText = ""
-				} else if captures != nil {
-					newText = substituteCaptures(newText, captures)
+				f := nodeFix(node, source, p.fix)
+				if p.fix != fixDeleteStatement && captures != nil {
+					f.NewText = substituteCaptures(f.NewText, captures)
 				}
-				d.Fix = &Fix{StartByte: sb, EndByte: eb, NewText: newText}
+				d.Fix = f
 			}
 
 			diags = append(diags, d)

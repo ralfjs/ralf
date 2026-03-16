@@ -53,8 +53,23 @@ func (n Node) IsNull() bool {
 }
 
 // Kind returns the node's type name (e.g. "function_declaration").
+// Note: crosses CGo and allocates a Go string via C.GoString.
+// For hot loops, prefer KindID + pre-resolved symbol IDs.
 func (n Node) Kind() string {
 	return n.inner.Kind()
+}
+
+// KindID returns the node's type as a numeric symbol ID.
+// This is a cheap CGo call with no allocation — O(1).
+func (n Node) KindID() uint16 {
+	return n.inner.KindId()
+}
+
+// SymbolForKind resolves a kind string to its numeric symbol ID
+// in this node's language grammar. Intended to be called once and cached.
+// Returns 0 if the kind is not found.
+func (n Node) SymbolForKind(kind string, named bool) uint16 {
+	return n.inner.Language().IdForNodeKind(kind, named)
 }
 
 // Text returns the source text spanned by this node.
@@ -111,8 +126,23 @@ func (n Node) NamedChildCount() uint {
 }
 
 // ChildByFieldName returns the first child with the given field name.
+// Note: each call allocates a C string. For hot paths, prefer
+// FieldID + ChildByFieldID.
 func (n Node) ChildByFieldName(name string) Node {
 	return newNode(n.inner.ChildByFieldName(name))
+}
+
+// FieldID returns the numeric field ID for a field name in this node's
+// language grammar. Returns 0 if the field name does not exist.
+// Intended to be called once and cached.
+func (n Node) FieldID(name string) uint16 {
+	return n.inner.Language().FieldIdForName(name)
+}
+
+// ChildByFieldID returns the first child with the given field ID.
+// This avoids the C string allocation of ChildByFieldName.
+func (n Node) ChildByFieldID(id uint16) Node {
+	return newNode(n.inner.ChildByFieldId(id))
 }
 
 // IsNamed returns true if this is a named node (as opposed to anonymous).

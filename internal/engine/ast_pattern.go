@@ -38,6 +38,7 @@ type compiledPattern struct {
 	root     patternNode
 	message  string
 	severity config.Severity
+	fix      string // raw fix template from config (empty = no fix)
 }
 
 // compilePatternRules extracts rules with Pattern != "" and Severity != Off,
@@ -100,6 +101,7 @@ func compilePattern(name string, rule *config.RuleConfig) (compiledPattern, erro
 		root:     pn,
 		message:  rule.Message,
 		severity: rule.Severity,
+		fix:      rule.Fix,
 	}, nil
 }
 
@@ -215,7 +217,13 @@ func matchPatterns(ctx context.Context, patterns []compiledPattern, tree *parser
 				continue
 			}
 
-			if !matchNode(&p.root, node, source) {
+			// Collect capture bindings when the fix template uses $VAR.
+			var captures map[string]string
+			if p.fix != "" && strings.Contains(p.fix, "$") {
+				captures = make(map[string]string)
+			}
+
+			if !matchNode(&p.root, node, source, captures) {
 				continue
 			}
 
@@ -227,7 +235,7 @@ func matchPatterns(ctx context.Context, patterns []compiledPattern, tree *parser
 			seen[key] = struct{}{}
 
 			endLine, endCol := offsetToLineCol(lineStarts, int(node.EndByte())) //nolint:gosec // tree-sitter offsets fit in int
-			diags = append(diags, Diagnostic{
+			d := Diagnostic{
 				Line:     startLine,
 				Col:      startCol,
 				EndLine:  endLine,
@@ -235,7 +243,22 @@ func matchPatterns(ctx context.Context, patterns []compiledPattern, tree *parser
 				Rule:     p.name,
 				Message:  p.message,
 				Severity: p.severity,
-			})
+			}
+
+			if p.fix != "" {
+				sb := int(node.StartByte()) //nolint:gosec // tree-sitter offsets fit in int
+				eb := int(node.EndByte())   //nolint:gosec // tree-sitter offsets fit in int
+				newText := p.fix
+				if newText == fixDeleteStatement {
+					sb, eb = expandToStatement(source, sb, eb)
+					newText = ""
+				} else if captures != nil {
+					newText = substituteCaptures(newText, captures)
+				}
+				d.Fix = &Fix{StartByte: sb, EndByte: eb, NewText: newText}
+			}
+
+			diags = append(diags, d)
 			counts[p.name]++
 		}
 
@@ -245,12 +268,16 @@ func matchPatterns(ctx context.Context, patterns []compiledPattern, tree *parser
 	return diags
 }
 
-// matchNode checks if a patternNode structurally matches a target tree-sitter node.
-func matchNode(pn *patternNode, target parser.Node, source []byte) bool {
+// matchNode checks if a patternNode structurally matches a target tree-sitter
+// node. When captures is non-nil, metavariable bindings are recorded into it.
+func matchNode(pn *patternNode, target parser.Node, source []byte, captures map[string]string) bool {
 	switch pn.kind {
 	case patternWild, patternVariadic:
 		// Wild matches any single node. Variadic also matches any single node
 		// at top level — multi-node semantics are handled in matchChildren.
+		if captures != nil && pn.name != "" {
+			captures[pn.name] = target.Text(source)
+		}
 		return true
 
 	case patternLiteral:
@@ -266,7 +293,7 @@ func matchNode(pn *patternNode, target parser.Node, source []byte) bool {
 
 		// Non-leaf: match children structurally.
 		targetChildren := target.CollectChildren()
-		return matchChildren(pn.children, targetChildren, source)
+		return matchChildren(pn.children, targetChildren, source, captures)
 
 	default:
 		return false
@@ -277,7 +304,8 @@ func matchNode(pn *patternNode, target parser.Node, source []byte) bool {
 // handling variadic metavariables via backtracking. Trailing anonymous nodes
 // in the target (like ";") that have no counterpart in the pattern are ignored,
 // since pattern authors don't write trailing semicolons.
-func matchChildren(patterns []patternNode, targets []parser.Node, source []byte) bool {
+// When captures is non-nil, metavariable bindings are recorded.
+func matchChildren(patterns []patternNode, targets []parser.Node, source []byte, captures map[string]string) bool {
 	// Strip trailing anonymous punctuation from target that pattern omits
 	// (e.g., ";" in the target but not in the pattern source).
 	trimmed := targets
@@ -287,7 +315,7 @@ func matchChildren(patterns []patternNode, targets []parser.Node, source []byte)
 		}
 	}
 	steps := maxBacktrackSteps
-	return matchChildrenRec(patterns, trimmed, 0, 0, source, &steps)
+	return matchChildrenRec(patterns, trimmed, 0, 0, source, &steps, captures)
 }
 
 // endsWithAnonymousLiteral checks if the pattern ends with an anonymous literal node.
@@ -306,7 +334,9 @@ const maxBacktrackSteps = 10000
 // matchChildrenRec is the recursive backtracking implementation for matching
 // pattern children against target children with variadic support.
 // steps is decremented on each call; matching fails when exhausted.
-func matchChildrenRec(patterns []patternNode, targets []parser.Node, pi, ti int, source []byte, steps *int) bool {
+// When captures is non-nil, metavariable bindings are recorded and
+// saved/restored on backtrack.
+func matchChildrenRec(patterns []patternNode, targets []parser.Node, pi, ti int, source []byte, steps *int, captures map[string]string) bool {
 	*steps--
 	if *steps <= 0 {
 		return false
@@ -323,8 +353,38 @@ func matchChildrenRec(patterns []patternNode, targets []parser.Node, pi, ti int,
 		// Try consuming max..0 target children (greedy backtracking).
 		remaining := len(targets) - ti
 		for consume := remaining; consume >= 0; consume-- {
-			if matchChildrenRec(patterns, targets, pi+1, ti+consume, source, steps) {
+			// Save and restore captures on backtrack.
+			var saved map[string]string
+			if captures != nil {
+				saved = make(map[string]string, len(captures))
+				for k, v := range captures {
+					saved[k] = v
+				}
+				// Record variadic capture as concatenated text of consumed nodes.
+				// Zero consumed nodes → empty string (so $$$ARGS doesn't survive
+				// into the fix template as a literal token).
+				if p.name != "" {
+					if consume > 0 {
+						start := int(targets[ti].StartByte())       //nolint:gosec // tree-sitter offsets fit in int
+						end := int(targets[ti+consume-1].EndByte()) //nolint:gosec // tree-sitter offsets fit in int
+						captures[p.name] = string(source[start:end])
+					} else {
+						captures[p.name] = ""
+					}
+				}
+			}
+
+			if matchChildrenRec(patterns, targets, pi+1, ti+consume, source, steps, captures) {
 				return true
+			}
+
+			if saved != nil {
+				for k := range captures {
+					delete(captures, k)
+				}
+				for k, v := range saved {
+					captures[k] = v
+				}
 			}
 		}
 		return false
@@ -335,9 +395,65 @@ func matchChildrenRec(patterns []patternNode, targets []parser.Node, pi, ti int,
 		return false
 	}
 
-	if !matchNode(p, targets[ti], source) {
+	if !matchNode(p, targets[ti], source, captures) {
 		return false
 	}
 
-	return matchChildrenRec(patterns, targets, pi+1, ti+1, source, steps)
+	return matchChildrenRec(patterns, targets, pi+1, ti+1, source, steps, captures)
+}
+
+// substituteCaptures replaces $$$NAME and $NAME tokens in a fix template
+// with their captured values. Uses a single forward scan to avoid
+// re-processing captured text that may itself contain $ characters.
+func substituteCaptures(tmpl string, captures map[string]string) string {
+	var buf strings.Builder
+	buf.Grow(len(tmpl))
+	i := 0
+	for i < len(tmpl) {
+		if tmpl[i] != '$' {
+			buf.WriteByte(tmpl[i])
+			i++
+			continue
+		}
+
+		// Try $$$ prefix first (longer match wins).
+		if matched, val, advance := matchCapture(tmpl, i, "$$$", captures); matched {
+			buf.WriteString(val)
+			i += advance
+			continue
+		}
+		if matched, val, advance := matchCapture(tmpl, i, "$", captures); matched {
+			buf.WriteString(val)
+			i += advance
+			continue
+		}
+
+		// No capture match — emit the literal $.
+		buf.WriteByte('$')
+		i++
+	}
+	return buf.String()
+}
+
+// matchCapture checks if tmpl[pos:] starts with prefix followed by a capture
+// name. Returns whether it matched, the captured value, and how many bytes to
+// advance past.
+func matchCapture(tmpl string, pos int, prefix string, captures map[string]string) (matched bool, val string, advance int) {
+	if !strings.HasPrefix(tmpl[pos:], prefix) {
+		return false, "", 0
+	}
+	rest := tmpl[pos+len(prefix):]
+	// Find the longest matching capture name at this position.
+	bestLen := 0
+	bestVal := ""
+	for name, val := range captures {
+		if len(name) > bestLen && strings.HasPrefix(rest, name) {
+			bestLen = len(name)
+			bestVal = val
+		}
+	}
+	if bestLen == 0 {
+		return false, "", 0
+	}
+	return true, bestVal, len(prefix) + bestLen
 }

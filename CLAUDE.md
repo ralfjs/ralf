@@ -43,7 +43,7 @@ internal/
     imports.go               # Import ordering / grouping analysis
     complexity.go            # Cyclomatic complexity
     crossfile.go             # Cross-file rule evaluation (uses project.Graph)
-    fix.go                   # Auto-fix: replacement, deletion, insertion, templates
+    fix.go                   # Auto-fix: Fix/Conflict types, ApplyFixes (single-pass), expandToStatement
     lineindex.go             # Line/col resolution (binary search on line starts)
 
   parser/                    # tree-sitter wrapper

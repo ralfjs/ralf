@@ -215,7 +215,7 @@ func TestMatchNode(t *testing.T) {
 		var matched bool
 		parser.Walk(tree, func(node parser.Node, _ int) bool {
 			if node.Kind() == "call_expression" {
-				matched = matchNode(&pn, node, source)
+				matched = matchNode(&pn, node, source, nil)
 				return false
 			}
 			return true
@@ -234,7 +234,7 @@ func TestMatchNode(t *testing.T) {
 		var anyMatch bool
 		parser.Walk(tree, func(node parser.Node, _ int) bool {
 			if node.Kind() == "variable_declaration" {
-				anyMatch = matchNode(&pn, node, source)
+				anyMatch = matchNode(&pn, node, source, nil)
 			}
 			return true
 		})
@@ -252,7 +252,7 @@ func TestMatchNode(t *testing.T) {
 		var matched bool
 		parser.Walk(tree, func(node parser.Node, _ int) bool {
 			if node.Kind() == "number" {
-				matched = matchNode(&pn, node, source)
+				matched = matchNode(&pn, node, source, nil)
 				return false
 			}
 			return true
@@ -271,7 +271,7 @@ func TestMatchNode(t *testing.T) {
 		var matched bool
 		parser.Walk(tree, func(node parser.Node, _ int) bool {
 			if node.Kind() == "call_expression" {
-				matched = matchNode(&pn, node, source)
+				matched = matchNode(&pn, node, source, nil)
 				return false
 			}
 			return true
@@ -314,7 +314,7 @@ func TestMatchChildren(t *testing.T) {
 			{kind: patternLiteral, nodeKind: ")", text: ")"},
 		}
 		children, source := parseAndGetChildren(t, "f()", "arguments")
-		if !matchChildren(patterns, children, source) {
+		if !matchChildren(patterns, children, source, nil) {
 			t.Error("expected variadic to match zero children in ()")
 		}
 	})
@@ -327,7 +327,7 @@ func TestMatchChildren(t *testing.T) {
 			{kind: patternLiteral, nodeKind: ")", text: ")"},
 		}
 		children, source := parseAndGetChildren(t, "f(1, 2, 3)", "arguments")
-		if !matchChildren(patterns, children, source) {
+		if !matchChildren(patterns, children, source, nil) {
 			t.Error("expected variadic to match multiple children in (1, 2, 3)")
 		}
 	})
@@ -360,7 +360,7 @@ func TestMatchChildren(t *testing.T) {
 		}
 
 		children, source := parseAndGetChildren(t, "f(1, 2, 3)", "arguments")
-		if !matchChildren(patternArgs, children, source) {
+		if !matchChildren(patternArgs, children, source, nil) {
 			t.Error("expected f($A, $$$REST) to match arguments of f(1, 2, 3)")
 		}
 	})

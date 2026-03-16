@@ -51,18 +51,21 @@ jobs:
             echo "::error::Overall coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
             exit 1
           fi
-      - name: Check diff coverage (PR only)
+      - name: Check new file coverage (PR only)
         if: github.event_name == 'pull_request'
         run: |
-          # Get new/modified non-test Go files in this PR
-          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.go' | grep -v '_test.go' || true)
-          if [ -z "$CHANGED" ]; then
-            echo "No non-test Go files changed — skipping diff coverage"
+          # Check statement coverage for newly added non-test Go files only.
+          # Modified files are excluded — their pre-existing uncovered code
+          # should not penalize a PR that touches a few lines.
+          NEW_FILES=$(git diff --diff-filter=A --name-only origin/${{ github.base_ref }}...HEAD -- '*.go' | grep -v '_test.go' || true)
+          if [ -z "$NEW_FILES" ]; then
+            echo "No new non-test Go files — skipping new-file coverage check"
             exit 0
           fi
+          echo "New files: $NEW_FILES"
 
-          # Parse coverage.out to compute statement-level coverage for changed files.
-          # coverage.out format: module/path/file.go:startLine.startCol,endLine.endCol numStatements count
+          # Parse coverage.out for statement-level coverage on new files.
+          # Format: module/path/file.go:startLine.startCol,endLine.endCol numStatements count
           TOTAL_STMTS=0
           COVERED_STMTS=0
           while IFS= read -r file; do
@@ -75,18 +78,18 @@ jobs:
                 COVERED_STMTS=$((COVERED_STMTS + stmts))
               fi
             done < <(grep "^${MOD_PATH}:" coverage.out || true)
-          done <<< "$CHANGED"
+          done <<< "$NEW_FILES"
 
           if [ "$TOTAL_STMTS" -eq 0 ]; then
-            echo "No coverable statements in changed files — skipping"
+            echo "No coverable statements in new files — skipping"
             exit 0
           fi
 
           DIFF_COV=$(echo "scale=1; $COVERED_STMTS * 100 / $TOTAL_STMTS" | bc)
-          echo "Diff coverage: ${DIFF_COV}% ($COVERED_STMTS/$TOTAL_STMTS statements)"
+          echo "New file coverage: ${DIFF_COV}% ($COVERED_STMTS/$TOTAL_STMTS statements)"
           THRESHOLD=70
           if [ "$(echo "$DIFF_COV < $THRESHOLD" | bc -l)" -eq 1 ]; then
-            echo "::error::Diff statement coverage ${DIFF_COV}% is below ${THRESHOLD}% threshold"
+            echo "::error::New file coverage ${DIFF_COV}% is below ${THRESHOLD}% threshold"
             exit 1
           fi
       - name: Upload coverage to Codecov

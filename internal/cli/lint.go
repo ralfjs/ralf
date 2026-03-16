@@ -133,7 +133,7 @@ func loadConfig() (*config.Config, error) {
 	cfg, err := config.Load(cwd)
 	if err != nil {
 		if errors.Is(err, config.ErrNoConfig) {
-			slog.Info("no config file found, using recommended built-in rules")
+			slog.Debug("no config file found, using recommended built-in rules")
 			return config.RecommendedConfig(), nil
 		}
 		return nil, err

@@ -257,7 +257,9 @@ func TestBuiltinRules_ESLintParity(t *testing.T) {
 			rule: "no-void",
 			shouldHit: []string{
 				"void 0;",
+				"void(0);",
 				"const x = void fn();",
+				"const x = void(0);",
 				"return void 0;",
 				"(void 0);",
 				"!void 0;",
@@ -287,6 +289,9 @@ func TestBuiltinRules_ESLintParity(t *testing.T) {
 				`const a = "javascript:alert(1)";`,
 				`const b = 'javascript:void(0)';`,
 				"const c = `javascript:doIt()`;",
+				// case-insensitive — URL schemes are case-insensitive
+				`const d = "JavaScript:alert(1)";`,
+				`const e = "JAVASCRIPT:alert(1)";`,
 			},
 			shouldOK: []string{
 				`const a = "https://example.com";`,

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"os"
 	"path/filepath"
 	"testing"
 )
@@ -130,14 +129,8 @@ func TestLintIntegration(t *testing.T) {
 		cmd.SetArgs([]string{"lint", noConfigDir})
 
 		// Override working directory so loadConfig() searches the temp dir.
-		origDir, err := os.Getwd()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Chdir(noConfigDir); err != nil {
-			t.Fatal(err)
-		}
-		defer func() { _ = os.Chdir(origDir) }()
+		// t.Chdir automatically restores cwd when the test ends.
+		t.Chdir(noConfigDir)
 
 		if err := cmd.Execute(); err != nil {
 			t.Fatalf("unexpected cobra error: %v", err)

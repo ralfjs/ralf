@@ -108,15 +108,16 @@ func BuiltinRules() map[string]RuleConfig {
 		},
 		// ESLint: no-void — flags the void operator.
 		// Matches void in expression context only, not TS type annotations.
+		// Covers both void EXPR and void(EXPR) forms.
 		"no-void": {
 			Severity: SeverityWarn,
-			Regex:    `(?m)(?:^|[=(!&|?+\-~,;\{\[]|return)\s*\bvoid\s|=>\s*\bvoid\s+[a-zA-Z0-9_$"'(!~+\-]`,
+			Regex:    `(?m)(?:^|[=(!&|?+\-~,;\{\[]|return)\s*\bvoid[\s(]|=>\s*\bvoid\s+[a-zA-Z0-9_$"'(!~+\-]`,
 			Message:  "Avoid the `void` operator",
 		},
-		// ESLint: no-script-url — flags javascript: protocol URLs.
+		// ESLint: no-script-url — flags javascript: protocol URLs (case-insensitive).
 		"no-script-url": {
 			Severity: SeverityError,
-			Regex:    `["'` + "`" + `]javascript:`,
+			Regex:    `(?i)["'` + "`" + `]javascript:`,
 			Message:  "Script URLs are a form of `eval`",
 		},
 		// ESLint: no-extend-native — flags extending native prototypes.
@@ -127,9 +128,10 @@ func BuiltinRules() map[string]RuleConfig {
 			Message:  "Do not extend native objects",
 		},
 		// ESLint: no-multi-str — flags multiline strings via backslash continuation.
+		// Handles both LF and CRLF line endings.
 		"no-multi-str": {
 			Severity: SeverityWarn,
-			Regex:    `\\\n`,
+			Regex:    `\\\r?\n`,
 			Message:  "Unexpected multiline string (use template literals)",
 		},
 		// ESLint: no-octal-escape — flags octal escape sequences in strings.

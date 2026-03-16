@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/Hideart/ralf/internal/config"
@@ -128,19 +130,27 @@ func loadConfig() (*config.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get working directory: %w", err)
 	}
-	return config.Load(cwd)
+	cfg, err := config.Load(cwd)
+	if err != nil {
+		if errors.Is(err, config.ErrNoConfig) {
+			slog.Info("no config file found, using recommended built-in rules")
+			return config.RecommendedConfig(), nil
+		}
+		return nil, err
+	}
+	return cfg, nil
 }
 
 // countBySeverity returns the number of error and warning diagnostics in a
 // single pass.
-func countBySeverity(diags []engine.Diagnostic) (errors, warnings int) {
+func countBySeverity(diags []engine.Diagnostic) (errCount, warnCount int) {
 	for _, d := range diags {
 		switch d.Severity {
 		case config.SeverityError:
-			errors++
+			errCount++
 		case config.SeverityWarn:
-			warnings++
+			warnCount++
 		}
 	}
-	return errors, warnings
+	return errCount, warnCount
 }

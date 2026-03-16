@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -112,6 +113,41 @@ func TestLintIntegration(t *testing.T) {
 		_ = cmd.Execute()
 		if exitCode != ExitLintErrors {
 			t.Errorf("expected exit code %d, got %d", ExitLintErrors, exitCode)
+		}
+	})
+
+	t.Run("no config falls back to recommended", func(t *testing.T) {
+		noConfigDir := t.TempDir()
+		writeTestFile(t, filepath.Join(noConfigDir, "bad.js"), "var x = 1;")
+
+		exitCode = 0
+		configPath = ""
+
+		var stdout, stderr bytes.Buffer
+		cmd := newRootCmd()
+		cmd.SetOut(&stdout)
+		cmd.SetErr(&stderr)
+		cmd.SetArgs([]string{"lint", noConfigDir})
+
+		// Override working directory so loadConfig() searches the temp dir.
+		origDir, err := os.Getwd()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chdir(noConfigDir); err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = os.Chdir(origDir) }()
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpected cobra error: %v", err)
+		}
+		if exitCode != ExitLintErrors {
+			t.Errorf("expected exit code %d, got %d\nstdout: %s\nstderr: %s",
+				ExitLintErrors, exitCode, stdout.String(), stderr.String())
+		}
+		if !bytes.Contains(stdout.Bytes(), []byte("no-var")) {
+			t.Errorf("expected no-var diagnostic in output, got: %s", stdout.String())
 		}
 	})
 

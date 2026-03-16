@@ -19,8 +19,11 @@ var searchNames = []string{
 	".ralfrc.toml",
 }
 
+// ErrNoConfig is returned when no config file is found in the searched directory.
+var ErrNoConfig = errors.New("no config file found")
+
 // Load searches dir for a config file and loads the first one found.
-// Returns an error if no config file is found.
+// Returns ErrNoConfig (wrapped) if no config file is found.
 func Load(dir string) (*Config, error) {
 	for _, name := range searchNames {
 		path := filepath.Join(dir, name)
@@ -32,7 +35,7 @@ func Load(dir string) (*Config, error) {
 			return nil, fmt.Errorf("config: stat %s: %w", path, err)
 		}
 	}
-	return nil, fmt.Errorf("config: no config file found in %s (searched: %v)", dir, searchNames)
+	return nil, fmt.Errorf("config: %w in %s (searched: %v)", ErrNoConfig, dir, searchNames)
 }
 
 // LoadFile loads a config from an explicit file path. The format is

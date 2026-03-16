@@ -54,41 +54,39 @@ jobs:
       - name: Check diff coverage (PR only)
         if: github.event_name == 'pull_request'
         run: |
-          # Get new/modified Go files in this PR
+          # Get new/modified non-test Go files in this PR
           CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.go' | grep -v '_test.go' || true)
           if [ -z "$CHANGED" ]; then
             echo "No non-test Go files changed — skipping diff coverage"
             exit 0
           fi
 
-          # Extract per-function coverage for changed files, compute average
+          # Parse coverage.out to compute statement-level coverage for changed files.
+          # coverage.out format: module/path/file.go:startLine.startCol,endLine.endCol numStatements count
           TOTAL_STMTS=0
           COVERED_STMTS=0
           while IFS= read -r file; do
-            # go tool cover -func outputs: file:line: funcName  coverage%
-            # Filter to changed files, sum statements
             MOD_PATH="github.com/Hideart/ralf/${file}"
-            while IFS=$'\t' read -r loc func pct; do
-              pct_num=$(echo "$pct" | tr -d '%')
-              # Each function line represents covered statements; approximate
-              # by counting functions and weighting by coverage
-              TOTAL_STMTS=$((TOTAL_STMTS + 1))
-              if [ "$(echo "$pct_num > 0" | bc -l)" -eq 1 ]; then
-                COVERED_STMTS=$((COVERED_STMTS + 1))
+            while IFS= read -r line; do
+              stmts=$(echo "$line" | awk '{print $(NF-1)}')
+              count=$(echo "$line" | awk '{print $NF}')
+              TOTAL_STMTS=$((TOTAL_STMTS + stmts))
+              if [ "$count" -gt 0 ]; then
+                COVERED_STMTS=$((COVERED_STMTS + stmts))
               fi
-            done < <(go tool cover -func=coverage.out | grep "^${MOD_PATH}:" || true)
+            done < <(grep "^${MOD_PATH}:" coverage.out || true)
           done <<< "$CHANGED"
 
           if [ "$TOTAL_STMTS" -eq 0 ]; then
-            echo "No coverable functions in changed files — skipping"
+            echo "No coverable statements in changed files — skipping"
             exit 0
           fi
 
           DIFF_COV=$(echo "scale=1; $COVERED_STMTS * 100 / $TOTAL_STMTS" | bc)
-          echo "New code coverage: ${DIFF_COV}% ($COVERED_STMTS/$TOTAL_STMTS functions covered)"
+          echo "Diff coverage: ${DIFF_COV}% ($COVERED_STMTS/$TOTAL_STMTS statements)"
           THRESHOLD=70
           if [ "$(echo "$DIFF_COV < $THRESHOLD" | bc -l)" -eq 1 ]; then
-            echo "::error::New code coverage ${DIFF_COV}% is below ${THRESHOLD}% threshold"
+            echo "::error::Diff statement coverage ${DIFF_COV}% is below ${THRESHOLD}% threshold"
             exit 1
           fi
       - name: Upload coverage to Codecov

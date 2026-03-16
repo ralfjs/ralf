@@ -24,6 +24,9 @@ var expectErrorPrevLineRe = regexp.MustCompile(`//\s*expect-error-prev-line:\s*(
 func TestFixtures(t *testing.T) {
 	builtins := config.BuiltinRules()
 
+	// Track which builtins have fixtures — fail if any are missing.
+	tested := make(map[string]bool, len(builtins))
+
 	entries, err := os.ReadDir(fixtureDir)
 	if err != nil {
 		t.Fatalf("read fixture dir: %v", err)
@@ -38,6 +41,7 @@ func TestFixtures(t *testing.T) {
 		if !ok {
 			continue // skip non-builtin fixture dirs (e.g. no-console-pattern)
 		}
+		tested[ruleName] = true
 
 		t.Run(ruleName, func(t *testing.T) {
 			cfg := &config.Config{
@@ -61,6 +65,10 @@ func TestFixtures(t *testing.T) {
 
 				diags := eng.LintFile(context.Background(), path, source)
 				expected := parseExpectErrors(string(source), ruleName)
+
+				if len(expected) == 0 {
+					t.Fatal("invalid.js has no expect-error annotations for this rule — fixture is ineffective")
+				}
 
 				if len(diags) != len(expected) {
 					t.Errorf("got %d diagnostics, want %d", len(diags), len(expected))
@@ -99,6 +107,13 @@ func TestFixtures(t *testing.T) {
 				}
 			})
 		})
+	}
+
+	// Fail if any builtin rule is missing fixture tests.
+	for name := range builtins {
+		if !tested[name] {
+			t.Errorf("builtin rule %q has no fixture directory at testdata/rules/%s/", name, name)
+		}
 	}
 }
 

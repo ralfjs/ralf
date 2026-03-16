@@ -35,7 +35,7 @@ Loads, validates, and resolves linter configuration from `.ralfrc.{json,yaml,yml
 | `loader.go` | `Load` (directory search) and `LoadFile` (explicit path). Dispatches to `encoding/json`, `yaml.v3`, or `BurntSushi/toml` by extension |
 | `validate.go` | `Validate` — checks each rule (including override rules) has exactly one matcher, valid severity, non-empty globs |
 | `merge.go` | `Merge` — applies matching override globs on top of base rules for a given file path |
-| `defaults.go` | `DefaultConfig` — returns empty config with initialized `Rules` map |
+| `builtins.go` | `BuiltinRules` — returns 20 built-in regex rules; `RecommendedConfig` — wraps them as zero-config fallback |
 
 ## Config File Discovery
 

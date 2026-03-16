@@ -729,6 +729,187 @@ func TestMatchStructural(t *testing.T) {
 	})
 }
 
+func TestMatchStructural_NamingConvention(t *testing.T) {
+	// naming: ^[a-z] should flag "Foo" but not "foo".
+	source := []byte("function Foo() {}\nfunction foo() {}")
+	p := parser.NewParser(parser.LangJS)
+	tree, err := p.Parse(context.Background(), source, nil)
+	p.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tree.Close()
+
+	nm, err := compileNaming("camelcase-fn", &config.NamingMatcher{Match: "^[a-z]"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lineStarts := buildLineIndex(source)
+	rules := []compiledStructural{{
+		name:     "camelcase-fn",
+		matcher:  compiledASTMatcher{kind: "function_declaration"},
+		naming:   nm,
+		message:  "default message",
+		severity: config.SeverityError,
+	}}
+
+	diags := matchStructural(context.Background(), rules, tree, source, lineStarts)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic (Foo only), got %d", len(diags))
+	}
+	if diags[0].Line != 1 {
+		t.Errorf("line = %d, want 1 (Foo)", diags[0].Line)
+	}
+}
+
+func TestMatchStructural_NamingCustomMessage(t *testing.T) {
+	source := []byte("function BadName() {}")
+	p := parser.NewParser(parser.LangJS)
+	tree, err := p.Parse(context.Background(), source, nil)
+	p.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tree.Close()
+
+	nm, err := compileNaming("camelcase-fn", &config.NamingMatcher{
+		Match:   "^[a-z]",
+		Message: "must be camelCase",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lineStarts := buildLineIndex(source)
+	rules := []compiledStructural{{
+		name:     "camelcase-fn",
+		matcher:  compiledASTMatcher{kind: "function_declaration"},
+		naming:   nm,
+		message:  "default message",
+		severity: config.SeverityError,
+	}}
+
+	diags := matchStructural(context.Background(), rules, tree, source, lineStarts)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
+	}
+	if diags[0].Message != "must be camelCase" {
+		t.Errorf("message = %q, want %q", diags[0].Message, "must be camelCase")
+	}
+}
+
+func TestMatchStructural_NamingSkipsNoNameField(t *testing.T) {
+	// binary_expression has no "name" field — naming should be skipped,
+	// not evaluated against full node text like "x + y".
+	source := []byte("x + y")
+	p := parser.NewParser(parser.LangJS)
+	tree, err := p.Parse(context.Background(), source, nil)
+	p.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tree.Close()
+
+	nm, err := compileNaming("test", &config.NamingMatcher{Match: "^[a-z]$"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lineStarts := buildLineIndex(source)
+	rules := []compiledStructural{{
+		name:     "test",
+		matcher:  compiledASTMatcher{kind: "binary_expression"},
+		naming:   nm,
+		message:  "bad name",
+		severity: config.SeverityError,
+	}}
+
+	diags := matchStructural(context.Background(), rules, tree, source, lineStarts)
+	if len(diags) != 0 {
+		t.Fatalf("expected 0 diagnostics (no name field), got %d", len(diags))
+	}
+}
+
+func TestMatchStructural_NamingWithKindAndName(t *testing.T) {
+	// AST name filter (exact match "foo") + naming regex (must start lowercase).
+	// "foo" matches both AST name and naming → no diagnostic.
+	// Only "foo" is matched by AST name filter, so no diagnostics at all.
+	source := []byte("function foo() {}\nfunction Bar() {}")
+	p := parser.NewParser(parser.LangJS)
+	tree, err := p.Parse(context.Background(), source, nil)
+	p.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tree.Close()
+
+	nm, err := compileNaming("test", &config.NamingMatcher{Match: "^[a-z]"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lineStarts := buildLineIndex(source)
+	rules := []compiledStructural{{
+		name:     "test",
+		matcher:  compiledASTMatcher{kind: "function_declaration", name: &compiledNameMatch{exact: "foo"}},
+		naming:   nm,
+		message:  "bad name",
+		severity: config.SeverityError,
+	}}
+
+	diags := matchStructural(context.Background(), rules, tree, source, lineStarts)
+	// "foo" is matched by AST name filter and conforms to naming → no diagnostic.
+	// "Bar" is not matched by AST name filter → skipped.
+	if len(diags) != 0 {
+		t.Fatalf("expected 0 diagnostics, got %d", len(diags))
+	}
+}
+
+func TestCompileStructuralRules_WithNaming(t *testing.T) {
+	t.Parallel()
+	rules := map[string]config.RuleConfig{
+		"camelcase-fn": {
+			Severity: config.SeverityError,
+			AST:      &config.ASTMatcher{Kind: "function_declaration"},
+			Naming:   &config.NamingMatcher{Match: "^[a-z]", Message: "must be camelCase"},
+			Message:  "default",
+		},
+	}
+	compiled, errs := compileStructuralRules(rules)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if len(compiled) != 1 {
+		t.Fatalf("expected 1 compiled rule, got %d", len(compiled))
+	}
+	if compiled[0].naming == nil {
+		t.Fatal("naming should be compiled")
+	}
+	if compiled[0].naming.message != "must be camelCase" {
+		t.Errorf("naming.message = %q, want %q", compiled[0].naming.message, "must be camelCase")
+	}
+}
+
+func TestCompileStructuralRules_InvalidNamingRegex(t *testing.T) {
+	t.Parallel()
+	rules := map[string]config.RuleConfig{
+		"bad-naming": {
+			Severity: config.SeverityError,
+			AST:      &config.ASTMatcher{Kind: "function_declaration"},
+			Naming:   &config.NamingMatcher{Match: "[invalid"},
+			Message:  "bad",
+		},
+	}
+	_, errs := compileStructuralRules(rules)
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 error, got %d", len(errs))
+	}
+	if !errors.Is(errs[0], ErrNamingCompile) {
+		t.Errorf("error should wrap ErrNamingCompile, got: %v", errs[0])
+	}
+}
+
 func TestExtractNodeName(t *testing.T) {
 	t.Run("function declaration has name field", func(t *testing.T) {
 		source := []byte("function myFunc() {}")

@@ -33,7 +33,7 @@ Loads, validates, and resolves linter configuration from `.ralfrc.{json,yaml,yml
 |---|---|
 | `config.go` | Data types: `Config`, `RuleConfig`, `Severity`, `Override`, matcher stubs (`ASTMatcher`, `ImportsMatcher`, `NamingMatcher`, `WherePredicate`) |
 | `loader.go` | `Load` (directory search) and `LoadFile` (explicit path). Dispatches to `encoding/json`, `yaml.v3`, or `BurntSushi/toml` by extension |
-| `validate.go` | `Validate` — checks each rule (including override rules) has exactly one matcher, valid severity, non-empty globs |
+| `validate.go` | `Validate` — checks each rule (including override rules) has exactly one matcher, valid severity, non-empty globs, naming modifier requires ast |
 | `merge.go` | `Merge` — applies matching override globs on top of base rules for a given file path |
 | `builtins.go` | `BuiltinRules` — returns 20 built-in regex rules; `RecommendedConfig` — wraps them as zero-config fallback |
 
@@ -60,7 +60,8 @@ rules:
     pattern: "console.log($$$)"     # AST pattern matcher
     ast: { kind: "..." }            # structural AST matcher
     imports: { groups: [...] }      # import ordering matcher
-    naming: { match: "^..." }       # naming convention matcher
+    # Optional modifier (requires ast):
+    naming: { match: "^..." }       # naming convention on matched AST nodes
     # Optional:
     where: { file: "src/**" }       # file/context predicate
     scope: "cross-file"             # analysis scope
@@ -83,7 +84,8 @@ overrides:
 `Validate` checks both top-level rules and override rules:
 
 - **Severity** — required, must be `"error"`, `"warn"`, or `"off"` (missing severity is a validation error)
-- **Matcher** — exactly one of `regex`, `pattern`, `ast`, `imports`, `naming` must be set
+- **Matcher** — exactly one of `regex`, `pattern`, `ast`, `imports` must be set
+- **Naming** — optional modifier, requires `ast` matcher; `naming.match` must be non-empty; cannot combine with `regex`, `pattern`, or `imports`
 - **Override globs** — `files` array must be non-empty, no empty/whitespace strings, no malformed glob syntax
 
 Returns `*ValidationError` containing `[]FieldError` with rule name, field, and message. Override rule errors use paths like `overrides[0].rules.rule-name`.

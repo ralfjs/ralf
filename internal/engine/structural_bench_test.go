@@ -159,10 +159,61 @@ func BenchmarkMatchStructural_NameRegex(b *testing.B) {
 	}
 }
 
-// BenchmarkLintE2E_AllThreeTypes exercises the full Engine.Lint path with all
-// three rule types: regex, pattern, and structural. 50 files × 100 lines × 3
-// rule types approximates a mid-size project with diverse rule configuration.
-func BenchmarkLintE2E_AllThreeTypes(b *testing.B) {
+// BenchmarkMatchStructural_Naming measures structural matching with a naming
+// convention constraint — exercises extractNameField + rure naming regex
+// on every AST-matched node.
+func BenchmarkMatchStructural_Naming(b *testing.B) {
+	const numFunctions = 500
+
+	var src bytes.Buffer
+	for i := range numFunctions {
+		// Half uppercase (violating), half lowercase (conforming).
+		if i%2 == 0 {
+			fmt.Fprintf(&src, "function Fn_%d() {}\n", i)
+		} else {
+			fmt.Fprintf(&src, "function fn_%d() {}\n", i)
+		}
+	}
+	source := src.Bytes()
+
+	nm, err := compileNaming("bench", &config.NamingMatcher{
+		Match:   "^[a-z]",
+		Message: "must be camelCase",
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	rules := []compiledStructural{{
+		name:     "camelcase-fn",
+		matcher:  compiledASTMatcher{kind: "function_declaration"},
+		naming:   nm,
+		message:  "default",
+		severity: config.SeverityError,
+	}}
+
+	p := parser.NewParser(parser.LangJS)
+	tree, parseErr := p.Parse(context.Background(), source, nil)
+	p.Close()
+	if parseErr != nil {
+		b.Fatal(parseErr)
+	}
+	defer tree.Close()
+
+	lineStarts := buildLineIndex(source)
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		matchStructural(ctx, rules, tree, source, lineStarts)
+	}
+}
+
+// BenchmarkLintE2E_AllFourTypes exercises the full Engine.Lint path with all
+// four rule types: regex, pattern, structural, and AST+naming. 50 files × 100
+// lines approximates a mid-size project with diverse rule configuration.
+func BenchmarkLintE2E_AllFourTypes(b *testing.B) {
 	const (
 		numFiles     = 50
 		linesPerFile = 100
@@ -197,6 +248,11 @@ func BenchmarkLintE2E_AllThreeTypes(b *testing.B) {
 				Severity: config.SeverityError,
 				AST:      &config.ASTMatcher{Kind: "function_declaration"},
 				Message:  "No function declarations",
+			},
+			"camelcase-fn": {
+				Severity: config.SeverityError,
+				AST:      &config.ASTMatcher{Kind: "function_declaration"},
+				Naming:   &config.NamingMatcher{Match: "^[a-z]", Message: "must be camelCase"},
 			},
 		},
 	}

@@ -16,29 +16,33 @@ import (
 
 // Engine compiles rules from config and runs them against source files.
 type Engine struct {
-	regexRules   []compiledRegex
-	patternRules []compiledPattern
-	cfg          *config.Config
+	regexRules      []compiledRegex
+	patternRules    []compiledPattern
+	structuralRules []compiledStructural
+	cfg             *config.Config
 }
 
-// New creates an Engine from the given config. It compiles all regex and
-// pattern rules, returning any compilation errors. Unsupported matcher types
-// (AST, imports, naming) are silently skipped.
+// New creates an Engine from the given config. It compiles all regex, pattern,
+// and structural rules, returning any compilation errors. Unsupported matcher
+// types (imports, naming) are silently skipped.
 func New(cfg *config.Config) (*Engine, []error) {
 	regexCompiled, regexErrs := compileRegexRules(cfg.Rules)
 	patternCompiled, patternErrs := compilePatternRules(cfg.Rules)
+	structuralCompiled, structuralErrs := compileStructuralRules(cfg.Rules)
 
-	errs := make([]error, 0, len(regexErrs)+len(patternErrs))
+	errs := make([]error, 0, len(regexErrs)+len(patternErrs)+len(structuralErrs))
 	errs = append(errs, regexErrs...)
 	errs = append(errs, patternErrs...)
+	errs = append(errs, structuralErrs...)
 	if len(errs) > 0 {
 		return nil, errs
 	}
 
 	return &Engine{
-		regexRules:   regexCompiled,
-		patternRules: patternCompiled,
-		cfg:          cfg,
+		regexRules:      regexCompiled,
+		patternRules:    patternCompiled,
+		structuralRules: structuralCompiled,
+		cfg:             cfg,
 	}, nil
 }
 
@@ -62,12 +66,12 @@ func resolveRule(effective map[string]config.RuleConfig, name, message, filePath
 
 // LintFile lints a single file's source and returns diagnostics.
 // It applies config overrides for the file path, evaluates Where predicates,
-// and runs all matching regex and pattern rules.
+// and runs all matching regex, pattern, and structural rules.
 func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) []Diagnostic {
 	effective := config.Merge(e.cfg, filePath)
 	lineStarts := buildLineIndex(source)
 
-	diags := make([]Diagnostic, 0, len(e.regexRules)+len(e.patternRules))
+	diags := make([]Diagnostic, 0, len(e.regexRules)+len(e.patternRules)+len(e.structuralRules))
 
 	acquireCGo()
 	defer releaseCGo()
@@ -86,47 +90,44 @@ func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) [
 		active.message = msg
 
 		found := matchRegex(active, source, lineStarts, 0)
-		for j := range found {
-			found[j].File = filePath
-		}
+		setFilePath(found, filePath)
 		diags = append(diags, found...)
 	}
 
-	// --- Pattern rules ---
-	if len(e.patternRules) > 0 {
-		// Resolve active patterns before parsing — skip tree-sitter entirely
-		// when all pattern rules are disabled for this file.
-		active := make([]compiledPattern, 0, len(e.patternRules))
-		for i := range e.patternRules {
-			cp := &e.patternRules[i]
-			sev, msg, ok := resolveRule(effective, cp.name, cp.message, filePath)
-			if !ok {
-				continue
-			}
-			resolved := *cp
-			resolved.severity = sev
-			resolved.message = msg
-			active = append(active, resolved)
-		}
+	// --- AST-based rules (pattern + structural) ---
+	// Resolve active rules before parsing — skip tree-sitter entirely
+	// when all AST-based rules are disabled for this file.
+	activePatterns := resolvePatternRules(e.patternRules, effective, filePath)
+	activeStructural := resolveStructuralRules(e.structuralRules, effective, filePath)
 
-		if len(active) > 0 {
-			lang, ok := parser.LangFromPath(filePath)
-			if ok {
-				p := parser.NewParser(lang)
-				tree, err := p.Parse(ctx, source, nil)
-				p.Close()
+	if len(activePatterns) > 0 || len(activeStructural) > 0 {
+		lang, ok := parser.LangFromPath(filePath)
+		if ok {
+			p := parser.NewParser(lang)
+			tree, err := p.Parse(ctx, source, nil)
+			p.Close()
 
-				if err != nil {
-					slog.Debug("pattern rules: parse failed, skipping",
-						"file", filePath, "error", err)
-				} else {
-					found := matchPatterns(ctx, active, tree, source, lineStarts)
+			if err != nil {
+				slog.Debug("AST rules: parse failed, skipping",
+					"file", filePath, "error", err)
+			} else {
+				if len(activePatterns) > 0 {
+					found := matchPatterns(ctx, activePatterns, tree, source, lineStarts)
 					for j := range found {
 						found[j].File = filePath
 					}
 					diags = append(diags, found...)
-					tree.Close()
 				}
+
+				if len(activeStructural) > 0 {
+					found := matchStructural(ctx, activeStructural, tree, source, lineStarts)
+					for j := range found {
+						found[j].File = filePath
+					}
+					diags = append(diags, found...)
+				}
+
+				tree.Close()
 			}
 		}
 	}
@@ -135,6 +136,40 @@ func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) [
 	slices.SortFunc(diags, compareDiagsWithinFile)
 
 	return diags
+}
+
+// resolvePatternRules filters pattern rules that are active for the given file.
+func resolvePatternRules(rules []compiledPattern, effective map[string]config.RuleConfig, filePath string) []compiledPattern {
+	active := make([]compiledPattern, 0, len(rules))
+	for i := range rules {
+		cp := &rules[i]
+		sev, msg, ok := resolveRule(effective, cp.name, cp.message, filePath)
+		if !ok {
+			continue
+		}
+		resolved := *cp
+		resolved.severity = sev
+		resolved.message = msg
+		active = append(active, resolved)
+	}
+	return active
+}
+
+// resolveStructuralRules filters structural rules that are active for the given file.
+func resolveStructuralRules(rules []compiledStructural, effective map[string]config.RuleConfig, filePath string) []compiledStructural {
+	active := make([]compiledStructural, 0, len(rules))
+	for i := range rules {
+		cs := &rules[i]
+		sev, msg, ok := resolveRule(effective, cs.name, cs.message, filePath)
+		if !ok {
+			continue
+		}
+		resolved := *cs
+		resolved.severity = sev
+		resolved.message = msg
+		active = append(active, resolved)
+	}
+	return active
 }
 
 func compareDiagsWithinFile(a, b Diagnostic) int { //nolint:gocritic // slices.SortFunc requires value receiver signature
@@ -184,7 +219,7 @@ func (e *Engine) Lint(ctx context.Context, files []string, threads int) *Result 
 		wr := &results[w]
 
 		g.Go(func() error {
-			wr.diags = make([]Diagnostic, 0, len(batch)*(len(e.regexRules)+len(e.patternRules)))
+			wr.diags = make([]Diagnostic, 0, len(batch)*(len(e.regexRules)+len(e.patternRules)+len(e.structuralRules)))
 
 			for _, filePath := range batch {
 				if err := ctx.Err(); err != nil {

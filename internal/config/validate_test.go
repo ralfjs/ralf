@@ -297,6 +297,135 @@ func TestValidateNamingWithoutAST(t *testing.T) {
 	}
 }
 
+func TestValidateImportsEmptyGroups(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"import-order": {
+				Severity: SeverityWarn,
+				Imports:  &ImportsMatcher{Groups: []string{}},
+			},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for empty imports.groups")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	found := false
+	for _, e := range ve.Errors {
+		if e.Field == "imports.groups" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected imports.groups field error")
+	}
+}
+
+func TestValidateImportsEmptyGroupName(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"import-order": {
+				Severity: SeverityWarn,
+				Imports:  &ImportsMatcher{Groups: []string{"builtin", ""}},
+			},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for empty group name")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	found := false
+	for _, e := range ve.Errors {
+		if e.Field == "imports.groups[1]" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected imports.groups[1] field error")
+	}
+}
+
+func TestValidateImportsWhitespaceGroup(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"import-order": {
+				Severity: SeverityWarn,
+				Imports:  &ImportsMatcher{Groups: []string{"builtin", " external"}},
+			},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for whitespace-padded group")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	found := false
+	for _, e := range ve.Errors {
+		if e.Field == "imports.groups[1]" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected imports.groups[1] field error for whitespace")
+	}
+}
+
+func TestValidateImportsDuplicateGroup(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"import-order": {
+				Severity: SeverityWarn,
+				Imports:  &ImportsMatcher{Groups: []string{"builtin", "external", "builtin"}},
+			},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for duplicate group")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	found := false
+	for _, e := range ve.Errors {
+		if e.Field == "imports.groups[2]" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected imports.groups[2] field error for duplicate")
+	}
+}
+
+func TestValidateImportsValid(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"import-order": {
+				Severity: SeverityWarn,
+				Imports: &ImportsMatcher{
+					Groups:      []string{"builtin", "external"},
+					Alphabetize: true,
+				},
+			},
+		},
+	}
+	if err := Validate(cfg); err != nil {
+		t.Errorf("valid imports config failed validation: %v", err)
+	}
+}
+
 func TestValidateNamingEmptyMatch(t *testing.T) {
 	cfg := &Config{
 		Rules: map[string]RuleConfig{

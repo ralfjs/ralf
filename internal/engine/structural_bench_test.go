@@ -210,16 +210,60 @@ func BenchmarkMatchStructural_Naming(b *testing.B) {
 	}
 }
 
-// BenchmarkLintE2E_AllFourTypes exercises the full Engine.Lint path with all
-// four rule types: regex, pattern, structural, and AST+naming. 50 files × 100
-// lines approximates a mid-size project with diverse rule configuration.
-func BenchmarkLintE2E_AllFourTypes(b *testing.B) {
+// BenchmarkMatchImports measures import ordering analysis on a file with
+// many imports — the hot path for import rules.
+func BenchmarkMatchImports(b *testing.B) {
+	var src bytes.Buffer
+	// 10 builtin, 10 external, 5 sibling — interleaved to trigger violations.
+	builtins := []string{"fs", "path", "http", "crypto", "os", "net", "url", "tls", "zlib", "events"}
+	externals := []string{"react", "lodash", "express", "axios", "moment", "chalk", "debug", "uuid", "dotenv", "cors"}
+	siblings := []string{"./utils", "./config", "./helpers", "./types", "./constants"}
+	for i, mod := range builtins {
+		fmt.Fprintf(&src, "import %s from %q;\n", mod, mod)
+		fmt.Fprintf(&src, "import %s from %q;\n", externals[i], externals[i])
+	}
+	for i, mod := range siblings {
+		fmt.Fprintf(&src, "import { x%d } from %q;\n", i, mod)
+	}
+	source := src.Bytes()
+
+	rules := []compiledImport{{
+		name:     "import-order",
+		groups:   []importGroup{groupBuiltin, groupExternal, groupSibling},
+		alpha:    true,
+		newline:  true,
+		severity: config.SeverityWarn,
+		message:  "wrong import order",
+	}}
+
+	p := parser.NewParser(parser.LangJS)
+	tree, err := p.Parse(context.Background(), source, nil)
+	p.Close()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer tree.Close()
+
+	lineStarts := buildLineIndex(source)
+	ctx := context.Background()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		matchImports(ctx, rules, tree, source, lineStarts)
+	}
+}
+
+// BenchmarkLintE2E_AllFiveTypes exercises the full Engine.Lint path with all
+// five rule types: regex, pattern, structural, AST+naming, and imports.
+// 50 files × 100 lines approximates a mid-size project with diverse rule configuration.
+func BenchmarkLintE2E_AllFiveTypes(b *testing.B) {
 	const (
 		numFiles     = 50
 		linesPerFile = 100
 	)
 
-	line := "var x = 1; console.log(x); function f() {}\n"
+	line := "import fs from \"fs\";\nimport React from \"react\";\nvar x = 1; console.log(x); function f() {}\n"
 	source := bytes.Repeat([]byte(line), linesPerFile)
 
 	dir := b.TempDir()
@@ -253,6 +297,14 @@ func BenchmarkLintE2E_AllFourTypes(b *testing.B) {
 				Severity: config.SeverityError,
 				AST:      &config.ASTMatcher{Kind: "function_declaration"},
 				Naming:   &config.NamingMatcher{Match: "^[a-z]", Message: "must be camelCase"},
+			},
+			"import-order": {
+				Severity: config.SeverityWarn,
+				Imports: &config.ImportsMatcher{
+					Groups:      []string{"builtin", "external"},
+					Alphabetize: true,
+				},
+				Message: "wrong import order",
 			},
 		},
 	}

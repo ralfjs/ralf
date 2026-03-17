@@ -7,7 +7,7 @@ Lint pipeline: config → compile rules → discover files → parallel lint →
 ```
 Config
   ↓
-engine.New()          compile regex + pattern rules, skip unsupported matchers
+engine.New()          compile regex + pattern + structural + import rules
   ↓
 Engine.Lint()         partition files into worker batches, fan out via errgroup
   ├─ Worker goroutine    processes batch of files sequentially, no mutex
@@ -19,6 +19,8 @@ Engine.Lint()         partition files into worker batches, fan out via errgroup
   │       ├─ buildLineIndex()   SIMD-accelerated newline scan (bytes.IndexByte)
   │       ├─ matchRegex()       rure.IterBytes + dedup + max cap
   │       ├─ matchPatterns()   AST pattern matching (single tree walk, all rules)
+  │       ├─ matchStructural() structural AST queries (kind, name, parent, not)
+  │       ├─ matchImports()    import ordering / alphabetize / newline-between checks
   │       └─ slices.SortFunc()  sort diagnostics within file by line/col/rule
   └─ ... (parallel workers)
   ↓
@@ -37,6 +39,10 @@ Result                sorted diagnostics + file errors
 | `lineindex.go` | `buildLineIndex` (O(n) scan), `offsetToLineCol` (O(log n) binary search) |
 | `regex.go` | `compiledRegex` type, `compileRegexRules`, `matchRegex` (rure-go) |
 | `ast_pattern.go` | `compiledPattern` type, `compilePatternRules`, `matchPatterns` (tree-sitter AST) |
+| `structural.go` | `compiledStructural` type, `compileStructuralRules`, `matchStructural` (tree-sitter traversal, symbol ID optimization) |
+| `naming.go` | `compiledNaming`, `compileNaming` — naming convention regex on AST node name fields |
+| `imports.go` | `compiledImport`, `compileImportRules`, `matchImports` — import ordering, alphabetize, newline-between |
+| `fix.go` | `Fix`/`Conflict` types, `ApplyFixes` (single-pass, conflict detection), `expandToStatement` |
 | `semaphore.go` | CGo concurrency limiter (`acquireCGo`/`releaseCGo`) |
 | `where.go` | `matchesWhere` — evaluates `config.WherePredicate` against file paths |
 | `engine.go` | `Engine` orchestrator: `New`, `LintFile`, `Lint`, `resolveRule`, `sortDiagChunksByFile` |
@@ -105,12 +111,15 @@ Current optimizations (all allocation/scheduling, no logic changes):
 
 ### Benchmarking
 
-Two benchmarks live in `internal/engine/regex_bench_test.go`:
+Benchmarks live in `internal/engine/regex_bench_test.go` and `structural_bench_test.go`:
 
 | Benchmark | What it measures |
 |---|---|
-| `BenchmarkMatchRegex` | Single rule on 30K lines. Isolates rure-go iterator + dedup + line resolution. No I/O, no concurrency. |
-| `BenchmarkLintE2E` | Full `Engine.Lint` pipeline: 100 files × 300 lines × 5 rules. Includes disk I/O, worker batching, CGo semaphore, config merging, per-file sort, chunk sort. |
+| `BenchmarkMatchRegex` | Single regex rule on 30K lines. Isolates rure-go iterator + dedup + line resolution. No I/O, no concurrency. |
+| `BenchmarkLintE2E` | Full `Engine.Lint` pipeline: 100 files × 300 lines × 5 regex rules. Includes disk I/O, worker batching, CGo semaphore, config merging, per-file sort, chunk sort. |
+| `BenchmarkMatchStructural` | 500 function declarations, single kind match. Isolates AST walk + symbol ID lookup. |
+| `BenchmarkMatchImports` | 25 imports (interleaved groups). Isolates import collection + ordering/alpha/newline checks. |
+| `BenchmarkLintE2E_AllFiveTypes` | Full pipeline with all 5 rule types: regex, pattern, structural, naming, imports. 50 files × 100 lines. |
 
 Run benchmarks:
 
@@ -159,11 +168,20 @@ Uses **tree-sitter** to parse pattern strings as JavaScript and build a `pattern
 - Parser created per-file inside `LintFile` (tree-sitter `Parser` is NOT thread-safe). Parser creation is cheap. CGo semaphore already held by `LintFile`.
 - Non-JS/TS files: `LangFromPath` guard skips pattern rules gracefully
 
+## Import Matcher
+
+Detects import ordering violations in JS/TS files. Iterates top-level `import_statement` nodes (resolved via symbol ID — no full tree walk). Each import is classified by its source path into a group (builtin, external, internal, parent, sibling, index, type).
+
+Three checks run in a single pass over the collected imports:
+
+1. **Group ordering**: imports must appear in the order their group is listed in config
+2. **Alphabetize** (`alphabetize: true`): within each contiguous same-group run, imports must be case-insensitive sorted
+3. **Newline between** (`newlineBetween: true`): blank line required between different groups, no blank line within same group
+
+Node.js builtins are recognized via a package-level set + `node:` prefix. Type imports (`import type`) are detected by checking if child[1] has kind `"type"` (TS grammar).
+
 ## Future Matchers
 
-Planned but not implemented in this sprint:
-- **AST**: structural queries (`kind: "function_declaration"`) — month 3
-- **Imports**: import ordering rules — month 4
-- **Naming**: naming convention enforcement — month 4
-
-Rules with these matcher types are silently skipped by `engine.New`. Config validation accepts them.
+Planned but not implemented:
+- **Complexity**: cyclomatic complexity (`complexity: { max: 10 }`)
+- **Cross-file**: module graph queries (`scope: "cross-file"`)

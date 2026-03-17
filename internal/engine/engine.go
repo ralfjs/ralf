@@ -19,21 +19,24 @@ type Engine struct {
 	regexRules      []compiledRegex
 	patternRules    []compiledPattern
 	structuralRules []compiledStructural
+	importRules     []compiledImport
 	cfg             *config.Config
 }
 
 // New creates an Engine from the given config. It compiles all regex, pattern,
-// and structural rules (including naming constraints), returning any
-// compilation errors. Unsupported matcher types (imports) are silently skipped.
+// structural, and import rules (including naming constraints), returning any
+// compilation errors.
 func New(cfg *config.Config) (*Engine, []error) {
 	regexCompiled, regexErrs := compileRegexRules(cfg.Rules)
 	patternCompiled, patternErrs := compilePatternRules(cfg.Rules)
 	structuralCompiled, structuralErrs := compileStructuralRules(cfg.Rules)
+	importCompiled, importErrs := compileImportRules(cfg.Rules)
 
-	errs := make([]error, 0, len(regexErrs)+len(patternErrs)+len(structuralErrs))
+	errs := make([]error, 0, len(regexErrs)+len(patternErrs)+len(structuralErrs)+len(importErrs))
 	errs = append(errs, regexErrs...)
 	errs = append(errs, patternErrs...)
 	errs = append(errs, structuralErrs...)
+	errs = append(errs, importErrs...)
 	if len(errs) > 0 {
 		return nil, errs
 	}
@@ -42,6 +45,7 @@ func New(cfg *config.Config) (*Engine, []error) {
 		regexRules:      regexCompiled,
 		patternRules:    patternCompiled,
 		structuralRules: structuralCompiled,
+		importRules:     importCompiled,
 		cfg:             cfg,
 	}, nil
 }
@@ -66,12 +70,12 @@ func resolveRule(effective map[string]config.RuleConfig, name, message, filePath
 
 // LintFile lints a single file's source and returns diagnostics.
 // It applies config overrides for the file path, evaluates Where predicates,
-// and runs all matching regex, pattern, and structural rules.
+// and runs all matching regex, pattern, structural, and import rules.
 func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) []Diagnostic {
 	effective := config.Merge(e.cfg, filePath)
 	lineStarts := buildLineIndex(source)
 
-	diags := make([]Diagnostic, 0, len(e.regexRules)+len(e.patternRules)+len(e.structuralRules))
+	diags := make([]Diagnostic, 0, len(e.regexRules)+len(e.patternRules)+len(e.structuralRules)+len(e.importRules))
 
 	acquireCGo()
 	defer releaseCGo()
@@ -94,13 +98,14 @@ func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) [
 		diags = append(diags, found...)
 	}
 
-	// --- AST-based rules (pattern + structural) ---
+	// --- AST-based rules (pattern + structural + imports) ---
 	// Resolve active rules before parsing — skip tree-sitter entirely
 	// when all AST-based rules are disabled for this file.
 	activePatterns := resolvePatternRules(e.patternRules, effective, filePath)
 	activeStructural := resolveStructuralRules(e.structuralRules, effective, filePath)
+	activeImports := resolveImportRules(e.importRules, effective, filePath)
 
-	if len(activePatterns) > 0 || len(activeStructural) > 0 {
+	if len(activePatterns) > 0 || len(activeStructural) > 0 || len(activeImports) > 0 {
 		lang, ok := parser.LangFromPath(filePath)
 		if ok {
 			p := parser.NewParser(lang)
@@ -121,6 +126,14 @@ func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) [
 
 				if len(activeStructural) > 0 {
 					found := matchStructural(ctx, activeStructural, tree, source, lineStarts)
+					for j := range found {
+						found[j].File = filePath
+					}
+					diags = append(diags, found...)
+				}
+
+				if len(activeImports) > 0 {
+					found := matchImports(ctx, activeImports, tree, source, lineStarts)
 					for j := range found {
 						found[j].File = filePath
 					}
@@ -219,7 +232,7 @@ func (e *Engine) Lint(ctx context.Context, files []string, threads int) *Result 
 		wr := &results[w]
 
 		g.Go(func() error {
-			wr.diags = make([]Diagnostic, 0, len(batch)*(len(e.regexRules)+len(e.patternRules)+len(e.structuralRules)))
+			wr.diags = make([]Diagnostic, 0, len(batch)*(len(e.regexRules)+len(e.patternRules)+len(e.structuralRules)+len(e.importRules)))
 
 			for _, filePath := range batch {
 				if err := ctx.Err(); err != nil {

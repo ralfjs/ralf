@@ -87,6 +87,11 @@ func validateRule(name string, rule *RuleConfig, errs *[]FieldError) {
 		*errs = append(*errs, FieldError{Rule: name, Field: "matcher", Message: fmt.Sprintf("rule has %d matchers but must have exactly one", matcherCount)})
 	}
 
+	// Imports must have at least one group.
+	if rule.Imports != nil && len(rule.Imports.Groups) == 0 {
+		*errs = append(*errs, FieldError{Rule: name, Field: "imports.groups", Message: "imports.groups must not be empty"})
+	}
+
 	// Naming is a modifier on AST, not a standalone matcher.
 	if rule.Naming != nil {
 		if rule.AST == nil {

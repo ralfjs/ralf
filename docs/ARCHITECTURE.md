@@ -339,7 +339,7 @@ export default {
     // Import ordering
     "consistent-imports": {
       imports: {
-        groups: ["builtin", "external", "internal", "relative"],
+        groups: ["builtin", "external", "internal", "parent", "sibling"],
         alphabetize: true,
         newlineBetween: true
       }
@@ -349,7 +349,7 @@ export default {
     "no-feature-cross-imports": {
       scope: "cross-file",
       ast: {
-        kind: "import_declaration",
+        kind: "import_statement",
         source: { match: /^\.\.\/.*/ }
       },
       where: {
@@ -663,7 +663,7 @@ internal/
     fix.go                   # Auto-fix: Fix/Conflict types, ApplyFixes (single-pass, conflict detection), expandToStatement
     structural.go            # Structural AST queries: kind, name (exact/regex), parent, not. Symbol ID optimization (KindID)
     naming.go                # Naming convention checker: compiledNaming, compileNaming, regex validation on AST node name fields
-    imports.go               # (planned) import ordering / grouping
+    imports.go               # ✅ Import ordering / grouping (group order, alphabetize, newline-between)
     complexity.go            # (planned) cyclomatic complexity
     crossfile.go             # (planned) cross-file rule evaluation
 
@@ -759,7 +759,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | Week | Task | Deliverable |
 |---|---|---|
 | 13 | ✅ Naming convention engine | `naming: { match }` as modifier on `ast` rules. `compiledNaming` with rure regex, `extractNameField` (no full-text fallback). Validation: naming requires ast, rejects standalone use. |
-| 14 | Import analysis | `imports: { groups, alphabetize }` — parse import statements, detect ordering violations. |
+| 14 | ✅ Import analysis | `imports: { groups, alphabetize, newlineBetween }` — classify imports by source path, single-pass group ordering + alphabetize + newline-between checks. Symbol ID optimization for `import_statement` nodes. |
 | 15 | 30 more built-in rules | Total: 50 rules. Cover ESLint recommended + React plugin essentials. Each with fixture test. |
 | 16 | Inline suppression | Parse `// lint-disable-next-line`, `// lint-disable`, `/* lint-disable-file */`. Skip diagnostics for suppressed ranges. |
 
@@ -1656,7 +1656,7 @@ The module graph respects workspace boundaries. Cross-workspace imports are reso
 ```js
 "no-cross-workspace-relative-imports": {
   scope: "cross-file",
-  ast: { kind: "import_declaration" },
+  ast: { kind: "import_statement" },
   where: {
     importCrossesWorkspace: true,
     source: { match: /^\./ }      // relative path crossing workspace

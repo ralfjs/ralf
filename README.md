@@ -47,7 +47,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 | Naming conventions | ✅ Implemented | `naming: { match }` as modifier on `ast` rules |
 | Auto-fix | ✅ Implemented | `--fix` / `--fix-dry-run`, conflict resolution |
 | Built-in rules (20) | ✅ Implemented | ESLint recommended equivalents with zero-config fallback |
-| Import ordering | Planned | `imports: { groups, alphabetize }` |
+| Import ordering | ✅ Implemented | `imports: { groups, alphabetize, newlineBetween }` |
 | Complexity checks | Planned | Cyclomatic complexity threshold |
 | Inline suppression | Planned | `// lint-disable-next-line`, block disables |
 | Built-in rules (50+) | Planned | Expand to 50+ with React plugin equivalents |
@@ -142,7 +142,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 ```
 cmd/ralf/              # CLI entry point (thin)
 internal/
-  engine/               # Rule execution (regex, AST, structural, naming)
+  engine/               # Rule execution (regex, AST, structural, naming, imports)
   parser/               # tree-sitter wrapper
   formatter/            # dprint WASM bridge → native printer
   project/              # Module graph, SQLite cache, file watcher

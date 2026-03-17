@@ -40,12 +40,14 @@ func TestNew(t *testing.T) {
 		}
 	})
 
-	t.Run("compiles pattern and regex rules", func(t *testing.T) {
+	t.Run("compiles pattern regex and import rules", func(t *testing.T) {
 		cfg := &config.Config{
 			Rules: map[string]config.RuleConfig{
-				"no-var":  {Severity: config.SeverityError, Regex: `\bvar\b`, Message: "No var"},
-				"ast":     {Severity: config.SeverityError, Pattern: "console.log($$$)", Message: "AST"},
-				"imports": {Severity: config.SeverityError, Imports: &config.ImportsMatcher{}, Message: "Imports"},
+				"no-var": {Severity: config.SeverityError, Regex: `\bvar\b`, Message: "No var"},
+				"ast":    {Severity: config.SeverityError, Pattern: "console.log($$$)", Message: "AST"},
+				"imports": {Severity: config.SeverityError, Imports: &config.ImportsMatcher{
+					Groups: []string{"builtin", "external"},
+				}, Message: "Imports"},
 			},
 		}
 		eng, errs := New(cfg)
@@ -57,6 +59,9 @@ func TestNew(t *testing.T) {
 		}
 		if len(eng.patternRules) != 1 {
 			t.Fatalf("expected 1 pattern rule, got %d", len(eng.patternRules))
+		}
+		if len(eng.importRules) != 1 {
+			t.Fatalf("expected 1 import rule, got %d", len(eng.importRules))
 		}
 	})
 }
@@ -631,6 +636,82 @@ func TestLintFile_NamingRules(t *testing.T) {
 	})
 }
 
+func TestLintFile_ImportRules(t *testing.T) {
+	t.Run("detects out-of-order imports", func(t *testing.T) {
+		cfg := &config.Config{
+			Rules: map[string]config.RuleConfig{
+				"import-order": {
+					Severity: config.SeverityWarn,
+					Imports: &config.ImportsMatcher{
+						Groups:         []string{"builtin", "external", "sibling"},
+						Alphabetize:    true,
+						NewlineBetween: true,
+					},
+					Message: "wrong import order",
+				},
+			},
+		}
+		eng, errs := New(cfg)
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errors: %v", errs)
+		}
+
+		source := []byte("import React from \"react\";\nimport fs from \"fs\";\n")
+		diags := eng.LintFile(context.Background(), "test.js", source)
+		if len(diags) == 0 {
+			t.Fatal("expected at least 1 diagnostic for out-of-order imports")
+		}
+		if diags[0].File != "test.js" {
+			t.Errorf("file = %q, want %q", diags[0].File, "test.js")
+		}
+		if diags[0].Rule != "import-order" {
+			t.Errorf("rule = %q, want %q", diags[0].Rule, "import-order")
+		}
+	})
+
+	t.Run("no violations", func(t *testing.T) {
+		cfg := &config.Config{
+			Rules: map[string]config.RuleConfig{
+				"import-order": {
+					Severity: config.SeverityWarn,
+					Imports: &config.ImportsMatcher{
+						Groups: []string{"builtin", "external"},
+					},
+					Message: "wrong import order",
+				},
+			},
+		}
+		eng, errs := New(cfg)
+		if len(errs) != 0 {
+			t.Fatalf("unexpected errors: %v", errs)
+		}
+
+		source := []byte("import fs from \"fs\";\nimport React from \"react\";\n")
+		diags := eng.LintFile(context.Background(), "test.js", source)
+		if len(diags) != 0 {
+			t.Fatalf("expected 0 diagnostics, got %d", len(diags))
+		}
+	})
+
+	t.Run("non-JS file skips import rules", func(t *testing.T) {
+		cfg := &config.Config{
+			Rules: map[string]config.RuleConfig{
+				"import-order": {
+					Severity: config.SeverityWarn,
+					Imports:  &config.ImportsMatcher{Groups: []string{"builtin", "external"}},
+				},
+			},
+		}
+		eng, _ := New(cfg)
+
+		source := []byte("import React from \"react\";\nimport fs from \"fs\";\n")
+		diags := eng.LintFile(context.Background(), "test.py", source)
+		if len(diags) != 0 {
+			t.Fatalf("expected 0 diagnostics for .py file, got %d", len(diags))
+		}
+	})
+}
+
 func TestLint_AllFourRuleTypes(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "test.js"),
@@ -688,6 +769,74 @@ func TestLint_AllFourRuleTypes(t *testing.T) {
 	// camelcase-fn should only flag Foo (doesn't start lowercase).
 	if rules["camelcase-fn"] != 1 {
 		t.Errorf("camelcase-fn: got %d, want 1", rules["camelcase-fn"])
+	}
+}
+
+func TestLint_AllFiveRuleTypes(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "test.js"),
+		"import React from \"react\";\nimport fs from \"fs\";\nvar x = 1;\nconsole.log(x);\nfunction Foo() {}\nfunction bar() {}")
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleConfig{
+			"no-var": {
+				Severity: config.SeverityError,
+				Regex:    `\bvar\b`,
+				Message:  "No var",
+			},
+			"no-console": {
+				Severity: config.SeverityWarn,
+				Pattern:  "console.log($$$ARGS)",
+				Message:  "No console.log",
+			},
+			"no-fn": {
+				Severity: config.SeverityError,
+				AST:      &config.ASTMatcher{Kind: "function_declaration"},
+				Message:  "No functions",
+			},
+			"camelcase-fn": {
+				Severity: config.SeverityError,
+				AST:      &config.ASTMatcher{Kind: "function_declaration"},
+				Naming:   &config.NamingMatcher{Match: "^[a-z]", Message: "must be camelCase"},
+			},
+			"import-order": {
+				Severity: config.SeverityWarn,
+				Imports: &config.ImportsMatcher{
+					Groups: []string{"builtin", "external"},
+				},
+				Message: "wrong import order",
+			},
+		},
+	}
+	eng, errs := New(cfg)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+
+	result := eng.Lint(context.Background(), []string{filepath.Join(dir, "test.js")}, 1)
+	if len(result.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+
+	rules := map[string]int{}
+	for _, d := range result.Diagnostics {
+		rules[d.Rule]++
+	}
+
+	if rules["no-var"] != 1 {
+		t.Errorf("no-var: got %d, want 1", rules["no-var"])
+	}
+	if rules["no-console"] != 1 {
+		t.Errorf("no-console: got %d, want 1", rules["no-console"])
+	}
+	if rules["no-fn"] != 2 {
+		t.Errorf("no-fn: got %d, want 2", rules["no-fn"])
+	}
+	if rules["camelcase-fn"] != 1 {
+		t.Errorf("camelcase-fn: got %d, want 1", rules["camelcase-fn"])
+	}
+	if rules["import-order"] < 1 {
+		t.Errorf("import-order: got %d, want >= 1", rules["import-order"])
 	}
 }
 

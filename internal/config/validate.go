@@ -94,11 +94,15 @@ func validateRule(name string, rule *RuleConfig, errs *[]FieldError) {
 		}
 		seen := make(map[string]bool, len(rule.Imports.Groups))
 		for i, g := range rule.Imports.Groups {
+			field := fmt.Sprintf("imports.groups[%d]", i)
 			trimmed := strings.TrimSpace(g)
-			if trimmed == "" {
-				*errs = append(*errs, FieldError{Rule: name, Field: fmt.Sprintf("imports.groups[%d]", i), Message: "group name must not be empty"})
-			} else if seen[trimmed] {
-				*errs = append(*errs, FieldError{Rule: name, Field: fmt.Sprintf("imports.groups[%d]", i), Message: fmt.Sprintf("duplicate group %q", trimmed)})
+			switch {
+			case trimmed == "":
+				*errs = append(*errs, FieldError{Rule: name, Field: field, Message: "group name must not be empty"})
+			case g != trimmed:
+				*errs = append(*errs, FieldError{Rule: name, Field: field, Message: fmt.Sprintf("group name %q has leading/trailing whitespace", g)})
+			case seen[g]:
+				*errs = append(*errs, FieldError{Rule: name, Field: field, Message: fmt.Sprintf("duplicate group %q", g)})
 			}
 			seen[trimmed] = true
 		}

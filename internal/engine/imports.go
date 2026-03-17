@@ -235,13 +235,21 @@ func collectImports(root parser.Node, source []byte, lineStarts []int, importSym
 	count := root.NamedChildCount()
 	var imports []importInfo
 
+	// Cache the "source" field ID to avoid C string allocation per node.
+	sourceFieldID := root.FieldID("source")
+
 	for i := range count {
 		child := root.NamedChild(i)
 		if child.KindID() != importSymID {
 			continue
 		}
 
-		srcNode := child.ChildByFieldName("source")
+		var srcNode parser.Node
+		if sourceFieldID != 0 {
+			srcNode = child.ChildByFieldID(sourceFieldID)
+		} else {
+			srcNode = child.ChildByFieldName("source")
+		}
 		if srcNode.IsNull() {
 			continue
 		}

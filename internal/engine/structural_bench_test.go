@@ -218,12 +218,12 @@ func BenchmarkMatchImports(b *testing.B) {
 	builtins := []string{"fs", "path", "http", "crypto", "os", "net", "url", "tls", "zlib", "events"}
 	externals := []string{"react", "lodash", "express", "axios", "moment", "chalk", "debug", "uuid", "dotenv", "cors"}
 	siblings := []string{"./utils", "./config", "./helpers", "./types", "./constants"}
-	for i := range 10 {
-		fmt.Fprintf(&src, "import %s from %q;\n", builtins[i], builtins[i])
+	for i, mod := range builtins {
+		fmt.Fprintf(&src, "import %s from %q;\n", mod, mod)
 		fmt.Fprintf(&src, "import %s from %q;\n", externals[i], externals[i])
-		if i < 5 {
-			fmt.Fprintf(&src, "import { x%d } from %q;\n", i, siblings[i])
-		}
+	}
+	for i, mod := range siblings {
+		fmt.Fprintf(&src, "import { x%d } from %q;\n", i, mod)
 	}
 	source := src.Bytes()
 

@@ -10,7 +10,7 @@ type Config struct {
 }
 
 // RuleConfig defines a single lint rule. Exactly one matcher field (Regex,
-// Pattern, AST, Imports, or Naming) must be set.
+// Pattern, AST, Imports, or Builtin) must be set.
 type RuleConfig struct {
 	Severity Severity        `json:"severity" yaml:"severity"`
 	Message  string          `json:"message,omitempty" yaml:"message,omitempty"`
@@ -18,6 +18,7 @@ type RuleConfig struct {
 	Pattern  string          `json:"pattern,omitempty" yaml:"pattern,omitempty"`
 	AST      *ASTMatcher     `json:"ast,omitempty" yaml:"ast,omitempty"`
 	Imports  *ImportsMatcher `json:"imports,omitempty" yaml:"imports,omitempty"`
+	Builtin  bool            `json:"builtin,omitempty" yaml:"builtin,omitempty"` // custom Go checker
 	Naming   *NamingMatcher  `json:"naming,omitempty" yaml:"naming,omitempty"`
 	Where    *WherePredicate `json:"where,omitempty" yaml:"where,omitempty"`
 	Scope    string          `json:"scope,omitempty" yaml:"scope,omitempty"`

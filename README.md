@@ -46,11 +46,11 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 | Structural queries | ✅ Implemented | `ast: { kind, name, parent, not }` with symbol ID optimization |
 | Naming conventions | ✅ Implemented | `naming: { match }` as modifier on `ast` rules |
 | Auto-fix | ✅ Implemented | `--fix` / `--fix-dry-run`, conflict resolution |
-| Built-in rules (20) | ✅ Implemented | ESLint recommended equivalents with zero-config fallback |
+| Built-in rules (49) | ✅ Implemented | ESLint recommended equivalents with zero-config fallback |
 | Import ordering | ✅ Implemented | `imports: { groups, alphabetize, newlineBetween }` |
+| Custom Go built-in rules | ✅ Implemented | Kind-indexed single-walk dispatch for complex AST checks |
 | Complexity checks | Planned | Cyclomatic complexity threshold |
 | Inline suppression | Planned | `// lint-disable-next-line`, block disables |
-| Built-in rules (50+) | Planned | Expand to 50+ with React plugin equivalents |
 
 ### Custom Rules (Declarative)
 
@@ -131,7 +131,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 
 | Milestone | Target | Key Deliverable |
 |---|---|---|
-| **v0.1** | Month 5 | Linter MVP — regex + AST patterns, CLI, 50 rules |
+| **v0.1** | Month 5 | Linter MVP — regex + AST patterns + builtin checkers, CLI, 49 rules |
 | **v0.2** | Month 8 | Project-aware — cache, module graph, LSP, VS Code |
 | **v0.3** | Month 11 | Formatter — dprint WASM, auto-fix, import sorting |
 | **v0.4** | Month 13 | WASM plugins — Go/Rust/AS SDKs |
@@ -142,7 +142,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 ```
 cmd/ralf/              # CLI entry point (thin)
 internal/
-  engine/               # Rule execution (regex, AST, structural, naming, imports)
+  engine/               # Rule execution (regex, AST, structural, naming, imports, builtin)
   parser/               # tree-sitter wrapper
   formatter/            # dprint WASM bridge → native printer
   project/              # Module graph, SQLite cache, file watcher

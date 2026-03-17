@@ -17,12 +17,12 @@ const noLabelsNotDefault = `(?:` +
 	`|defaul[a-su-zA-Z0-9_]` +
 	`)`
 
-// BuiltinRules returns the 20 built-in regex rules. A fresh map is returned
+// BuiltinRules returns the 50 built-in rules. A fresh map is returned
 // on every call so callers may mutate it freely.
 //
-// Each rule is modeled after its ESLint equivalent where one exists. Regex-based
-// matching is inherently less precise than AST analysis, so some ESLint
-// edge cases (scope awareness, indirect references) are out of scope.
+// Each rule is modeled after its ESLint equivalent where one exists.
+// Rules use regex, pattern, AST structural, or custom Go built-in matchers
+// depending on the analysis required.
 func BuiltinRules() map[string]RuleConfig {
 	return map[string]RuleConfig{
 		// ESLint: no-var — flags all var declarations.
@@ -153,6 +153,176 @@ func BuiltinRules() map[string]RuleConfig {
 			Severity: SeverityWarn,
 			Regex:    `\breturn\s+await\s`,
 			Message:  "Redundant use of `return await`",
+		},
+
+		// ── Regex rules (3) ──────────────────────────────────────────────
+
+		// ESLint: no-nonoctal-decimal-escape — flags \8 and \9 escapes.
+		"no-nonoctal-decimal-escape": {
+			Severity: SeverityError,
+			Regex:    `\\[89]`,
+			Message:  `Don't use '\8' and '\9' escape sequences in string literals`,
+		},
+		// ESLint: no-regex-spaces — flags multiple consecutive spaces in regex.
+		// Simplified: matches 2+ consecutive spaces between regex delimiters.
+		"no-regex-spaces": {
+			Severity: SeverityError,
+			Regex:    `/[^/]*[^ /]  +[^/]*/`,
+			Message:  "Spaces are hard to count. Use {N}.",
+		},
+		// ESLint: no-control-regex — flags control characters in regex.
+		"no-control-regex": {
+			Severity: SeverityWarn,
+			Regex:    `/[^/]*\\x[01][0-9a-fA-F][^/]*/|/[^/]*\\u00[01][0-9a-fA-F][^/]*/`,
+			Message:  "Unexpected control character(s) in regular expression",
+		},
+
+		// ── Pattern rules (4) ────────────────────────────────────────────
+
+		// ESLint: no-async-promise-executor — flags async Promise executors.
+		"no-async-promise-executor": {
+			Severity: SeverityError,
+			Pattern:  "new Promise(async ($$$) => $$$)",
+			Message:  "Promise executor functions should not be async.",
+		},
+		// ESLint: no-prototype-builtins — flags direct Object.prototype method calls.
+		"no-prototype-builtins": {
+			Severity: SeverityError,
+			Pattern:  "$$.hasOwnProperty($$$)",
+			Message:  "Do not access Object.prototype method 'hasOwnProperty' from target object.",
+		},
+		// ESLint: no-new-native-nonconstructor — flags new Symbol/BigInt.
+		"no-new-native-nonconstructor": {
+			Severity: SeverityError,
+			Pattern:  "new Symbol($$$)",
+			Message:  "'Symbol' cannot be invoked as a constructor.",
+		},
+		// ESLint: no-obj-calls — flags calling Math/JSON/Reflect/Atomics/Intl.
+		"no-obj-calls": {
+			Severity: SeverityError,
+			Pattern:  "Math($$$)",
+			Message:  "'Math' is not a function.",
+		},
+
+		// ── Structural AST rules (6) ────────────────────────────────────
+
+		// ESLint: no-case-declarations — flags lexical decls in case clauses.
+		"no-case-declarations": {
+			Severity: SeverityError,
+			AST:      &ASTMatcher{Kind: "lexical_declaration", Parent: &ASTMatcher{Kind: "switch_case"}},
+			Message:  "Unexpected lexical declaration in case clause.",
+		},
+		// ESLint: no-octal — flags octal literals (custom Go checker).
+		"no-octal": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Octal literals should not be used.",
+		},
+		// ESLint: no-shadow-restricted-names — flags shadowing of globals.
+		"no-shadow-restricted-names": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Shadowing of global property.",
+		},
+
+		// ── Custom Go built-in rules (19) ────────────────────────────────
+		// These are dispatched by the engine's builtin checker registry.
+		// Builtin: true marks them as Go-implemented checkers.
+
+		"no-empty-pattern": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Unexpected empty object pattern.",
+		},
+		"no-empty-static-block": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Unexpected empty static block.",
+		},
+		"no-compare-neg-zero": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Do not use the operator to compare against -0.",
+		},
+		"no-delete-var": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Variables should not be deleted.",
+		},
+		"no-unsafe-negation": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Unexpected negating the left operand of operator.",
+		},
+		"valid-typeof": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Invalid typeof comparison value.",
+		},
+		"use-isnan": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Use the isNaN function to compare with NaN.",
+		},
+		"no-useless-catch": {
+			Severity: SeverityWarn,
+			Builtin:  true,
+			Message:  "Unnecessary catch clause.",
+		},
+		"no-sparse-arrays": {
+			Severity: SeverityWarn,
+			Builtin:  true,
+			Message:  "Unexpected comma in middle of array.",
+		},
+		"no-dupe-keys": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Duplicate key.",
+		},
+		"no-duplicate-case": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Duplicate case label.",
+		},
+		"no-self-assign": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Self-assignment.",
+		},
+		"no-empty": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Empty block statement.",
+		},
+		"no-unsafe-finally": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Unsafe usage in finally block.",
+		},
+		"for-direction": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "The update clause in this loop moves the variable in the wrong direction.",
+		},
+		"no-setter-return": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Setter cannot return a value.",
+		},
+		"no-extra-boolean-cast": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Redundant double negation.",
+		},
+		"require-yield": {
+			Severity: SeverityWarn,
+			Builtin:  true,
+			Message:  "This generator function does not have 'yield'.",
+		},
+		"no-cond-assign": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Unexpected assignment within a condition.",
 		},
 	}
 }

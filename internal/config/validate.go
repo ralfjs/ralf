@@ -136,5 +136,8 @@ func countMatchers(r *RuleConfig) int {
 	if r.Imports != nil {
 		count++
 	}
+	if r.Builtin {
+		count++
+	}
 	return count
 }

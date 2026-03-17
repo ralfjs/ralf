@@ -20,6 +20,7 @@ type Engine struct {
 	patternRules    []compiledPattern
 	structuralRules []compiledStructural
 	importRules     []compiledImport
+	builtinRules    []compiledBuiltin
 	cfg             *config.Config
 }
 
@@ -31,6 +32,7 @@ func New(cfg *config.Config) (*Engine, []error) {
 	patternCompiled, patternErrs := compilePatternRules(cfg.Rules)
 	structuralCompiled, structuralErrs := compileStructuralRules(cfg.Rules)
 	importCompiled, importErrs := compileImportRules(cfg.Rules)
+	builtinCompiled := compileBuiltinRules(cfg.Rules)
 
 	errs := make([]error, 0, len(regexErrs)+len(patternErrs)+len(structuralErrs)+len(importErrs))
 	errs = append(errs, regexErrs...)
@@ -46,6 +48,7 @@ func New(cfg *config.Config) (*Engine, []error) {
 		patternRules:    patternCompiled,
 		structuralRules: structuralCompiled,
 		importRules:     importCompiled,
+		builtinRules:    builtinCompiled,
 		cfg:             cfg,
 	}, nil
 }
@@ -75,7 +78,7 @@ func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) [
 	effective := config.Merge(e.cfg, filePath)
 	lineStarts := buildLineIndex(source)
 
-	diags := make([]Diagnostic, 0, len(e.regexRules)+len(e.patternRules)+len(e.structuralRules)+len(e.importRules))
+	diags := make([]Diagnostic, 0, len(e.regexRules)+len(e.patternRules)+len(e.structuralRules)+len(e.importRules)+len(e.builtinRules))
 
 	acquireCGo()
 	defer releaseCGo()
@@ -98,14 +101,15 @@ func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) [
 		diags = append(diags, found...)
 	}
 
-	// --- AST-based rules (pattern + structural + imports) ---
+	// --- AST-based rules (pattern + structural + imports + builtins) ---
 	// Resolve active rules before parsing — skip tree-sitter entirely
 	// when all AST-based rules are disabled for this file.
 	activePatterns := resolvePatternRules(e.patternRules, effective, filePath)
 	activeStructural := resolveStructuralRules(e.structuralRules, effective, filePath)
 	activeImports := resolveImportRules(e.importRules, effective, filePath)
+	activeBuiltins := resolveBuiltinRules(e.builtinRules, effective, filePath)
 
-	if len(activePatterns) > 0 || len(activeStructural) > 0 || len(activeImports) > 0 {
+	if len(activePatterns) > 0 || len(activeStructural) > 0 || len(activeImports) > 0 || len(activeBuiltins) > 0 {
 		lang, ok := parser.LangFromPath(filePath)
 		if ok {
 			p := parser.NewParser(lang)
@@ -135,6 +139,14 @@ func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) [
 				if len(activeImports) > 0 {
 					found := matchImports(ctx, activeImports, tree, source, lineStarts)
 					setFilePath(found, filePath)
+					diags = append(diags, found...)
+				}
+
+				if len(activeBuiltins) > 0 {
+					found := matchBuiltins(activeBuiltins, tree, source, lineStarts)
+					for j := range found {
+						found[j].File = filePath
+					}
 					diags = append(diags, found...)
 				}
 
@@ -230,7 +242,7 @@ func (e *Engine) Lint(ctx context.Context, files []string, threads int) *Result 
 		wr := &results[w]
 
 		g.Go(func() error {
-			wr.diags = make([]Diagnostic, 0, len(batch)*(len(e.regexRules)+len(e.patternRules)+len(e.structuralRules)+len(e.importRules)))
+			wr.diags = make([]Diagnostic, 0, len(batch)*(len(e.regexRules)+len(e.patternRules)+len(e.structuralRules)+len(e.importRules)+len(e.builtinRules)))
 
 			for _, filePath := range batch {
 				if err := ctx.Err(); err != nil {

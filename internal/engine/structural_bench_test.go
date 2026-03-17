@@ -257,13 +257,13 @@ func BenchmarkMatchImports(b *testing.B) {
 // BenchmarkLintE2E_AllFiveTypes exercises the full Engine.Lint path with all
 // five rule types: regex, pattern, structural, AST+naming, and imports.
 // 50 files × 100 lines approximates a mid-size project with diverse rule configuration.
-func BenchmarkLintE2E_AllFiveTypes(b *testing.B) {
+func BenchmarkLintE2E_AllSixTypes(b *testing.B) {
 	const (
 		numFiles     = 50
 		linesPerFile = 100
 	)
 
-	line := "import fs from \"fs\";\nimport React from \"react\";\nvar x = 1; console.log(x); function f() {}\n"
+	line := "import fs from \"fs\";\nimport React from \"react\";\nvar x = 1; console.log(x); function f() {}\nif (y) {}\n"
 	source := bytes.Repeat([]byte(line), linesPerFile)
 
 	dir := b.TempDir()
@@ -305,6 +305,11 @@ func BenchmarkLintE2E_AllFiveTypes(b *testing.B) {
 					Alphabetize: true,
 				},
 				Message: "wrong import order",
+			},
+			"no-empty": {
+				Severity: config.SeverityError,
+				Builtin:  true,
+				Message:  "Empty block statement.",
 			},
 		},
 	}

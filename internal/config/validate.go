@@ -87,9 +87,21 @@ func validateRule(name string, rule *RuleConfig, errs *[]FieldError) {
 		*errs = append(*errs, FieldError{Rule: name, Field: "matcher", Message: fmt.Sprintf("rule has %d matchers but must have exactly one", matcherCount)})
 	}
 
-	// Imports must have at least one group.
-	if rule.Imports != nil && len(rule.Imports.Groups) == 0 {
-		*errs = append(*errs, FieldError{Rule: name, Field: "imports.groups", Message: "imports.groups must not be empty"})
+	// Imports must have at least one group, and each group must be non-empty.
+	if rule.Imports != nil {
+		if len(rule.Imports.Groups) == 0 {
+			*errs = append(*errs, FieldError{Rule: name, Field: "imports.groups", Message: "imports.groups must not be empty"})
+		}
+		seen := make(map[string]bool, len(rule.Imports.Groups))
+		for i, g := range rule.Imports.Groups {
+			trimmed := strings.TrimSpace(g)
+			if trimmed == "" {
+				*errs = append(*errs, FieldError{Rule: name, Field: fmt.Sprintf("imports.groups[%d]", i), Message: "group name must not be empty"})
+			} else if seen[trimmed] {
+				*errs = append(*errs, FieldError{Rule: name, Field: fmt.Sprintf("imports.groups[%d]", i), Message: fmt.Sprintf("duplicate group %q", trimmed)})
+			}
+			seen[trimmed] = true
+		}
 	}
 
 	// Naming is a modifier on AST, not a standalone matcher.

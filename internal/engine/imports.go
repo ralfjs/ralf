@@ -148,10 +148,15 @@ func classifyImport(source string, isType bool) importGroup {
 	return groupExternal
 }
 
-// stripQuotes removes surrounding quotes from a string literal.
+// stripQuotes removes matching surrounding quotes from a string literal.
+// Only strips when both ends are the same quote character.
 func stripQuotes(s string) string {
-	if len(s) >= 2 && (s[0] == '"' || s[0] == '\'') {
-		return s[1 : len(s)-1]
+	if len(s) >= 2 {
+		first := s[0]
+		last := s[len(s)-1]
+		if (first == '"' || first == '\'' || first == '`') && first == last {
+			return s[1 : len(s)-1]
+		}
 	}
 	return s
 }

@@ -134,9 +134,7 @@ func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) [
 
 				if len(activeImports) > 0 {
 					found := matchImports(ctx, activeImports, tree, source, lineStarts)
-					for j := range found {
-						found[j].File = filePath
-					}
+					setFilePath(found, filePath)
 					diags = append(diags, found...)
 				}
 

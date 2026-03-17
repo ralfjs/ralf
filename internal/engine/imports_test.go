@@ -364,9 +364,13 @@ func TestStripQuotes(t *testing.T) {
 	}{
 		{`"react"`, "react"},
 		{`'react'`, "react"},
+		{"`react`", "react"},
 		{"react", "react"},
 		{`""`, ""},
 		{`"a"`, "a"},
+		{`"mismatched'`, `"mismatched'`},   // no strip: mismatched quotes
+		{`'mismatched"`, `'mismatched"`},   // no strip: mismatched quotes
+		{`"unterminated`, `"unterminated`}, // no strip: no closing quote
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {

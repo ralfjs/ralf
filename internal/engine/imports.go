@@ -41,7 +41,9 @@ type importInfo struct {
 	source  string      // module path (quotes stripped)
 	group   importGroup // classified group
 	line    int         // 1-based start line
+	col     int         // 0-based byte offset within line
 	endLine int         // 1-based end line
+	endCol  int         // 0-based byte offset within end line
 }
 
 // nodeBuiltins is the set of Node.js built-in modules.
@@ -243,21 +245,23 @@ func collectImports(root parser.Node, source []byte, lineStarts []int, importSym
 		modPath := stripQuotes(rawSource)
 		isType := detectTypeImport(child)
 
-		startLine, _ := offsetToLineCol(lineStarts, int(child.StartByte())) //nolint:gosec // tree-sitter offsets fit in int
-		endLine, _ := offsetToLineCol(lineStarts, int(child.EndByte()))     //nolint:gosec // tree-sitter offsets fit in int
+		startLine, startCol := offsetToLineCol(lineStarts, int(child.StartByte())) //nolint:gosec // tree-sitter offsets fit in int
+		endLine, endCol := offsetToLineCol(lineStarts, int(child.EndByte()))       //nolint:gosec // tree-sitter offsets fit in int
 
 		imports = append(imports, importInfo{
 			source:  modPath,
 			group:   classifyImport(modPath, isType),
 			line:    startLine,
+			col:     startCol,
 			endLine: endLine,
+			endCol:  endCol,
 		})
 	}
 
 	return imports
 }
 
-// groupIndex returns the position of g in the rule's groups slice, or -1 if
+// groupIdx returns the position of g in the rule's groups slice, or -1 if
 // the group is not listed.
 func groupIdx(groups []importGroup, g importGroup) int {
 	for i, gg := range groups {
@@ -296,7 +300,7 @@ func matchImports(ctx context.Context, rules []compiledImport, tree *parser.Tree
 		if ctx.Err() != nil {
 			break
 		}
-		found := checkImportRule(&rules[i], imports)
+		found := checkImportRule(&rules[i], imports, source, lineStarts)
 		diags = append(diags, found...)
 	}
 
@@ -305,7 +309,7 @@ func matchImports(ctx context.Context, rules []compiledImport, tree *parser.Tree
 
 // checkImportRule runs group ordering, alphabetize, and newline-between checks
 // in a single pass over the imports slice.
-func checkImportRule(rule *compiledImport, imports []importInfo) []Diagnostic {
+func checkImportRule(rule *compiledImport, imports []importInfo, source []byte, lineStarts []int) []Diagnostic {
 	var diags []Diagnostic
 
 	maxGroupIdx := -1  // highest group index seen so far (for ordering check)
@@ -342,14 +346,15 @@ func checkImportRule(rule *compiledImport, imports []importInfo) []Diagnostic {
 				}
 			}
 
-			// Check 3: Newline between groups.
+			// Check 3: Newline between groups — count actual empty lines
+			// in source between previous import's end and current import's start.
 			if rule.newline {
-				gap := imp.line - prevEndLine
-				if idx != prevGroupIdx && gap < 2 {
+				emptyCount := countEmptyLinesBetween(source, lineStarts, prevEndLine, imp.line)
+				if idx != prevGroupIdx && emptyCount < 1 {
 					diags = append(diags, importDiag(imp, rule.name, rule.message,
 						fmt.Sprintf("missing blank line before import %q (different group)", imp.source),
 						rule.severity))
-				} else if idx == prevGroupIdx && gap > 1 {
+				} else if idx == prevGroupIdx && emptyCount > 0 {
 					diags = append(diags, importDiag(imp, rule.name, rule.message,
 						fmt.Sprintf("unexpected blank line before import %q (same group)", imp.source),
 						rule.severity))
@@ -365,6 +370,39 @@ func checkImportRule(rule *compiledImport, imports []importInfo) []Diagnostic {
 	return diags
 }
 
+// countEmptyLinesBetween counts whitespace-only lines between two 1-based line
+// numbers (exclusive on both ends). Lines containing only spaces/tabs count as
+// empty; lines with comments or other content do not.
+func countEmptyLinesBetween(source []byte, lineStarts []int, fromLine, toLine int) int {
+	count := 0
+	for line := fromLine + 1; line < toLine; line++ {
+		if isEmptyLine(source, lineStarts, line) {
+			count++
+		}
+	}
+	return count
+}
+
+// isEmptyLine reports whether the given 1-based line contains only whitespace.
+func isEmptyLine(source []byte, lineStarts []int, line int) bool {
+	idx := line - 1 // 0-based index into lineStarts
+	if idx < 0 || idx >= len(lineStarts) {
+		return false
+	}
+	start := lineStarts[idx]
+	end := len(source)
+	if idx+1 < len(lineStarts) {
+		end = lineStarts[idx+1]
+	}
+	for i := start; i < end; i++ {
+		b := source[i]
+		if b != ' ' && b != '\t' && b != '\r' && b != '\n' {
+			return false
+		}
+	}
+	return true
+}
+
 // importDiag builds a Diagnostic from an importInfo. Uses ruleMsg if non-empty,
 // otherwise falls back to fallback.
 func importDiag(imp importInfo, rule, ruleMsg, fallback string, severity config.Severity) Diagnostic {
@@ -374,9 +412,9 @@ func importDiag(imp importInfo, rule, ruleMsg, fallback string, severity config.
 	}
 	return Diagnostic{
 		Line:     imp.line,
-		Col:      0,
+		Col:      imp.col,
 		EndLine:  imp.endLine,
-		EndCol:   0,
+		EndCol:   imp.endCol,
 		Rule:     rule,
 		Message:  msg,
 		Severity: severity,

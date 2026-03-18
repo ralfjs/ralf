@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"regexp"
 	"strings"
 )
@@ -57,8 +58,19 @@ func addLineSuppressions(lines map[int]map[string]bool, lineNum int, rules []str
 	}
 }
 
+// emptySup is the zero-value returned when no suppression directives are present.
+var emptySup = suppressions{
+	file:  map[string]bool{},
+	lines: map[int]map[string]bool{},
+}
+
 // parseSuppressComments scans source line-by-line and extracts all suppression directives.
 func parseSuppressComments(source []byte) suppressions {
+	// Fast path: skip the full parse when source contains no directives.
+	if !bytes.Contains(source, []byte("lint-")) {
+		return emptySup
+	}
+
 	sup := suppressions{
 		file:  make(map[string]bool),
 		lines: make(map[int]map[string]bool),
@@ -108,18 +120,32 @@ func parseSuppressComments(source []byte) suppressions {
 			}
 
 		case "enable":
-			for _, r := range rules {
-				stack := openBlocks[r]
-				if len(stack) == 0 {
-					continue // no matching disable — silently ignore
+			// Bare "// lint-enable" (no rules) closes ALL open blocks.
+			if len(rules) == 1 && rules[0] == "" {
+				for r, stack := range openBlocks {
+					for _, startLine := range stack {
+						sup.blocks = append(sup.blocks, blockRange{
+							startLine: startLine,
+							endLine:   lineNum,
+							rule:      r,
+						})
+					}
+					delete(openBlocks, r)
 				}
-				startLine := stack[len(stack)-1]
-				openBlocks[r] = stack[:len(stack)-1]
-				sup.blocks = append(sup.blocks, blockRange{
-					startLine: startLine,
-					endLine:   lineNum,
-					rule:      r,
-				})
+			} else {
+				for _, r := range rules {
+					stack := openBlocks[r]
+					if len(stack) == 0 {
+						continue // no matching disable — silently ignore
+					}
+					startLine := stack[len(stack)-1]
+					openBlocks[r] = stack[:len(stack)-1]
+					sup.blocks = append(sup.blocks, blockRange{
+						startLine: startLine,
+						endLine:   lineNum,
+						rule:      r,
+					})
+				}
 			}
 		}
 	}

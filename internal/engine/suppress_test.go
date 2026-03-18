@@ -150,6 +150,18 @@ func TestParseSuppressComments(t *testing.T) {
 			wantFile:   map[string]bool{},
 			wantBlocks: 1,
 		},
+		{
+			name:       "bare enable closes specific-rule blocks",
+			source:     "// lint-disable no-console\nconsole.log(1);\n// lint-enable",
+			wantFile:   map[string]bool{},
+			wantBlocks: 1,
+		},
+		{
+			name:       "bare enable closes multiple specific-rule blocks",
+			source:     "// lint-disable no-console\n// lint-disable no-var\nvar x;\n// lint-enable",
+			wantFile:   map[string]bool{},
+			wantBlocks: 2,
+		},
 	}
 
 	for _, tt := range tests {
@@ -173,6 +185,10 @@ func TestParseSuppressComments(t *testing.T) {
 				gotRules := got.lines[line]
 				if gotRules == nil {
 					t.Errorf("lines[%d] is nil, want %v", line, wantRules)
+					continue
+				}
+				if len(gotRules) != len(wantRules) {
+					t.Errorf("lines[%d]: got %d rules %v, want %d rules %v", line, len(gotRules), gotRules, len(wantRules), wantRules)
 					continue
 				}
 				for r, v := range wantRules {
@@ -400,6 +416,11 @@ func TestLintFileWithSuppression(t *testing.T) {
 			source:    "// lint-disable-next-line use-let\nlet x = 1;\nvar y = 2;",
 			wantDiags: 1, // var y on line 3, next-line only covers line 2
 		},
+		{
+			name:      "bare enable closes specific-rule block",
+			source:    "// lint-disable use-let\nvar x = 1;\n// lint-enable\nvar y = 2;",
+			wantDiags: 1, // var y on line 4, only after enable
+		},
 	}
 
 	cfg := &config.Config{
@@ -517,6 +538,13 @@ func TestParseSuppressComments_BlockRanges(t *testing.T) {
 			wantBlocks: []blockRange{
 				{startLine: 1, endLine: 3, rule: "no-var"},
 				{startLine: 5, endLine: 7, rule: "no-console"},
+			},
+		},
+		{
+			name:   "bare enable closes specific-rule block",
+			source: "// lint-disable no-var\nvar x;\n// lint-enable",
+			wantBlocks: []blockRange{
+				{startLine: 1, endLine: 3, rule: "no-var"},
 			},
 		},
 	}

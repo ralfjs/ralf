@@ -770,7 +770,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 13 | ✅ Naming convention engine | `naming: { match }` as modifier on `ast` rules. `compiledNaming` with rure regex, `extractNameField` (no full-text fallback). Validation: naming requires ast, rejects standalone use. |
 | 14 | ✅ Import analysis | `imports: { groups, alphabetize, newlineBetween }` — classify imports by source path, single-pass group ordering + alphabetize + newline-between checks. Symbol ID optimization for `import_statement` nodes. |
 | 15 | ✅ 29 more built-in rules | Total: 49 rules (23 regex, 4 pattern, 1 structural, 21 custom Go builtin). Custom Go builtin system with kind-indexed single-walk dispatch. Each rule has fixture test. |
-| 16 | ✅ Inline suppression | Parse `// lint-disable-next-line`, `// lint-disable`, `/* lint-disable-file */`. Skip diagnostics for suppressed ranges. |
+| 16 | ✅ Inline suppression | Five suppression forms: `lint-disable-next-line`, same-line `lint-disable`, block `lint-disable`/`lint-enable`, `lint-disable-file` (specific or all rules). Comma-separated rule lists. Post-match filter in `LintFile()`. |
 
 **Month 5 — Polish + Release**
 

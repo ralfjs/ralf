@@ -254,8 +254,8 @@ func BenchmarkMatchImports(b *testing.B) {
 	}
 }
 
-// BenchmarkLintE2E_AllFiveTypes exercises the full Engine.Lint path with all
-// five rule types: regex, pattern, structural, AST+naming, and imports.
+// BenchmarkLintE2E_AllSixTypes exercises the full Engine.Lint path with all
+// six rule types: regex, pattern, structural, AST+naming, imports, and builtin.
 // 50 files × 100 lines approximates a mid-size project with diverse rule configuration.
 func BenchmarkLintE2E_AllSixTypes(b *testing.B) {
 	const (

@@ -32,13 +32,14 @@ func New(cfg *config.Config) (*Engine, []error) {
 	patternCompiled, patternErrs := compilePatternRules(cfg.Rules)
 	structuralCompiled, structuralErrs := compileStructuralRules(cfg.Rules)
 	importCompiled, importErrs := compileImportRules(cfg.Rules)
-	builtinCompiled := compileBuiltinRules(cfg.Rules)
+	builtinCompiled, builtinErrs := compileBuiltinRules(cfg.Rules)
 
-	errs := make([]error, 0, len(regexErrs)+len(patternErrs)+len(structuralErrs)+len(importErrs))
+	errs := make([]error, 0, len(regexErrs)+len(patternErrs)+len(structuralErrs)+len(importErrs)+len(builtinErrs))
 	errs = append(errs, regexErrs...)
 	errs = append(errs, patternErrs...)
 	errs = append(errs, structuralErrs...)
 	errs = append(errs, importErrs...)
+	errs = append(errs, builtinErrs...)
 	if len(errs) > 0 {
 		return nil, errs
 	}

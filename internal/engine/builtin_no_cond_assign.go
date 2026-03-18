@@ -13,8 +13,14 @@ func checkNoCondAssign(node parser.Node, _ []byte, lineStarts []int, diags *[]Di
 }
 
 func containsAssignment(node parser.Node) bool {
-	if node.Kind() == "assignment_expression" {
+	kind := node.Kind()
+	if kind == "assignment_expression" {
 		return true
+	}
+	// Don't descend into nested function bodies — assignments
+	// inside arrow/function literals are not part of the condition.
+	if isFunctionNode(kind) {
+		return false
 	}
 	for i := uint(0); i < node.NamedChildCount(); i++ {
 		if containsAssignment(node.NamedChild(i)) {

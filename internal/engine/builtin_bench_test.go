@@ -30,7 +30,7 @@ func BenchmarkMatchBuiltin(b *testing.B) {
 	}
 	defer tree.Close()
 
-	rules := compileBuiltinRules(map[string]config.RuleConfig{
+	rules, _ := compileBuiltinRules(map[string]config.RuleConfig{
 		"no-empty": {Severity: config.SeverityError, Builtin: true, Message: "Empty block statement."},
 	})
 
@@ -72,7 +72,7 @@ delete y;
 			builtinOnly[name] = rules[name]
 		}
 	}
-	compiled := compileBuiltinRules(builtinOnly)
+	compiled, _ := compileBuiltinRules(builtinOnly)
 
 	b.ResetTimer()
 	b.ReportAllocs()

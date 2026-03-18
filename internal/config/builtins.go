@@ -17,7 +17,7 @@ const noLabelsNotDefault = `(?:` +
 	`|defaul[a-su-zA-Z0-9_]` +
 	`)`
 
-// BuiltinRules returns the 50 built-in rules. A fresh map is returned
+// BuiltinRules returns the 49 built-in rules. A fresh map is returned
 // on every call so callers may mutate it freely.
 //
 // Each rule is modeled after its ESLint equivalent where one exists.
@@ -204,7 +204,7 @@ func BuiltinRules() map[string]RuleConfig {
 			Message:  "'Math' is not a function.",
 		},
 
-		// ── Structural AST rules (6) ────────────────────────────────────
+		// ── Structural AST rules (1) + Go builtins (2) ─────────────────
 
 		// ESLint: no-case-declarations — flags lexical decls in case clauses.
 		"no-case-declarations": {
@@ -226,6 +226,7 @@ func BuiltinRules() map[string]RuleConfig {
 		},
 
 		// ── Custom Go built-in rules (19) ────────────────────────────────
+		// (21 total with no-octal and no-shadow-restricted-names above)
 		// These are dispatched by the engine's builtin checker registry.
 		// Builtin: true marks them as Go-implemented checkers.
 

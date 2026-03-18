@@ -17,7 +17,7 @@ func checkNoDupeKeys(node parser.Node, source []byte, lineStarts []int, diags *[
 		if key.IsNull() || key.Kind() == "computed_property_name" {
 			continue
 		}
-		name := key.Text(source)
+		name := normalizeKeyName(key, source)
 		if seen[name] {
 			d := builtinDiag(key, lineStarts)
 			d.Message = fmt.Sprintf("Duplicate key '%s'.", name)
@@ -25,4 +25,14 @@ func checkNoDupeKeys(node parser.Node, source []byte, lineStarts []int, diags *[
 		}
 		seen[name] = true
 	}
+}
+
+// normalizeKeyName returns a comparable key name. String literal keys
+// have their quotes stripped so { a: 1, "a": 2 } is detected as a duplicate.
+func normalizeKeyName(key parser.Node, source []byte) string {
+	text := key.Text(source)
+	if key.Kind() == "string" && len(text) >= 2 {
+		return text[1 : len(text)-1]
+	}
+	return text
 }

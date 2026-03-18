@@ -17,14 +17,38 @@ func checkForDirection(node parser.Node, source []byte, lineStarts []int, diags 
 	}
 	condOpText := condOp.Text(source)
 	condLeft := condition.ChildByFieldName("left")
-	if condLeft.IsNull() || condLeft.Kind() != "identifier" {
+	condRight := condition.ChildByFieldName("right")
+	if condLeft.IsNull() || condRight.IsNull() {
 		return
 	}
-	counterName := condLeft.Text(source)
+
+	// Determine counter name and effective operator direction.
+	// Supports counter on either side: "i < 10" and "10 > i".
+	var counterName string
+	effectiveOp := condOpText
+	switch {
+	case condLeft.Kind() == "identifier":
+		counterName = condLeft.Text(source)
+	case condRight.Kind() == "identifier":
+		counterName = condRight.Text(source)
+		// Flip operator when counter is on the right: "10 > i" ≡ "i < 10"
+		switch condOpText {
+		case "<":
+			effectiveOp = ">"
+		case "<=":
+			effectiveOp = ">="
+		case ">":
+			effectiveOp = "<"
+		case ">=":
+			effectiveOp = "<="
+		}
+	default:
+		return
+	}
 
 	dir := updateDirection(increment, counterName, source)
 	wrongDirection := false
-	switch condOpText {
+	switch effectiveOp {
 	case "<", "<=":
 		wrongDirection = dir < 0
 	case ">", ">=":

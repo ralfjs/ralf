@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+
 	"github.com/Hideart/ralf/internal/config"
 	"github.com/Hideart/ralf/internal/parser"
 )
@@ -61,8 +63,10 @@ func isFunctionNode(kind string) bool {
 }
 
 // compileBuiltinRules selects rules that have a registered Go checker function.
-func compileBuiltinRules(rules map[string]config.RuleConfig) []compiledBuiltin {
+// Returns an error for any rule with Builtin=true that has no registered checker.
+func compileBuiltinRules(rules map[string]config.RuleConfig) ([]compiledBuiltin, []error) {
 	compiled := make([]compiledBuiltin, 0, len(builtinDefs))
+	var errs []error
 	for name := range rules {
 		rule := rules[name]
 		if rule.Severity == config.SeverityOff || !rule.Builtin {
@@ -70,6 +74,7 @@ func compileBuiltinRules(rules map[string]config.RuleConfig) []compiledBuiltin {
 		}
 		def, ok := builtinDefs[name]
 		if !ok {
+			errs = append(errs, fmt.Errorf("rule %q: builtin checker not registered", name))
 			continue
 		}
 		compiled = append(compiled, compiledBuiltin{
@@ -79,7 +84,7 @@ func compileBuiltinRules(rules map[string]config.RuleConfig) []compiledBuiltin {
 			severity: rule.Severity,
 		})
 	}
-	return compiled
+	return compiled, errs
 }
 
 // builtinIndex maps kindID to the set of builtin rules triggered by that kind.

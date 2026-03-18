@@ -5,16 +5,17 @@ import "testing"
 func TestBuiltinRules(t *testing.T) {
 	rules := BuiltinRules()
 
-	t.Run("returns exactly 20 rules", func(t *testing.T) {
-		if got := len(rules); got != 20 {
-			t.Errorf("BuiltinRules() returned %d rules, want 20", got)
+	t.Run("returns expected rule count", func(t *testing.T) {
+		if got := len(rules); got != 49 {
+			t.Errorf("BuiltinRules() returned %d rules, want 49", got)
 		}
 	})
 
-	t.Run("every rule has regex, message, and valid severity", func(t *testing.T) {
+	t.Run("every rule has a matcher, message, and valid severity", func(t *testing.T) {
 		for name, r := range rules {
-			if r.Regex == "" {
-				t.Errorf("rule %q: Regex is empty", name)
+			hasMatcher := r.Regex != "" || r.Pattern != "" || r.AST != nil || r.Imports != nil || r.Builtin
+			if !hasMatcher {
+				t.Errorf("rule %q: no matcher set", name)
 			}
 			if r.Message == "" {
 				t.Errorf("rule %q: Message is empty", name)
@@ -44,8 +45,8 @@ func TestRecommendedConfig(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("RecommendedConfig() returned nil")
 	}
-	if len(cfg.Rules) != 20 {
-		t.Errorf("RecommendedConfig() has %d rules, want 20", len(cfg.Rules))
+	if len(cfg.Rules) != 49 {
+		t.Errorf("RecommendedConfig() has %d rules, want 49", len(cfg.Rules))
 	}
 
 	if err := Validate(cfg); err != nil {

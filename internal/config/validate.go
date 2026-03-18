@@ -82,7 +82,7 @@ func validateRule(name string, rule *RuleConfig, errs *[]FieldError) {
 
 	matcherCount := countMatchers(rule)
 	if matcherCount == 0 {
-		*errs = append(*errs, FieldError{Rule: name, Field: "matcher", Message: "rule must have exactly one matcher (regex, pattern, ast, or imports)"})
+		*errs = append(*errs, FieldError{Rule: name, Field: "matcher", Message: "rule must have exactly one matcher (regex, pattern, ast, imports, or builtin)"})
 	} else if matcherCount > 1 {
 		*errs = append(*errs, FieldError{Rule: name, Field: "matcher", Message: fmt.Sprintf("rule has %d matchers but must have exactly one", matcherCount)})
 	}
@@ -134,6 +134,9 @@ func countMatchers(r *RuleConfig) int {
 		count++
 	}
 	if r.Imports != nil {
+		count++
+	}
+	if r.Builtin {
 		count++
 	}
 	return count

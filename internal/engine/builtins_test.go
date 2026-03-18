@@ -18,7 +18,16 @@ func TestBuiltinRulesCompile(t *testing.T) {
 	if eng == nil {
 		t.Fatal("engine is nil")
 	}
-	if len(eng.regexRules) != 20 {
-		t.Errorf("expected 20 compiled regex rules, got %d", len(eng.regexRules))
+	if len(eng.regexRules) != 23 {
+		t.Errorf("expected 23 compiled regex rules, got %d", len(eng.regexRules))
+	}
+	if len(eng.patternRules) != 4 {
+		t.Errorf("expected 4 compiled pattern rules, got %d", len(eng.patternRules))
+	}
+	if len(eng.structuralRules) != 1 {
+		t.Errorf("expected 1 compiled structural rule, got %d", len(eng.structuralRules))
+	}
+	if len(eng.builtinRules) != 21 {
+		t.Errorf("expected 21 compiled builtin rules, got %d", len(eng.builtinRules))
 	}
 }

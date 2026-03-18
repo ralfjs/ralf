@@ -62,6 +62,20 @@ func nodeFix(node parser.Node, source []byte, fixText string) *Fix {
 	return &Fix{StartByte: sb, EndByte: eb, NewText: newText}
 }
 
+// builtinDiag builds a position-only Diagnostic from a node for builtin checkers.
+// The engine loop fills in File, Rule, Severity, and Message (unless Message is
+// already set by the caller to override the default).
+func builtinDiag(node parser.Node, lineStarts []int) Diagnostic {
+	startLine, startCol := offsetToLineCol(lineStarts, int(node.StartByte())) //nolint:gosec // tree-sitter offsets fit in int
+	endLine, endCol := offsetToLineCol(lineStarts, int(node.EndByte()))       //nolint:gosec // tree-sitter offsets fit in int
+	return Diagnostic{
+		Line:    startLine,
+		Col:     startCol,
+		EndLine: endLine,
+		EndCol:  endCol,
+	}
+}
+
 // setFilePath sets the File field on a slice of diagnostics.
 func setFilePath(diags []Diagnostic, filePath string) {
 	for i := range diags {

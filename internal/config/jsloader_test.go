@@ -132,8 +132,18 @@ func TestShimExportDefault(t *testing.T) {
 		},
 		{
 			name:   "only first occurrence",
-			input:  `export default { msg: "export default" };`,
-			expect: `module.exports = { msg: "export default" };`,
+			input:  "export default { rules: {} };\nexport default { rules: {} };",
+			expect: "module.exports = { rules: {} };\nexport default { rules: {} };",
+		},
+		{
+			name:   "inside comment not matched",
+			input:  "// Don't use export default in libraries\nexport default { rules: {} };",
+			expect: "// Don't use export default in libraries\nmodule.exports = { rules: {} };",
+		},
+		{
+			name:   "preserves indentation",
+			input:  "  export default { rules: {} };",
+			expect: "  module.exports = { rules: {} };",
 		},
 	}
 

@@ -3,7 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
+	"regexp"
 	"time"
 
 	"github.com/dop251/goja"
@@ -44,10 +44,21 @@ func loadJS(path string, data []byte) (*Config, error) {
 	return exportToConfig(path, val)
 }
 
-// shimExportDefault rewrites "export default" to "module.exports =" so that
-// goja (ES5.1 CommonJS) can evaluate configs written with ES module syntax.
+// reExportDefault matches "export default" at the start of a line (with
+// optional leading whitespace), avoiding false positives inside comments
+// or string literals on preceding lines.
+var reExportDefault = regexp.MustCompile(`(?m)^(\s*)export\s+default\b`)
+
+// shimExportDefault rewrites the first top-level "export default" to
+// "module.exports =" so that goja (ES5.1 CommonJS) can evaluate configs
+// written with ES module syntax.
 func shimExportDefault(source string) string {
-	return strings.Replace(source, "export default", "module.exports =", 1)
+	loc := reExportDefault.FindStringSubmatchIndex(source)
+	if loc == nil {
+		return source
+	}
+	// loc[0]:loc[1] is the full match, loc[2]:loc[3] is the leading whitespace.
+	return source[:loc[0]] + source[loc[2]:loc[3]] + "module.exports =" + source[loc[1]:]
 }
 
 // exportToConfig converts a goja value to a *Config via JSON round-trip.

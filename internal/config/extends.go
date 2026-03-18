@@ -17,10 +17,19 @@ func ResolveExtends(cfg *Config, baseDir string) (*Config, error) {
 	if len(cfg.Extends) == 0 {
 		return cfg, nil
 	}
-	return resolveExtends(cfg, baseDir, make(map[string]struct{}))
+	ctx := &extendsCtx{
+		cache: make(map[string]*Config),
+	}
+	return ctx.resolve(cfg, baseDir, make(map[string]struct{}))
 }
 
-func resolveExtends(cfg *Config, baseDir string, visited map[string]struct{}) (*Config, error) {
+// extendsCtx holds memoized configs across a single ResolveExtends call so
+// that diamond dependencies (A→B→D, A→C→D) load each file at most once.
+type extendsCtx struct {
+	cache map[string]*Config
+}
+
+func (c *extendsCtx) resolve(cfg *Config, baseDir string, ancestors map[string]struct{}) (*Config, error) {
 	if len(cfg.Extends) == 0 {
 		return cfg, nil
 	}
@@ -40,27 +49,34 @@ func resolveExtends(cfg *Config, baseDir string, visited map[string]struct{}) (*
 			return nil, fmt.Errorf("config: resolve extends path %q: %w", ext, err)
 		}
 
-		if _, ok := visited[abs]; ok {
+		if _, ok := ancestors[abs]; ok {
 			return nil, fmt.Errorf("config: %w: %s", ErrCircularExtend, abs)
+		}
+
+		// Return cached result for diamonds — avoids re-loading files and
+		// prevents duplicate ignores/overrides from repeated merges.
+		if cached, ok := c.cache[abs]; ok {
+			mergeInto(merged, cached)
+			continue
 		}
 
 		// Add to ancestor chain before recursing, remove after — this tracks
 		// the current path from root to leaf, not all previously seen nodes.
-		// Diamond dependencies (A→B→D, A→C→D) are fine; only true cycles error.
-		visited[abs] = struct{}{}
+		ancestors[abs] = struct{}{}
 
 		base, err := LoadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("config: extends %q: %w", ext, err)
 		}
 
-		base, err = resolveExtends(base, filepath.Dir(abs), visited)
+		base, err = c.resolve(base, filepath.Dir(abs), ancestors)
 		if err != nil {
 			return nil, err
 		}
 
-		delete(visited, abs)
+		delete(ancestors, abs)
 
+		c.cache[abs] = base
 		mergeInto(merged, base)
 	}
 
@@ -74,16 +90,37 @@ func resolveExtends(cfg *Config, baseDir string, visited map[string]struct{}) (*
 }
 
 // resolveExtendPath resolves an extends string to a file path.
-// Relative paths are resolved from baseDir. Absolute paths are used directly.
-// Named presets (no . or / prefix, not absolute) are not supported in v0.1.
+// Relative paths (starting with ".", containing a separator, or having a
+// file extension) are resolved from baseDir. Absolute paths are used directly.
+// Bare identifiers like "@org/rules" are not supported in v0.1.
 func resolveExtendPath(ext, baseDir string) (string, error) {
 	if filepath.IsAbs(ext) {
 		return ext, nil
 	}
-	if strings.HasPrefix(ext, ".") {
+	if isFilePath(ext) {
 		return filepath.Join(baseDir, ext), nil
 	}
 	return "", fmt.Errorf("config: named presets not yet supported, use file paths (got %q)", ext)
+}
+
+// isFilePath returns true if ext looks like a file path rather than a named
+// preset. Named presets start with "@" (scoped packages) or contain no path
+// separator and no file extension.
+func isFilePath(ext string) bool {
+	if strings.HasPrefix(ext, "@") {
+		return false
+	}
+	if strings.HasPrefix(ext, ".") {
+		return true
+	}
+	if strings.ContainsRune(ext, filepath.Separator) || strings.ContainsRune(ext, '/') {
+		return true
+	}
+	switch filepath.Ext(ext) {
+	case ".json", ".yaml", ".yml", ".toml", ".js":
+		return true
+	}
+	return false
 }
 
 // mergeInto merges src into dst. Rules from src override existing rules in dst.

@@ -301,6 +301,22 @@ func TestResolveExtends_Diamond(t *testing.T) {
 	}
 }
 
+func TestResolveExtends_BareRelativePath(t *testing.T) {
+	t.Parallel()
+	// "extends/base.json" has no "./" prefix but contains a separator — must resolve.
+	cfg := &Config{
+		Extends: []string{"extends/base.json"},
+		Rules:   map[string]RuleConfig{},
+	}
+	got, err := ResolveExtends(cfg, testdataDir)
+	if err != nil {
+		t.Fatalf("ResolveExtends bare relative: %v", err)
+	}
+	if _, ok := got.Rules["no-eval"]; !ok {
+		t.Error("expected rule 'no-eval' from bare relative path extends")
+	}
+}
+
 func ruleNames(cfg *Config) []string {
 	names := make([]string, 0, len(cfg.Rules))
 	for name := range cfg.Rules {

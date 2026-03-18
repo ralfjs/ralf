@@ -26,11 +26,24 @@ func checkValidTypeof(node parser.Node, source []byte, lineStarts []int, diags *
 	}
 	left := node.ChildByFieldName("left")
 	right := node.ChildByFieldName("right")
-	if isTypeofExpr(left, source) && isStringLiteral(right, source) && !validTypeofValues[right.Text(source)] {
+	if isTypeofExpr(left, source) && !isValidTypeofComparand(right, source) {
 		*diags = append(*diags, builtinDiag(node, lineStarts))
-	} else if isTypeofExpr(right, source) && isStringLiteral(left, source) && !validTypeofValues[left.Text(source)] {
+	} else if isTypeofExpr(right, source) && !isValidTypeofComparand(left, source) {
 		*diags = append(*diags, builtinDiag(node, lineStarts))
 	}
+}
+
+// isValidTypeofComparand returns true if node is a string literal with a valid
+// typeof value. Non-string nodes (identifiers like undefined, null, numbers)
+// are always invalid comparands for typeof.
+func isValidTypeofComparand(node parser.Node, source []byte) bool {
+	if node.IsNull() {
+		return false
+	}
+	if !isStringLiteral(node, source) {
+		return false
+	}
+	return validTypeofValues[node.Text(source)]
 }
 
 func isTypeofExpr(node parser.Node, source []byte) bool {

@@ -8,12 +8,20 @@ func checkNoUselessCatch(node parser.Node, source []byte, lineStarts []int, diag
 	if param.IsNull() || body.IsNull() {
 		return
 	}
-	// Body is a statement_block; check it has exactly one named child.
-	if body.NamedChildCount() != 1 {
-		return
+	// Find the single non-comment statement in the body. If there are
+	// zero or more than one real statements, the catch is not useless.
+	var stmt parser.Node
+	for i := uint(0); i < body.NamedChildCount(); i++ {
+		child := body.NamedChild(i)
+		if child.Kind() == "comment" {
+			continue
+		}
+		if !stmt.IsNull() {
+			return // more than one statement
+		}
+		stmt = child
 	}
-	stmt := body.NamedChild(0)
-	if stmt.Kind() != "throw_statement" {
+	if stmt.IsNull() || stmt.Kind() != "throw_statement" {
 		return
 	}
 	// The throw's argument should be the same identifier as the catch param.

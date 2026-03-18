@@ -21,6 +21,8 @@ func TestParseRuleList(t *testing.T) {
 		{"two rules", "no-console, no-var", []string{"no-console", "no-var"}},
 		{"whitespace trimmed", " no-console , no-var ", []string{"no-console", "no-var"}},
 		{"trailing comma", "no-console,", []string{"no-console"}},
+		{"plugin-style slash", "react/jsx-no-target-blank", []string{"react/jsx-no-target-blank"}},
+		{"scoped plugin", "@typescript-eslint/no-explicit-any, no-var", []string{"@typescript-eslint/no-explicit-any", "no-var"}},
 	}
 
 	for _, tt := range tests {
@@ -161,6 +163,14 @@ func TestParseSuppressComments(t *testing.T) {
 			source:     "// lint-disable no-console\n// lint-disable no-var\nvar x;\n// lint-enable",
 			wantFile:   map[string]bool{},
 			wantBlocks: 2,
+		},
+		{
+			name:     "plugin-style rule names with slash and at",
+			source:   "// lint-disable-next-line react/jsx-no-target-blank, @typescript-eslint/no-explicit-any\nconst x = 1;",
+			wantFile: map[string]bool{},
+			wantLines: map[int]map[string]bool{
+				2: {"react/jsx-no-target-blank": true, "@typescript-eslint/no-explicit-any": true},
+			},
 		},
 	}
 

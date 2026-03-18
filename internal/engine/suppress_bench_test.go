@@ -59,11 +59,14 @@ func BenchmarkFilterSuppressed(b *testing.B) {
 		}
 	}
 
+	// Preallocate a buffer and reslice each iteration to avoid measuring
+	// allocation overhead instead of the filter itself.
+	buf := make([]Diagnostic, n)
+
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		// Copy diags so each iteration starts with full set.
-		d := make([]Diagnostic, n)
+		d := buf[:n]
 		copy(d, diags)
 		filterSuppressed(d, sup)
 	}
@@ -92,10 +95,12 @@ func BenchmarkFilterSuppressed_Blocks(b *testing.B) {
 		}
 	}
 
+	buf := make([]Diagnostic, n)
+
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		d := make([]Diagnostic, n)
+		d := buf[:n]
 		copy(d, diags)
 		filterSuppressed(d, sup)
 	}

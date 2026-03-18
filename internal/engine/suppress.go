@@ -23,8 +23,10 @@ type blockRange struct {
 // suppressRe matches all four suppression directive keywords in both // and /* */ comments.
 // Alternation order matters: longer prefixes first so "disable-next-line" and
 // "disable-file" match before bare "disable".
+// The rule list capture allows any characters except */ and newline, so plugin-style
+// names like "react/jsx-no-target-blank" and "@typescript-eslint/no-explicit-any" work.
 var suppressRe = regexp.MustCompile(
-	`(?://|/\*)\s*lint-(disable-next-line|disable-file|disable|enable)\s*([\w\s,\-]*?)(?:\s*\*/|\s*$)`,
+	`(?://|/\*)\s*lint-(disable-next-line|disable-file|disable|enable)\s*([^*\n]*?)(?:\s*\*/|\s*$)`,
 )
 
 // parseRuleList splits a comma-separated rule list from a suppression comment.

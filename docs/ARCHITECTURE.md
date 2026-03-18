@@ -1050,7 +1050,7 @@ var x = 1;
 console.log(x);
 // lint-enable no-console, no-var
 
-// Disable entire file (must be at top)
+// Disable entire file
 // lint-disable-file no-console
 ```
 

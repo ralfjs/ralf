@@ -50,7 +50,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 | Import ordering | ✅ Implemented | `imports: { groups, alphabetize, newlineBetween }` |
 | Custom Go built-in rules | ✅ Implemented | Kind-indexed single-walk dispatch for complex AST checks |
 | Complexity checks | Planned | Cyclomatic complexity threshold |
-| Inline suppression | Planned | `// lint-disable-next-line`, block disables |
+| Inline suppression | ✅ Implemented | `// lint-disable-next-line`, block disables |
 
 ### Custom Rules (Declarative)
 

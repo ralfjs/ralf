@@ -156,6 +156,10 @@ func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) [
 		}
 	}
 
+	// Filter diagnostics suppressed by inline comments.
+	sup := parseSuppressComments(source)
+	diags = filterSuppressed(diags, sup)
+
 	// Sort within file by line, col, rule so Lint only needs to merge by filename.
 	slices.SortFunc(diags, compareDiagsWithinFile)
 

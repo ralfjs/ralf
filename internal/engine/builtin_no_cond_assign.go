@@ -14,7 +14,7 @@ func checkNoCondAssign(node parser.Node, _ []byte, lineStarts []int, diags *[]Di
 
 func containsAssignment(node parser.Node) bool {
 	kind := node.Kind()
-	if kind == "assignment_expression" {
+	if kind == "assignment_expression" || kind == "augmented_assignment_expression" {
 		return true
 	}
 	// Don't descend into nested function bodies — assignments

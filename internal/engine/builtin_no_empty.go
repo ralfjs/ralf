@@ -3,7 +3,9 @@ package engine
 import "github.com/Hideart/ralf/internal/parser"
 
 func checkNoEmpty(node parser.Node, _ []byte, lineStarts []int, diags *[]Diagnostic) {
-	if hasNonCommentChild(node) {
+	// ESLint's no-empty skips blocks that contain any content, including
+	// comments. Only truly empty blocks (zero named children) are flagged.
+	if node.NamedChildCount() > 0 {
 		return
 	}
 	// Skip empty blocks that are catch clause bodies (ESLint allows those)
@@ -12,14 +14,4 @@ func checkNoEmpty(node parser.Node, _ []byte, lineStarts []int, diags *[]Diagnos
 		return
 	}
 	*diags = append(*diags, builtinDiag(node, lineStarts))
-}
-
-// hasNonCommentChild returns true if node has any named child that is not a comment.
-func hasNonCommentChild(node parser.Node) bool {
-	for i := uint(0); i < node.NamedChildCount(); i++ {
-		if node.NamedChild(i).Kind() != "comment" {
-			return true
-		}
-	}
-	return false
 }

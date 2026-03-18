@@ -1,0 +1,10 @@
+{
+  "extends": ["./recursive-b.json"],
+  "rules": {
+    "no-var": {
+      "regex": "\\bvar\\b",
+      "message": "Use let or const",
+      "severity": "error"
+    }
+  }
+}

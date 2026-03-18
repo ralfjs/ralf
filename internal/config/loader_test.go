@@ -105,6 +105,32 @@ func TestLoadNotFoundDir(t *testing.T) {
 	}
 }
 
+func TestLoadSearchPriority_JSOverJSON(t *testing.T) {
+	dir := t.TempDir()
+
+	jsonContent := []byte(`{"rules":{"json-rule":{"regex":"j","severity":"error"}}}`)
+	jsContent := []byte(`module.exports = {rules:{"js-rule":{regex:"j",severity:"error"}}};`)
+
+	if err := os.WriteFile(filepath.Join(dir, ".ralfrc.json"), jsonContent, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".ralfrc.js"), jsContent, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if _, ok := cfg.Rules["js-rule"]; !ok {
+		t.Error("expected js-rule (JS has higher priority than JSON)")
+	}
+	if _, ok := cfg.Rules["json-rule"]; ok {
+		t.Error("json-rule should not be present (JS has higher priority)")
+	}
+}
+
 func TestLoadFileUnsupportedExtension(t *testing.T) {
 	// Create an actual file so os.ReadFile succeeds and we hit the extension check
 	path := filepath.Join(t.TempDir(), "config.xml")

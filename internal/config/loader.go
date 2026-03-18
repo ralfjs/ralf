@@ -13,6 +13,7 @@ import (
 
 // searchNames lists config file names in priority order.
 var searchNames = []string{
+	".ralfrc.js",
 	".ralfrc.json",
 	".ralfrc.yaml",
 	".ralfrc.yml",
@@ -50,6 +51,8 @@ func LoadFile(path string) (*Config, error) {
 	var cfg Config
 
 	switch ext {
+	case ".js":
+		return loadJS(path, data)
 	case ".json":
 		if err := json.Unmarshal(data, &cfg); err != nil {
 			return nil, fmt.Errorf("config: parse JSON %s: %w", path, err)

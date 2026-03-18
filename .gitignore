@@ -11,10 +11,7 @@ coverage.out
 
 # Build
 dist/
-vendor/regex-src/
-vendor/librure/*.a
-vendor/librure/*.dylib
-vendor/librure/*.lib
+vendor/
 
 # IDE
 .idea/

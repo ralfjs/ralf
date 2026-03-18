@@ -2,6 +2,7 @@
 package config
 
 // Config is the top-level configuration structure.
+// NOTE: when adding fields, update mergeInto in extends.go.
 type Config struct {
 	Rules     map[string]RuleConfig `json:"rules" yaml:"rules"`
 	Ignores   []string              `json:"ignores,omitempty" yaml:"ignores,omitempty"`

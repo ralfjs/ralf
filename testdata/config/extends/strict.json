@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "no-console": {
+      "regex": "\\bconsole\\.",
+      "message": "No console statements",
+      "severity": "error"
+    }
+  },
+  "ignores": ["dist/**"]
+}

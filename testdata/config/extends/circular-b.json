@@ -1,0 +1,9 @@
+{
+  "extends": ["./circular-a.json"],
+  "rules": {
+    "rule-b": {
+      "regex": "b",
+      "severity": "error"
+    }
+  }
+}

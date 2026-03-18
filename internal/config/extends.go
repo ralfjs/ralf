@@ -1,0 +1,97 @@
+package config
+
+import (
+	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
+)
+
+// ErrCircularExtend is returned when a circular extends chain is detected.
+var ErrCircularExtend = errors.New("circular extends detected")
+
+// ResolveExtends loads and merges all configs referenced by cfg.Extends.
+// Paths are resolved relative to baseDir. Returns a new *Config with all
+// extended rules merged (current config wins).
+func ResolveExtends(cfg *Config, baseDir string) (*Config, error) {
+	if len(cfg.Extends) == 0 {
+		return cfg, nil
+	}
+	return resolveExtends(cfg, baseDir, make(map[string]struct{}))
+}
+
+func resolveExtends(cfg *Config, baseDir string, visited map[string]struct{}) (*Config, error) {
+	if len(cfg.Extends) == 0 {
+		return cfg, nil
+	}
+
+	merged := &Config{
+		Rules: make(map[string]RuleConfig),
+	}
+
+	for _, ext := range cfg.Extends {
+		path, err := resolveExtendPath(ext, baseDir)
+		if err != nil {
+			return nil, err
+		}
+
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return nil, fmt.Errorf("config: resolve extends path %q: %w", ext, err)
+		}
+
+		if _, ok := visited[abs]; ok {
+			return nil, fmt.Errorf("config: %w: %s", ErrCircularExtend, abs)
+		}
+
+		// Add to ancestor chain before recursing, remove after — this tracks
+		// the current path from root to leaf, not all previously seen nodes.
+		// Diamond dependencies (A→B→D, A→C→D) are fine; only true cycles error.
+		visited[abs] = struct{}{}
+
+		base, err := LoadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("config: extends %q: %w", ext, err)
+		}
+
+		base, err = resolveExtends(base, filepath.Dir(abs), visited)
+		if err != nil {
+			return nil, err
+		}
+
+		delete(visited, abs)
+
+		mergeInto(merged, base)
+	}
+
+	// Current config wins — applied last.
+	mergeInto(merged, cfg)
+
+	// Clear Extends on the final merged config.
+	merged.Extends = nil
+
+	return merged, nil
+}
+
+// resolveExtendPath resolves an extends string to a file path.
+// Relative paths are resolved from baseDir. Absolute paths are used directly.
+// Named presets (no . or / prefix, not absolute) are not supported in v0.1.
+func resolveExtendPath(ext, baseDir string) (string, error) {
+	if filepath.IsAbs(ext) {
+		return ext, nil
+	}
+	if strings.HasPrefix(ext, ".") {
+		return filepath.Join(baseDir, ext), nil
+	}
+	return "", fmt.Errorf("config: named presets not yet supported, use file paths (got %q)", ext)
+}
+
+// mergeInto merges src into dst. Rules from src override existing rules in dst.
+// Ignores and Overrides are concatenated.
+func mergeInto(dst, src *Config) {
+	for name, rule := range src.Rules {
+		dst.Rules[name] = rule
+	}
+	dst.Ignores = append(dst.Ignores, src.Ignores...)
+	dst.Overrides = append(dst.Overrides, src.Overrides...)
+}

@@ -740,7 +740,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 1 | Project scaffolding | Repo, `cmd/` + `internal/` layout, go.mod, Makefile, CI (lint + test), .golangci.yml |
+| 1 | ✅ Project scaffolding | Repo, `cmd/` + `internal/` layout, go.mod, Makefile, CI (lint + test), .golangci.yml |
 | 2 | ✅ librure vendoring + rure-go integration | `scripts/build-librure.sh`: shallow clone + cargo build. `regex.go`: `rure.Compile` + `rure.IterBytes` iterator matching. `semaphore.go`: CGo concurrency limiter (`NumCPU()` bound). Makefile `CGO_LDFLAGS` wiring. CI: Rust toolchain + librure build. Worker batching, two-level sort, pre-allocations, config.Merge fast path. E2E ~27ms (100 files × 5 rules). 1 new test, 2 benchmarks (regex + e2e). |
 | 3 | ✅ tree-sitter integration | `internal/parser/`: Lang registry, Parser wrapper (context + incremental), Tree/Node types, Walk/WalkNamed, Query wrapper. 17 tests, 6 fixtures. |
 | 4 | ✅ Config loader (JSON/YAML/TOML) | `internal/config/`: Config types, Load/LoadFile (JSON/YAML/TOML), Validate (rules + overrides), Merge with file-scoped overrides. 26 tests, 6 fixtures. Known limitations: no `**` globstar (#4), no JSONC (#5), no field-level override merge (#3). |
@@ -1971,8 +1971,8 @@ yourlinter/
 │   │   ├── structural.go        # Structural AST queries
 │   │   ├── naming.go            # Naming convention checker
 │   │   ├── imports.go           # Import ordering / grouping
-│   │   ├── complexity.go        # Cyclomatic complexity
-│   │   └── crossfile.go         # Cross-file rule evaluation
+│   │   ├── complexity.go        # (planned) Cyclomatic complexity
+│   │   └── crossfile.go         # (planned) Cross-file rule evaluation
 │   │
 │   ├── parser/
 │   │   ├── treesitter.go        # tree-sitter wrapper

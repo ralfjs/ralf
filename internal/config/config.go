@@ -21,7 +21,6 @@ type RuleConfig struct {
 	Builtin  bool            `json:"builtin,omitempty" yaml:"builtin,omitempty"` // custom Go checker
 	Naming   *NamingMatcher  `json:"naming,omitempty" yaml:"naming,omitempty"`
 	Where    *WherePredicate `json:"where,omitempty" yaml:"where,omitempty"`
-	Scope    string          `json:"scope,omitempty" yaml:"scope,omitempty"`
 	Fix      string          `json:"fix,omitempty" yaml:"fix,omitempty"`
 }
 
@@ -42,22 +41,19 @@ type Override struct {
 }
 
 // ASTMatcher describes a structural AST query for matching nodes.
+// Supported fields: kind, name, parent, not. Additional query primitives
+// (children, ancestor, hasChild, etc.) are planned for future phases.
 type ASTMatcher struct {
-	Kind     string      `json:"kind,omitempty" yaml:"kind,omitempty"`
-	Name     interface{} `json:"name,omitempty" yaml:"name,omitempty"`
-	Parent   *ASTMatcher `json:"parent,omitempty" yaml:"parent,omitempty"`
-	Children interface{} `json:"children,omitempty" yaml:"children,omitempty"`
-	Returns  string      `json:"returns,omitempty" yaml:"returns,omitempty"`
-	Capture  interface{} `json:"capture,omitempty" yaml:"capture,omitempty"`
-	Params   interface{} `json:"params,omitempty" yaml:"params,omitempty"`
-	Not      *ASTMatcher `json:"not,omitempty" yaml:"not,omitempty"`
+	Kind   string      `json:"kind,omitempty" yaml:"kind,omitempty"`
+	Name   interface{} `json:"name,omitempty" yaml:"name,omitempty"`
+	Parent *ASTMatcher `json:"parent,omitempty" yaml:"parent,omitempty"`
+	Not    *ASTMatcher `json:"not,omitempty" yaml:"not,omitempty"`
 }
 
 // WherePredicate restricts which files or contexts a rule applies to.
 type WherePredicate struct {
-	File          string          `json:"file,omitempty" yaml:"file,omitempty"`
-	Not           *WherePredicate `json:"not,omitempty" yaml:"not,omitempty"`
-	ImportCrosses string          `json:"importCrosses,omitempty" yaml:"importCrosses,omitempty"`
+	File string          `json:"file,omitempty" yaml:"file,omitempty"`
+	Not  *WherePredicate `json:"not,omitempty" yaml:"not,omitempty"`
 }
 
 // ImportsMatcher controls import ordering rules.

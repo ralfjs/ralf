@@ -53,8 +53,10 @@ func (c *extendsCtx) resolve(cfg *Config, baseDir string, ancestors map[string]s
 			return nil, fmt.Errorf("config: %w: %s", ErrCircularExtend, abs)
 		}
 
-		// Return cached result for diamonds — avoids re-loading files and
-		// prevents duplicate ignores/overrides from repeated merges.
+		// Return cached result for diamonds — avoids re-loading and
+		// re-evaluating files (important for JS configs with side effects).
+		// Note: in a diamond (A→B→D, A→C→D), D's ignores/overrides still
+		// appear via both B and C since each branch inherits independently.
 		if cached, ok := c.cache[abs]; ok {
 			mergeInto(merged, cached)
 			continue

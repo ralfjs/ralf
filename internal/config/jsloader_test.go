@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadJS_ModuleExports(t *testing.T) {
@@ -104,7 +105,7 @@ func TestLoadJS_UnsetExport(t *testing.T) {
 
 func TestLoadJS_InfiniteLoop(t *testing.T) {
 	t.Parallel()
-	_, err := loadJS("loop.js", []byte(`while(true){} module.exports = {};`))
+	_, err := loadJSWithTimeout("loop.js", []byte(`while(true){} module.exports = {};`), 100*time.Millisecond)
 	if err == nil {
 		t.Fatal("expected error for infinite loop")
 	}

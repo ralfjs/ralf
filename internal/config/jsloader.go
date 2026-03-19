@@ -9,10 +9,18 @@ import (
 	"github.com/dop251/goja"
 )
 
+// jsEvalTimeout is the default maximum time allowed for JS config evaluation.
+const jsEvalTimeout = 5 * time.Second
+
 // loadJS evaluates a JavaScript config file via goja and returns the parsed Config.
 // Supports both CommonJS (module.exports = {...}) and shimmed ES default exports
 // (export default {...}).
 func loadJS(path string, data []byte) (*Config, error) {
+	return loadJSWithTimeout(path, data, jsEvalTimeout)
+}
+
+// loadJSWithTimeout is the implementation of loadJS with a configurable timeout.
+func loadJSWithTimeout(path string, data []byte, timeout time.Duration) (*Config, error) {
 	source := shimExportDefault(string(data))
 
 	vm := goja.New()
@@ -30,9 +38,9 @@ func loadJS(path string, data []byte) (*Config, error) {
 		return nil, fmt.Errorf("config: setup JS VM: %w", err)
 	}
 
-	// Interrupt after 5 seconds to prevent infinite loops.
-	timer := time.AfterFunc(5*time.Second, func() {
-		vm.Interrupt("config JS evaluation timed out after 5s")
+	// Interrupt after timeout to prevent infinite loops.
+	timer := time.AfterFunc(timeout, func() {
+		vm.Interrupt("config JS evaluation timed out")
 	})
 	defer timer.Stop()
 

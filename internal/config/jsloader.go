@@ -45,8 +45,10 @@ func loadJS(path string, data []byte) (*Config, error) {
 }
 
 // reExportDefault matches "export default" at the start of a line (with
-// optional leading whitespace), avoiding false positives inside comments
-// or string literals on preceding lines.
+// optional leading whitespace). This avoids matching occurrences that appear
+// mid-line (e.g. inside single-line comments), but does not handle block
+// comments or string literals spanning multiple lines — a known v0.1
+// limitation shared with similar tools (ESLint flat config, Vite).
 var reExportDefault = regexp.MustCompile(`(?m)^(\s*)export\s+default\b`)
 
 // shimExportDefault rewrites the first top-level "export default" to

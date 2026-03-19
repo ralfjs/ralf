@@ -7,9 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/Hideart/ralf/internal/config"
 	"github.com/Hideart/ralf/internal/engine"
@@ -354,7 +357,7 @@ func (sarifFormat) Format(w io.Writer, diagnostics []engine.Diagnostic) error {
 		if d.Severity == config.SeverityWarn {
 			level = `"warning"`
 		}
-		uri := filepath.ToSlash(formatPath(d.File))
+		uri, hasBase := sarifURI(d.File)
 
 		buf.WriteString(`{"ruleId":`)
 		appendJSONStr(buf, d.Rule)
@@ -366,7 +369,10 @@ func (sarifFormat) Format(w io.Writer, diagnostics []engine.Diagnostic) error {
 		appendJSONStr(buf, d.Message)
 		buf.WriteString(`},"locations":[{"physicalLocation":{"artifactLocation":{"uri":`)
 		appendJSONStr(buf, uri)
-		buf.WriteString(`,"uriBaseId":"%SRCROOT%"},"region":{"startLine":`)
+		if hasBase {
+			buf.WriteString(`,"uriBaseId":"%SRCROOT%"`)
+		}
+		buf.WriteString(`},"region":{"startLine":`)
 		buf.Write(strconv.AppendInt(numBuf[:0], int64(d.Line), 10))
 		buf.WriteString(`,"startColumn":`)
 		buf.Write(strconv.AppendInt(numBuf[:0], int64(d.Col+1), 10))
@@ -383,7 +389,10 @@ func (sarifFormat) Format(w io.Writer, diagnostics []engine.Diagnostic) error {
 			appendJSONStr(buf, "Apply fix for "+d.Rule)
 			buf.WriteString(`},"artifactChanges":[{"artifactLocation":{"uri":`)
 			appendJSONStr(buf, uri)
-			buf.WriteString(`,"uriBaseId":"%SRCROOT%"},"replacements":[{"deletedRegion":{"byteOffset":`)
+			if hasBase {
+				buf.WriteString(`,"uriBaseId":"%SRCROOT%"`)
+			}
+			buf.WriteString(`},"replacements":[{"deletedRegion":{"byteOffset":`)
 			buf.Write(strconv.AppendInt(numBuf[:0], int64(d.Fix.StartByte), 10))
 			buf.WriteString(`,"byteLength":`)
 			buf.Write(strconv.AppendInt(numBuf[:0], int64(d.Fix.EndByte-d.Fix.StartByte), 10))
@@ -400,6 +409,16 @@ func (sarifFormat) Format(w io.Writer, diagnostics []engine.Diagnostic) error {
 
 	_, err := io.Copy(w, buf)
 	return err
+}
+
+// sarifURI returns a percent-encoded URI for a file path and whether %SRCROOT%
+// applies (true for relative paths, false for absolute fallbacks).
+func sarifURI(filePath string) (string, bool) {
+	rel := filepath.ToSlash(formatPath(filePath))
+	if filepath.IsAbs(rel) {
+		return (&url.URL{Scheme: "file", Path: rel}).String(), false
+	}
+	return (&url.URL{Path: rel}).String(), true
 }
 
 // sarifFP computes stable fingerprints for GitHub Code Scanning deduplication.
@@ -424,8 +443,12 @@ func (fp *sarifFP) hash(rule, uri string, line int) string {
 }
 
 // appendJSONStr writes a JSON-encoded string (with quotes) to buf.
+// Replaces invalid UTF-8 with U+FFFD to guarantee valid JSON output.
 // Fast path: scans for common case (no escaping needed) in a tight loop.
 func appendJSONStr(buf *bytes.Buffer, s string) {
+	if !utf8.ValidString(s) {
+		s = strings.ToValidUTF8(s, "\ufffd")
+	}
 	buf.WriteByte('"')
 	start := 0
 	for i := 0; i < len(s); i++ {

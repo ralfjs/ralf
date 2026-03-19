@@ -315,7 +315,14 @@ func (sarifFormat) Format(w io.Writer, diagnostics []engine.Diagnostic) error {
 
 	buf := sarifBufPool.Get().(*bytes.Buffer)
 	buf.Reset()
-	defer sarifBufPool.Put(buf)
+	defer func() {
+		// Don't return oversized buffers to the pool — prevents persistent
+		// memory bloat in long-running processes (LSP).
+		const maxPoolBuf = 1 << 20 // 1 MiB
+		if buf.Cap() <= maxPoolBuf {
+			sarifBufPool.Put(buf)
+		}
+	}()
 
 	var numBuf [20]byte
 	var fp sarifFP

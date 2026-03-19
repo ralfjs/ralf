@@ -120,8 +120,8 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 | JSON config | ✅ Implemented | `.ralfrc.json` |
 | YAML config | ✅ Implemented | `.ralfrc.yaml` |
 | TOML config | ✅ Implemented | `.ralfrc.toml` |
-| JS config | Planned | `.ralfrc.js` via goja (eval once) |
-| `extends` | Planned | Inherit from shared config packages |
+| JS config | ✅ Implemented | `.ralfrc.js` via goja (eval once) |
+| `extends` | ✅ Implemented | Inherit from shared config files |
 | `overrides` | ✅ Implemented | Glob-scoped rule overrides |
 | Monorepo workspaces | Planned | Per-workspace config with shared base |
 | ESLint migration | Planned | `ralf init --from-eslint` |

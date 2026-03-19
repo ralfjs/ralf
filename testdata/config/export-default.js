@@ -1,0 +1,42 @@
+export default {
+  rules: {
+    "no-magic-timeouts": {
+      regex: "setTimeout\\([^,]+,\\s*\\d{4,}\\)",
+      message: "Extract timeout to named constant",
+      severity: "warn"
+    },
+    "no-console-in-prod": {
+      pattern: "console.log($$$ARGS)",
+      message: "No console.log in production code",
+      severity: "error",
+      where: {
+        file: "src/**"
+      },
+      fix: "// removed"
+    },
+    "require-error-boundary": {
+      ast: {
+        kind: "jsx_element",
+        parent: {
+          not: {
+            kind: "jsx_element"
+          }
+        }
+      },
+      message: "Page components must be wrapped in ErrorBoundary",
+      severity: "error"
+    }
+  },
+  ignores: ["node_modules/**", "dist/**"],
+  overrides: [
+    {
+      files: ["*.test.js", "*.spec.js"],
+      rules: {
+        "no-console-in-prod": {
+          severity: "off",
+          regex: "placeholder"
+        }
+      }
+    }
+  ]
+};

@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "no-eval": {
+      "regex": "\\beval\\b",
+      "message": "eval is dangerous",
+      "severity": "error"
+    }
+  },
+  "ignores": ["node_modules/**"]
+}

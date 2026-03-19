@@ -1,27 +1,32 @@
 # internal/config — Configuration Loader
 
-Loads, validates, and resolves linter configuration from `.ralfrc.{json,yaml,yml,toml}` files.
+Loads, validates, and resolves linter configuration from `.ralfrc.{js,json,yaml,yml,toml}` files.
 
 ## Architecture
 
 ```
-  .ralfrc.yaml (or .json / .toml)
+  .ralfrc.js (or .json / .yaml / .toml)
          │
          ▼
-  ┌──────────────┐
-  │  Load(dir)   │  Discover config file in priority order
-  │  LoadFile()  │  Parse by extension (JSON/YAML/TOML)
-  └──────┬───────┘
+  ┌──────────────────┐
+  │  Load(dir)       │  Discover config file in priority order
+  │  LoadFile()      │  Parse by extension (JS/JSON/YAML/TOML)
+  └──────┬───────────┘
          │ *Config
          ▼
-  ┌──────────────┐
-  │  Validate()  │  Structural checks: severity, matchers, globs
-  └──────┬───────┘
+  ┌──────────────────┐
+  │ ResolveExtends() │  Recursively load + merge extended configs
+  └──────┬───────────┘
+         │ *Config (merged)
+         ▼
+  ┌──────────────────┐
+  │  Validate()      │  Structural checks: severity, matchers, globs
+  └──────┬───────────┘
          │ error / nil
          ▼
-  ┌──────────────┐
-  │  Merge()     │  Apply file-scoped overrides for a given path
-  └──────┬───────┘
+  ┌──────────────────┐
+  │  Merge()         │  Apply file-scoped overrides for a given path
+  └──────┬───────────┘
          │ map[string]RuleConfig
          ▼
       Engine consumes effective rules per file
@@ -32,7 +37,9 @@ Loads, validates, and resolves linter configuration from `.ralfrc.{json,yaml,yml
 | File | Responsibility |
 |---|---|
 | `config.go` | Data types: `Config`, `RuleConfig`, `Severity`, `Override`, matcher stubs (`ASTMatcher`, `ImportsMatcher`, `NamingMatcher`, `WherePredicate`) |
-| `loader.go` | `Load` (directory search) and `LoadFile` (explicit path). Dispatches to `encoding/json`, `yaml.v3`, or `BurntSushi/toml` by extension |
+| `loader.go` | `Load` (directory search) and `LoadFile` (explicit path). Dispatches to `jsloader.go`, `encoding/json`, `yaml.v3`, or `BurntSushi/toml` by extension |
+| `jsloader.go` | `loadJS` — evaluate `.ralfrc.js` via goja (pure Go ES5.1+). Supports `module.exports` and shimmed `export default`. 5s timeout |
+| `extends.go` | `ResolveExtends` — recursively load and merge configs from `extends` field. Cycle detection, diamond caching |
 | `validate.go` | `Validate` — checks each rule (including override rules) has exactly one matcher, valid severity, non-empty globs, naming modifier requires ast |
 | `merge.go` | `Merge` — applies matching override globs on top of base rules for a given file path |
 | `builtins.go` | `BuiltinRules` — returns 20 built-in regex rules; `RecommendedConfig` — wraps them as zero-config fallback |
@@ -41,10 +48,11 @@ Loads, validates, and resolves linter configuration from `.ralfrc.{json,yaml,yml
 
 `Load(dir)` searches for config files in this priority order:
 
-1. `.ralfrc.json`
-2. `.ralfrc.yaml`
-3. `.ralfrc.yml`
-4. `.ralfrc.toml`
+1. `.ralfrc.js`
+2. `.ralfrc.json`
+3. `.ralfrc.yaml`
+4. `.ralfrc.yml`
+5. `.ralfrc.toml`
 
 First match wins. Non-existence errors are skipped; other `os.Stat` errors (permission denied, etc.) are surfaced immediately.
 
@@ -107,12 +115,11 @@ These are tracked as GitHub issues for future sprints:
 
 - **No `**` globstar** (#4) — `filepath.Match` only supports `*` (single level). Override patterns like `**/*.test.*` won't match. Will switch to `doublestar` when the engine integrates config.
 - **No field-level override merge** (#3) — overrides replace the entire `RuleConfig`. An override that only changes severity must also restate the matcher. Will add field-level merging when the engine consumes overrides.
-- **No JSONC support** (#5) — JSON config files don't support comments. Use YAML if comments are needed. JSONC support will come with `.ralfrc.js` loader (week 17).
-- **No `.ralfrc.js` support** — JS config via `goja` is planned for week 17.
-- **No `extends` resolution** — the `Extends` field is deserialized but not resolved. Will be implemented with the config compiler.
+- **No JSONC support** (#5) — JSON config files don't support comments. Use YAML or JS if comments are needed.
 
 ## Dependencies
 
+- `github.com/dop251/goja` — JS evaluation (pure Go ES5.1+ runtime)
 - `gopkg.in/yaml.v3` — YAML parsing
 - `github.com/BurntSushi/toml` — TOML parsing
 - `encoding/json` (stdlib) — JSON parsing

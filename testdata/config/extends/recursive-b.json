@@ -1,0 +1,10 @@
+{
+  "extends": ["./recursive-c.json"],
+  "rules": {
+    "no-console": {
+      "regex": "\\bconsole\\.",
+      "message": "No console statements",
+      "severity": "warn"
+    }
+  }
+}

@@ -366,21 +366,38 @@ func splitLines(s string) []string {
 }
 
 func loadConfig() (*config.Config, error) {
+	var (
+		cfg *config.Config
+		dir string
+		err error
+	)
+
 	if configPath != "" {
-		return config.LoadFile(configPath)
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("get working directory: %w", err)
-	}
-	cfg, err := config.Load(cwd)
-	if err != nil {
-		if errors.Is(err, config.ErrNoConfig) {
-			slog.Debug("no config file found, using recommended built-in rules")
-			return config.RecommendedConfig(), nil
+		cfg, err = config.LoadFile(configPath)
+		if err != nil {
+			return nil, err
 		}
+		dir = filepath.Dir(configPath)
+	} else {
+		dir, err = os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("get working directory: %w", err)
+		}
+		cfg, err = config.Load(dir)
+		if err != nil {
+			if errors.Is(err, config.ErrNoConfig) {
+				slog.Debug("no config file found, using recommended built-in rules")
+				return config.RecommendedConfig(), nil
+			}
+			return nil, err
+		}
+	}
+
+	cfg, err = config.ResolveExtends(cfg, dir)
+	if err != nil {
 		return nil, err
 	}
+
 	return cfg, nil
 }
 

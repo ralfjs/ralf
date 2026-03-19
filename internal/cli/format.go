@@ -205,7 +205,7 @@ func formatPath(absPath string) string {
 
 type sarifFormat struct{}
 
-// SARIF struct types for JSON marshaling.
+// SARIF struct types used for test unmarshaling; the production formatter writes JSON directly.
 
 type sarifLog struct {
 	Schema  string     `json:"$schema"`
@@ -302,14 +302,14 @@ var sarifBufPool = sync.Pool{
 // It writes JSON directly to avoid encoding/json reflection overhead on the
 // deeply nested SARIF struct tree.
 func (sarifFormat) Format(w io.Writer, diagnostics []engine.Diagnostic) error {
-	// Build deduplicated rules index.
-	type ruleEntry struct{ id, desc string }
+	// Build deduplicated rules index. Use rule ID as shortDescription
+	// (stable across occurrences); per-diagnostic text goes in result.message.
 	ruleIndex := make(map[string]int, len(diagnostics)/2+1)
-	rules := make([]ruleEntry, 0, 32)
+	var ruleIDs []string
 	for _, d := range diagnostics {
 		if _, exists := ruleIndex[d.Rule]; !exists {
-			ruleIndex[d.Rule] = len(rules)
-			rules = append(rules, ruleEntry{d.Rule, d.Message})
+			ruleIndex[d.Rule] = len(ruleIDs)
+			ruleIDs = append(ruleIDs, d.Rule)
 		}
 	}
 
@@ -326,14 +326,14 @@ func (sarifFormat) Format(w io.Writer, diagnostics []engine.Diagnostic) error {
 	buf.WriteString(`,"informationUri":"https://github.com/Hideart/ralf","rules":[`)
 
 	// Rules array.
-	for i, r := range rules {
+	for i, id := range ruleIDs {
 		if i > 0 {
 			buf.WriteByte(',')
 		}
 		buf.WriteString(`{"id":`)
-		appendJSONStr(buf, r.id)
+		appendJSONStr(buf, id)
 		buf.WriteString(`,"shortDescription":{"text":`)
-		appendJSONStr(buf, r.desc)
+		appendJSONStr(buf, id)
 		buf.WriteString(`}}`)
 	}
 	buf.WriteString(`]}},"results":[`)
@@ -347,7 +347,7 @@ func (sarifFormat) Format(w io.Writer, diagnostics []engine.Diagnostic) error {
 		if d.Severity == config.SeverityWarn {
 			level = `"warning"`
 		}
-		uri := formatPath(d.File)
+		uri := filepath.ToSlash(formatPath(d.File))
 
 		buf.WriteString(`{"ruleId":`)
 		appendJSONStr(buf, d.Rule)
@@ -391,7 +391,7 @@ func (sarifFormat) Format(w io.Writer, diagnostics []engine.Diagnostic) error {
 	buf.WriteString(`]}]}`)
 	buf.WriteByte('\n')
 
-	_, err := w.Write(buf.Bytes())
+	_, err := io.Copy(w, buf)
 	return err
 }
 

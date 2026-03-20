@@ -11,8 +11,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// searchNames lists config file names in priority order.
-var searchNames = []string{
+// SearchNames lists config file names in priority order.
+var SearchNames = []string{
 	".ralfrc.js",
 	".ralfrc.json",
 	".ralfrc.yaml",
@@ -26,7 +26,7 @@ var ErrNoConfig = errors.New("no config file found")
 // Load searches dir for a config file and loads the first one found.
 // Returns ErrNoConfig (wrapped) if no config file is found.
 func Load(dir string) (*Config, error) {
-	for _, name := range searchNames {
+	for _, name := range SearchNames {
 		path := filepath.Join(dir, name)
 		_, err := os.Stat(path)
 		if err == nil {
@@ -36,7 +36,7 @@ func Load(dir string) (*Config, error) {
 			return nil, fmt.Errorf("config: stat %s: %w", path, err)
 		}
 	}
-	return nil, fmt.Errorf("config: %w in %s (searched: %v)", ErrNoConfig, dir, searchNames)
+	return nil, fmt.Errorf("config: %w in %s (searched: %v)", ErrNoConfig, dir, SearchNames)
 }
 
 // LoadFile loads a config from an explicit file path. The format is

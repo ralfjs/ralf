@@ -680,6 +680,9 @@ internal/
     root.go                  # Root cobra command, global flags, Execute entry point
     discover.go              # File discovery: WalkDir, extension filter, hardcoded skips, doublestar ignores
     lint.go                  # Lint subcommand: config → engine → discover → lint → format. --fix / --fix-dry-run (atomic writes, unified diff)
+    init.go                  # Init subcommand: generate config, --from-eslint, --from-biome, --format json|yaml|toml
+    migrate_eslint.go        # ESLint config parser + 60-rule mapping table
+    migrate_biome.go         # Biome config parser + 48-rule mapping table + JSONC stripping
     format.go                # Output formatters: stylish, JSON, compact, GitHub Actions, SARIF
 
   formatter/
@@ -778,7 +781,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 |---|---|---|
 | 17 | ✅ Config JS loader (goja) | `.ralfrc.js` support via goja. Evaluate once, extract static config object. `extends` resolution. |
 | 18 | ✅ Output formats | SARIF v2.1.0, GitHub Actions annotations, compact format. `--format` flag. |
-| 19 | `yourlinter init` | Generate config from scratch. `--from-eslint` migration (rule name mapping table). |
+| 19 | ✅ `ralf init` | `ralf init` generates config from 61 built-in rules. `--from-eslint` (JSON/YAML, 60-rule mapping table). `--from-biome` (JSON/JSONC, 48-rule mapping table). `--format json\|yaml\|toml`. `--force`. Migration report. |
 | 20 | Release prep | Cross-compile (macOS arm64/x64, Linux x64/arm64). GoReleaser config. npm wrapper package. README. |
 
 **v0.1 deliverable:** `yourlinter lint`, `yourlinter check`, `yourlinter init`. 61 rules. JSON/YAML/JS config. Stylish + JSON + SARIF output. npm + homebrew + GitHub Releases.

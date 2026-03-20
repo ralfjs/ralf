@@ -104,11 +104,18 @@ func normalizeNumericStr(s string) string {
 
 	if len(parts) == 2 {
 		exp := parts[1]
-		exp = strings.TrimLeft(exp, "+")
-		if exp == "0" || exp == "-0" || exp == "" {
+		sign := ""
+		if strings.HasPrefix(exp, "+") {
+			exp = exp[1:]
+		} else if strings.HasPrefix(exp, "-") {
+			sign = "-"
+			exp = exp[1:]
+		}
+		exp = strings.TrimLeft(exp, "0")
+		if exp == "" {
 			return mantissa
 		}
-		return mantissa + "e" + exp
+		return mantissa + "e" + sign + exp
 	}
 	return mantissa
 }

@@ -22,7 +22,7 @@ func checkGetterReturn(node parser.Node, source []byte, lineStarts []int, diags 
 			continue
 		}
 		s, e := child.StartByte(), child.EndByte()
-		if e-s == 3 && source[s] == 'g' && source[s+1] == 'e' && source[s+2] == 't' {
+		if !child.IsNamed() && e-s == 3 && source[s] == 'g' && source[s+1] == 'e' && source[s+2] == 't' {
 			isGetter = true
 			break
 		}

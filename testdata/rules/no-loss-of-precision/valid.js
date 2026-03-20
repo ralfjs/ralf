@@ -4,3 +4,6 @@ var z = 0xff;
 var w = 0b1010;
 var n = 123n;
 var a = 9007199254740991;
+var b = 1e3;
+var c = 1e+03;
+var d = 5e-1;

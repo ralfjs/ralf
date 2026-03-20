@@ -41,35 +41,33 @@ func checkNoDupeClassMembers(node parser.Node, source []byte, lineStarts []int, 
 
 		name := normalizeKeyName(key, source)
 
-		// Determine static-ness: first raw child is "static" keyword.
+		// Determine static-ness and member kind by scanning anonymous
+		// keyword tokens (not named identifiers) before the name field.
 		isStatic := false
-		if fc := child.Child(0); !fc.IsNull() && fc.Text(source) == "static" {
-			isStatic = true
-		}
-
-		// Determine member kind: get/set/method/field.
 		mk := memberMethod
 		if ck == "field_definition" {
 			mk = memberField
-		} else {
-			// For method_definition, check for get/set keywords before the name.
-			for j := uint(0); j < child.ChildCount(); j++ {
-				c := child.Child(j)
-				cs, ce := c.StartByte(), c.EndByte()
-				l := ce - cs
-				if l == 3 && source[cs] == 'g' && source[cs+1] == 'e' && source[cs+2] == 't' {
-					mk = memberGetter
-					break
-				}
-				if l == 3 && source[cs] == 's' && source[cs+1] == 'e' && source[cs+2] == 't' {
-					mk = memberSetter
-					break
-				}
-				// Stop at the name/params to avoid false matches.
+		}
+		for j := uint(0); j < child.ChildCount(); j++ {
+			c := child.Child(j)
+			// Stop at the name/params — everything after is not a modifier.
+			if c.IsNamed() {
 				ck := c.Kind()
-				if ck == "property_identifier" || ck == "formal_parameters" {
+				if ck == "property_identifier" || ck == "formal_parameters" || ck == "string" || ck == "number" || ck == "computed_property_name" {
 					break
 				}
+				continue
+			}
+			// Anonymous token — check for keyword modifiers.
+			cs, ce := c.StartByte(), c.EndByte()
+			l := ce - cs
+			switch {
+			case l == 6 && string(source[cs:ce]) == "static":
+				isStatic = true
+			case l == 3 && source[cs] == 'g' && source[cs+1] == 'e' && source[cs+2] == 't':
+				mk = memberGetter
+			case l == 3 && source[cs] == 's' && source[cs+1] == 'e' && source[cs+2] == 't':
+				mk = memberSetter
 			}
 		}
 

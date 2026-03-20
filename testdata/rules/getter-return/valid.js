@@ -22,3 +22,15 @@ class C {
 class D {
   method() {}
 }
+
+class E {
+  get() {
+    return 1;
+  }
+}
+
+class F {
+  static get() {
+    return 2;
+  }
+}

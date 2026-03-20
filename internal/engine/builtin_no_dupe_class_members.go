@@ -62,7 +62,7 @@ func checkNoDupeClassMembers(node parser.Node, source []byte, lineStarts []int, 
 			cs, ce := c.StartByte(), c.EndByte()
 			l := ce - cs
 			switch {
-			case l == 6 && string(source[cs:ce]) == "static":
+			case l == 6 && source[cs] == 's' && source[cs+1] == 't' && source[cs+2] == 'a' && source[cs+3] == 't' && source[cs+4] == 'i' && source[cs+5] == 'c':
 				isStatic = true
 			case l == 3 && source[cs] == 'g' && source[cs+1] == 'e' && source[cs+2] == 't':
 				mk = memberGetter

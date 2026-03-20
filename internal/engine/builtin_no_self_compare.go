@@ -23,6 +23,15 @@ func checkNoSelfCompare(node parser.Node, source []byte, lineStarts []int, diags
 	if left.IsNull() || right.IsNull() {
 		return
 	}
+	// Restrict to identifiers and member expressions to avoid false positives
+	// on calls (foo() === foo()) or other non-deterministic expressions.
+	lk := left.Kind()
+	if lk != "identifier" && lk != "member_expression" {
+		return
+	}
+	if right.Kind() != lk {
+		return
+	}
 	leftText := left.Text(source)
 	if leftText == right.Text(source) {
 		d := builtinDiag(node, lineStarts)

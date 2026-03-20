@@ -54,7 +54,7 @@ var builtinDefs = map[string]builtinRuleDef{
 	"no-dupe-class-members":       {kinds: []string{"class_body"}, checker: checkNoDupeClassMembers},
 	"no-dupe-args":                {kinds: []string{"formal_parameters"}, checker: checkNoDupeArgs},
 	"no-constructor-return":       {kinds: []string{"return_statement"}, checker: checkNoConstructorReturn},
-	"no-inner-declarations":       {kinds: []string{"function_declaration"}, checker: checkNoInnerDeclarations},
+	"no-inner-declarations":       {kinds: []string{"function_declaration", "generator_function_declaration"}, checker: checkNoInnerDeclarations},
 	"no-unsafe-optional-chaining": {kinds: []string{"member_expression", "call_expression"}, checker: checkNoUnsafeOptionalChaining},
 	"no-constant-condition":       {kinds: []string{"if_statement", "while_statement", "do_statement", "for_statement", "ternary_expression"}, checker: checkNoConstantCondition},
 	"no-loss-of-precision":        {kinds: []string{"number"}, checker: checkNoLossOfPrecision},

@@ -26,6 +26,11 @@ func checkNoLossOfPrecision(node parser.Node, source []byte, lineStarts []int, d
 
 	val, err := strconv.ParseFloat(cleaned, 64)
 	if err != nil {
+		// ParseFloat returns ±Inf with ErrRange for overflow (e.g. 1e309).
+		if math.IsInf(val, 0) {
+			*diags = append(*diags, builtinDiag(node, lineStarts))
+			return
+		}
 		// Try parsing as integer for large hex/octal/binary that ParseFloat rejects.
 		intVal, intErr := strconv.ParseInt(cleaned, 0, 64)
 		if intErr != nil {
@@ -87,7 +92,7 @@ func isScientific(s string) bool {
 	return strings.ContainsAny(s, "eE")
 }
 
-// normalizeNumericStr strips leading/trailing zeros and signs for comparison.
+// normalizeNumericStr canonicalizes a decimal literal for round-trip comparison.
 func normalizeNumericStr(s string) string {
 	s = strings.ToLower(s)
 	s = strings.TrimLeft(s, "+")
@@ -96,11 +101,41 @@ func normalizeNumericStr(s string) string {
 	parts := strings.SplitN(s, "e", 2)
 	mantissa := parts[0]
 
-	// Normalize mantissa: strip trailing zeros after decimal point.
+	// Preserve and strip mantissa sign.
+	signMantissa := ""
+	if strings.HasPrefix(mantissa, "-") {
+		signMantissa = "-"
+		mantissa = mantissa[1:]
+	}
+
 	if strings.Contains(mantissa, ".") {
+		// Ensure leading zero: ".5" → "0.5"
+		if strings.HasPrefix(mantissa, ".") {
+			mantissa = "0" + mantissa
+		}
+		// Strip trailing fractional zeros: "1.50" → "1.5"
 		mantissa = strings.TrimRight(mantissa, "0")
 		mantissa = strings.TrimRight(mantissa, ".")
+		// Trim redundant leading zeros in integer part: "00.5" → "0.5"
+		intFrac := strings.SplitN(mantissa, ".", 2)
+		intPart := strings.TrimLeft(intFrac[0], "0")
+		if intPart == "" {
+			intPart = "0"
+		}
+		if len(intFrac) == 2 && intFrac[1] != "" {
+			mantissa = intPart + "." + intFrac[1]
+		} else {
+			mantissa = intPart
+		}
+	} else {
+		// Integer mantissa: trim leading zeros.
+		mantissa = strings.TrimLeft(mantissa, "0")
+		if mantissa == "" {
+			mantissa = "0"
+		}
 	}
+
+	mantissa = signMantissa + mantissa
 
 	if len(parts) == 2 {
 		exp := parts[1]

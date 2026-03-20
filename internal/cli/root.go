@@ -59,6 +59,7 @@ func newRootCmd() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&configPath, "config", "", "explicit config file path")
 
 	cmd.AddCommand(lintCmd())
+	cmd.AddCommand(initCmd())
 
 	return cmd
 }

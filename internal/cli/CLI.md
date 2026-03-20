@@ -10,10 +10,15 @@ cmd/ralf/main.go
        └─ newRootCmd()
             ├─ --config (global flag)
             ├─ --version
-            └─ lint [paths...]
-                 ├─ --format (stylish|json|compact|github|sarif)
-                 ├─ --threads (int)
-                 └─ --max-warnings (int)
+            ├─ lint [paths...]
+            │    ├─ --format (stylish|json|compact|github|sarif)
+            │    ├─ --threads (int)
+            │    └─ --max-warnings (int)
+            └─ init
+                 ├─ --from-eslint
+                 ├─ --from-biome
+                 ├─ --force
+                 └─ --format (json|yaml|toml)
 ```
 
 `Execute` returns an int exit code — `main.go` calls `os.Exit(cli.Execute())`.
@@ -76,7 +81,32 @@ ralf lint --format github src/
 
 # Fail on any warnings
 ralf lint --max-warnings 0 src/
+
+# Generate default config
+ralf init
+
+# Migrate from ESLint
+ralf init --from-eslint
+
+# Migrate from Biome (YAML output)
+ralf init --from-biome --format yaml
+
+# Overwrite existing config
+ralf init --force
 ```
+
+## Init Command
+
+`ralf init` generates a `.ralfrc` config file with all 61 built-in rules.
+
+| Flag | Description |
+|---|---|
+| `--from-eslint` | Migrate from `.eslintrc.json`/`.yaml`/`.yml` (JS configs unsupported — use `npx eslint --print-config . > .eslintrc.json`) |
+| `--from-biome` | Migrate from `biome.json`/`biome.jsonc` |
+| `--force` | Overwrite existing config |
+| `--format` | Output format: `json` (default), `yaml`, `toml` |
+
+Migration starts from all 61 built-in rules, overriding severities from the source config. Unmapped rules are listed in a migration report on stderr.
 
 ## Files
 
@@ -85,4 +115,7 @@ ralf lint --max-warnings 0 src/
 | `root.go` | Root cobra command, global flags, `Execute` entry point |
 | `discover.go` | File discovery: walk, filter, ignore |
 | `lint.go` | Lint subcommand: load config → engine → discover → lint → format |
+| `init.go` | Init subcommand: generate config, migration dispatch, serialization |
+| `migrate_eslint.go` | ESLint config parser, rule mapping table, severity conversion |
+| `migrate_biome.go` | Biome config parser, rule mapping table, JSONC stripping |
 | `format.go` | Output formatters: stylish, JSON, compact, GitHub, SARIF |

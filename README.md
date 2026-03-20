@@ -108,7 +108,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 | `ralf lint` | ✅ Implemented | Lint files with configurable rules |
 | `ralf format` | Planned | Format files |
 | `ralf check` | Planned | Lint + format check (for CI) |
-| `ralf init` | Planned | Generate config, migrate from ESLint/Biome |
+| `ralf init` | ✅ Implemented | Generate config, migrate from ESLint/Biome |
 | `ralf lsp` | Planned | Start LSP server |
 | `ralf debug` | Planned | Inspect rules, AST, module graph |
 | Output formats | ✅ Implemented | Stylish, JSON, compact, GitHub Actions, SARIF |

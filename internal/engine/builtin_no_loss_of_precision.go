@@ -68,12 +68,16 @@ func checkNoLossOfPrecision(node parser.Node, source []byte, lineStarts []int, d
 			}
 			return
 		}
-		uintVal, err := strconv.ParseUint(cleaned, 0, 64)
-		if err == nil {
+		uintVal, uintErr := strconv.ParseUint(cleaned, 0, 64)
+		if uintErr == nil {
 			if uint64(val) != uintVal {
 				*diags = append(*diags, builtinDiag(node, lineStarts))
 			}
+			return
 		}
+		// Both ParseInt and ParseUint failed — literal exceeds 64-bit range,
+		// which necessarily loses precision in JS float64.
+		*diags = append(*diags, builtinDiag(node, lineStarts))
 		return
 	}
 

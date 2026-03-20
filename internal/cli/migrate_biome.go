@@ -117,10 +117,13 @@ func migrateBiome(dir string) (*config.Config, *migrationReport, error) {
 				continue
 			}
 
-			report.migratedCount++
 			if rule, exists := rules[ralfName]; exists {
 				rule.Severity = sev
 				rules[ralfName] = rule
+				report.migratedCount++
+			} else {
+				// Mapping exists but builtin rule is missing; treat as unsupported.
+				report.unsupportedRules = append(report.unsupportedRules, biomeKey)
 			}
 		}
 	}

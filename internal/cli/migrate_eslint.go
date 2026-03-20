@@ -111,11 +111,16 @@ func migrateESLint(dir string) (*config.Config, *migrationReport, error) {
 
 	rulesRaw, _ := parsed["rules"].(map[string]interface{})
 	var ignorePatterns []string
-	if ips, ok := parsed["ignorePatterns"].([]interface{}); ok {
+	switch ips := parsed["ignorePatterns"].(type) {
+	case []interface{}:
 		for _, v := range ips {
 			if s, ok := v.(string); ok {
 				ignorePatterns = append(ignorePatterns, s)
 			}
+		}
+	case string:
+		if ips != "" {
+			ignorePatterns = append(ignorePatterns, ips)
 		}
 	}
 
@@ -139,10 +144,13 @@ func migrateESLint(dir string) (*config.Config, *migrationReport, error) {
 			continue
 		}
 
-		report.migratedCount++
 		if rule, exists := rules[ralfName]; exists {
 			rule.Severity = sev
 			rules[ralfName] = rule
+			report.migratedCount++
+		} else {
+			// Mapping exists but builtin rule does not; treat as unsupported.
+			report.unsupportedRules = append(report.unsupportedRules, eslintName)
 		}
 	}
 
@@ -156,7 +164,16 @@ func migrateESLint(dir string) (*config.Config, *migrationReport, error) {
 }
 
 func findESLintConfig(dir string) (string, error) {
-	// Check for JS configs first — give helpful error.
+	// Search for supported JSON/YAML configs first.
+	names := []string{".eslintrc.json", ".eslintrc.yaml", ".eslintrc.yml"}
+	for _, name := range names {
+		p := filepath.Join(dir, name)
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+
+	// No JSON/YAML found — check if a JS config exists and give helpful error.
 	for _, name := range eslintJSConfigs {
 		p := filepath.Join(dir, name)
 		if _, err := os.Stat(p); err == nil {
@@ -164,15 +181,6 @@ func findESLintConfig(dir string) (string, error) {
 				"JavaScript ESLint config found (%s). Export to JSON first:\n  npx eslint --print-config . > .eslintrc.json",
 				name,
 			)
-		}
-	}
-
-	// Search for JSON/YAML configs.
-	names := []string{".eslintrc.json", ".eslintrc.yaml", ".eslintrc.yml"}
-	for _, name := range names {
-		p := filepath.Join(dir, name)
-		if _, err := os.Stat(p); err == nil {
-			return p, nil
 		}
 	}
 

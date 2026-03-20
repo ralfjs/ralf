@@ -9,31 +9,134 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  GOFLAGS: -mod=mod
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  goreleaser:
+  build:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            goos: darwin
+            goarch: arm64
+            rust_target: aarch64-apple-darwin
+          - os: macos-14
+            goos: darwin
+            goarch: amd64
+            rust_target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            rust_target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            rust_target: aarch64-unknown-linux-gnu
+            cc: aarch64-linux-gnu-gcc
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - uses: goreleaser/goreleaser-action@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cross-compiler (Linux arm64)
+        if: matrix.goos == 'linux' && matrix.goarch == 'arm64'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build librure
+        run: ./scripts/build-librure.sh ${{ matrix.rust_target }}
+
+      - name: Build ralf
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "1"
+          CC: ${{ matrix.cc || '' }}
+          CGO_LDFLAGS: -L./vendor/librure -lrure -lm -ldl -lpthread
+        run: |
+          VERSION="${{ needs.release-please.outputs.tag_name }}"
+          go build -ldflags="-s -w -X main.version=${VERSION}" -o ralf ./cmd/ralf
+
+      - name: Create archive
+        run: |
+          VERSION="${{ needs.release-please.outputs.tag_name }}"
+          ARCHIVE="ralf_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz"
+          tar czf "$ARCHIVE" ralf
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          args: release --clean
+          name: ralf-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.ARCHIVE }}
+
+  upload:
+    needs: [release-please, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          find . -name '*.tar.gz' -exec mv {} . \;
+          sha256sum *.tar.gz > checksums.txt
+          cat checksums.txt
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: |
+            artifacts/*.tar.gz
+            artifacts/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  npm-publish:
+    needs: [release-please, upload]
+    runs-on: ubuntu-latest
+    if: ${{ needs.release-please.outputs.release_created }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish npm packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: bash npm/publish.sh

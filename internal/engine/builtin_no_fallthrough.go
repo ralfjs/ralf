@@ -28,15 +28,27 @@ func checkNoFallthrough(node parser.Node, _ []byte, lineStarts []int, diags *[]D
 		return
 	}
 
-	// Count consequent statements: named children after the first (the case value).
-	// For default cases, the first named child might be a statement already.
+	// Count consequent statements. For a case clause the value field holds
+	// the case expression; for default all named children are statements.
+	valueNode := node.ChildByFieldName("value")
+	hasValue := !valueNode.IsNull()
+
 	stmtCount := node.NamedChildCount()
-	if stmtCount <= 1 {
+	if hasValue {
+		if stmtCount > 0 {
+			stmtCount--
+		}
+	}
+
+	if stmtCount == 0 && hasValue {
 		// Empty case body — intentional grouping (case 1: case 2: break;).
 		return
 	}
+	if stmtCount == 0 {
+		return
+	}
 
-	lastStmt := node.NamedChild(stmtCount - 1)
+	lastStmt := node.NamedChild(node.NamedChildCount() - 1)
 	if isTerminatingStmt(lastStmt) {
 		return
 	}

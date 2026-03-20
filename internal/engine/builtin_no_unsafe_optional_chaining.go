@@ -10,7 +10,12 @@ func checkNoUnsafeOptionalChaining(node parser.Node, source []byte, lineStarts [
 		return
 	}
 
+	// Walk up through transparent wrappers (parenthesized_expression)
+	// to find the effective parent context.
 	p := node.Parent()
+	for !p.IsNull() && p.Kind() == "parenthesized_expression" {
+		p = p.Parent()
+	}
 	if p.IsNull() {
 		return
 	}
@@ -45,7 +50,6 @@ func checkNoUnsafeOptionalChaining(node parser.Node, source []byte, lineStarts [
 			*diags = append(*diags, builtinDiag(node, lineStarts))
 		}
 	case "tagged_template_expression":
-		// The tag (function) is the first child.
 		if p.ChildCount() > 0 && p.Child(0).StartByte() == node.StartByte() {
 			*diags = append(*diags, builtinDiag(node, lineStarts))
 		}

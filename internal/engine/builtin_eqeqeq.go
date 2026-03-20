@@ -9,13 +9,14 @@ func checkEqeqeq(node parser.Node, source []byte, lineStarts []int, diags *[]Dia
 	if op.IsNull() {
 		return
 	}
-	// Fast reject: check byte length (== is 2, != is 2; === is 3, !== is 3).
+	// Fast reject: == and != are 2 bytes; === and !== are 3.
 	s, e := op.StartByte(), op.EndByte()
 	if e-s != 2 {
 		return
 	}
-	opText := string(source[s:e])
-	if opText != "==" && opText != "!=" {
+	isEq := source[s] == '=' && source[s+1] == '=' // ==
+	isNe := source[s] == '!' && source[s+1] == '=' // !=
+	if !isEq && !isNe {
 		return
 	}
 
@@ -27,12 +28,11 @@ func checkEqeqeq(node parser.Node, source []byte, lineStarts []int, diags *[]Dia
 		return
 	}
 
-	expected := "==="
-	if opText == "!=" {
-		expected = "!=="
-	}
-
 	d := builtinDiag(op, lineStarts)
-	d.Message = "Expected '" + expected + "' and instead saw '" + opText + "'."
+	if isEq {
+		d.Message = "Expected '===' and instead saw '=='."
+	} else {
+		d.Message = "Expected '!==' and instead saw '!='."
+	}
 	*diags = append(*diags, d)
 }

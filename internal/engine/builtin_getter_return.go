@@ -5,17 +5,29 @@ import "github.com/Hideart/ralf/internal/parser"
 // checkGetterReturn ensures getter methods contain at least one return statement
 // with a value. This is a simplified check (exists-any-return, not all-paths-return)
 // which is acceptable until CFG infrastructure lands.
+// Scans raw children for "get" keyword to handle both `get foo()` and `static get foo()`.
 func checkGetterReturn(node parser.Node, source []byte, lineStarts []int, diags *[]Diagnostic) {
-	if node.ChildCount() < 1 {
-		return
-	}
-	firstChild := node.Child(0)
-	if firstChild.IsNull() || firstChild.Text(source) != "get" {
+	body := node.ChildByFieldName("body")
+	if body.IsNull() {
 		return
 	}
 
-	body := node.ChildByFieldName("body")
-	if body.IsNull() {
+	isGetter := false
+	for i := uint(0); i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if child.StartByte() >= body.StartByte() {
+			break
+		}
+		if child.IsNull() {
+			continue
+		}
+		s, e := child.StartByte(), child.EndByte()
+		if e-s == 3 && source[s] == 'g' && source[s+1] == 'e' && source[s+2] == 't' {
+			isGetter = true
+			break
+		}
+	}
+	if !isGetter {
 		return
 	}
 

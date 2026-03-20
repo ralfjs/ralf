@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"math"
 	"strconv"
 	"strings"
 
@@ -8,22 +9,14 @@ import (
 )
 
 // checkNoLossOfPrecision flags numeric literals that lose precision
-// when represented as a float64.
+// when represented as a float64. Handles decimal, hex, octal, and binary.
 func checkNoLossOfPrecision(node parser.Node, source []byte, lineStarts []int, diags *[]Diagnostic) {
 	text := node.Text(source)
 	if text == "" {
 		return
 	}
 
-	// Skip non-decimal prefixes: 0x, 0o, 0b are exact for their integer range.
-	if len(text) >= 2 && text[0] == '0' {
-		c := text[1] | 0x20 // lowercase
-		if c == 'x' || c == 'o' || c == 'b' {
-			return
-		}
-	}
-
-	// Strip trailing 'n' for BigInt literals — these never lose precision.
+	// BigInt literals never lose precision.
 	if strings.HasSuffix(text, "n") {
 		return
 	}
@@ -33,16 +26,53 @@ func checkNoLossOfPrecision(node parser.Node, source []byte, lineStarts []int, d
 
 	val, err := strconv.ParseFloat(cleaned, 64)
 	if err != nil {
+		// Try parsing as integer for large hex/octal/binary that ParseFloat rejects.
+		intVal, intErr := strconv.ParseInt(cleaned, 0, 64)
+		if intErr != nil {
+			// Also try unsigned for very large values.
+			uintVal, uintErr := strconv.ParseUint(cleaned, 0, 64)
+			if uintErr != nil {
+				return
+			}
+			val = float64(uintVal)
+			if uint64(val) != uintVal {
+				*diags = append(*diags, builtinDiag(node, lineStarts))
+			}
+			return
+		}
+		val = float64(intVal)
+		if int64(val) != intVal {
+			*diags = append(*diags, builtinDiag(node, lineStarts))
+		}
 		return
 	}
 
-	// Infinity means the literal overflows float64.
-	if val != val || val == val && (val > 1.7976931348623157e+308 || val < -1.7976931348623157e+308) {
+	// Infinity/NaN means the literal overflows float64.
+	if math.IsInf(val, 0) || math.IsNaN(val) {
 		*diags = append(*diags, builtinDiag(node, lineStarts))
 		return
 	}
 
-	// Round-trip: format the parsed float64 back and compare to the cleaned literal.
+	// For hex/octal/binary integers, do an integer round-trip check.
+	lower := strings.ToLower(cleaned)
+	if len(lower) >= 2 && lower[0] == '0' && (lower[1] == 'x' || lower[1] == 'o' || lower[1] == 'b') {
+		intVal, err := strconv.ParseInt(cleaned, 0, 64)
+		if err == nil {
+			if int64(val) != intVal {
+				*diags = append(*diags, builtinDiag(node, lineStarts))
+			}
+			return
+		}
+		uintVal, err := strconv.ParseUint(cleaned, 0, 64)
+		if err == nil {
+			if uint64(val) != uintVal {
+				*diags = append(*diags, builtinDiag(node, lineStarts))
+			}
+		}
+		return
+	}
+
+	// Decimal: round-trip float64 → string and compare.
 	reconstructed := strconv.FormatFloat(val, 'f', -1, 64)
 	if isScientific(cleaned) {
 		reconstructed = strconv.FormatFloat(val, 'e', -1, 64)

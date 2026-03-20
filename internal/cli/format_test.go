@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -165,8 +166,10 @@ func TestSARIFFormatter(t *testing.T) {
 
 	t.Run("basic diagnostic", func(t *testing.T) {
 		var buf bytes.Buffer
+		// Use a path under cwd so formatPath returns a relative path.
+		cwdFile := filepath.Join(cachedCwd, "src", "index.js")
 		diags := []engine.Diagnostic{
-			{File: "/src/index.js", Line: 3, Col: 4, EndLine: 3, EndCol: 7, Rule: "no-var", Message: "Use let or const", Severity: config.SeverityError},
+			{File: cwdFile, Line: 3, Col: 4, EndLine: 3, EndCol: 7, Rule: "no-var", Message: "Use let or const", Severity: config.SeverityError},
 		}
 		if err := f.Format(&buf, diags); err != nil {
 			t.Fatal(err)
@@ -211,9 +214,33 @@ func TestSARIFFormatter(t *testing.T) {
 		if loc.ArtifactLocation.URIBaseID != "%SRCROOT%" {
 			t.Errorf("expected uriBaseId %%SRCROOT%%, got %q", loc.ArtifactLocation.URIBaseID)
 		}
+		if loc.ArtifactLocation.URI != "src/index.js" {
+			t.Errorf("expected relative URI src/index.js, got %q", loc.ArtifactLocation.URI)
+		}
 		fp, ok := r.PartialFingerprints["primaryLocationLineHash"]
 		if !ok || fp == "" {
 			t.Error("expected partialFingerprints.primaryLocationLineHash to be set")
+		}
+	})
+
+	t.Run("absolute path fallback", func(t *testing.T) {
+		var buf bytes.Buffer
+		diags := []engine.Diagnostic{
+			{File: "/outside/repo/file.js", Line: 1, Col: 0, EndLine: 1, EndCol: 1, Rule: "r1", Message: "M1", Severity: config.SeverityError},
+		}
+		if err := f.Format(&buf, diags); err != nil {
+			t.Fatal(err)
+		}
+		var parsed sarifLog
+		if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
+			t.Fatalf("invalid JSON: %v", err)
+		}
+		loc := parsed.Runs[0].Results[0].Locations[0].PhysicalLocation
+		if loc.ArtifactLocation.URIBaseID != "" {
+			t.Errorf("expected no uriBaseId for absolute path, got %q", loc.ArtifactLocation.URIBaseID)
+		}
+		if !strings.HasPrefix(loc.ArtifactLocation.URI, "file://") {
+			t.Errorf("expected file:// URI for absolute path, got %q", loc.ArtifactLocation.URI)
 		}
 	})
 

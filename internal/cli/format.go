@@ -412,11 +412,16 @@ func (sarifFormat) Format(w io.Writer, diagnostics []engine.Diagnostic) error {
 }
 
 // sarifURI returns a percent-encoded URI for a file path and whether %SRCROOT%
-// applies (true for relative paths, false for absolute fallbacks).
+// applies. Only paths that are relative and within the cwd (no ".." prefix)
+// get %SRCROOT%; everything else becomes an absolute file:// URI.
 func sarifURI(filePath string) (string, bool) {
 	rel := filepath.ToSlash(formatPath(filePath))
-	if filepath.IsAbs(rel) {
-		return (&url.URL{Scheme: "file", Path: rel}).String(), false
+	if filepath.IsAbs(rel) || strings.HasPrefix(rel, "..") {
+		abs := rel
+		if !filepath.IsAbs(abs) {
+			abs = filepath.ToSlash(filePath)
+		}
+		return (&url.URL{Scheme: "file", Path: abs}).String(), false
 	}
 	return (&url.URL{Path: rel}).String(), true
 }

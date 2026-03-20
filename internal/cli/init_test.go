@@ -119,6 +119,37 @@ func TestInit_Force(t *testing.T) {
 	}
 }
 
+func TestInit_ForceMultipleConfigs(t *testing.T) {
+	dir := t.TempDir()
+	chdir(t, dir)
+
+	// Create multiple config files.
+	if err := os.WriteFile(filepath.Join(dir, ".ralfrc.json"), []byte(`{"rules":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".ralfrc.yaml"), []byte("rules: {}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	os.Args = []string{"ralf", "init", "--force", "--format", "toml"}
+	code := Execute()
+	if code != ExitOK {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+
+	// Old configs should be removed.
+	if _, err := os.Stat(filepath.Join(dir, ".ralfrc.json")); !os.IsNotExist(err) {
+		t.Error("expected .ralfrc.json to be removed")
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".ralfrc.yaml")); !os.IsNotExist(err) {
+		t.Error("expected .ralfrc.yaml to be removed")
+	}
+	// New config should exist.
+	if _, err := os.Stat(filepath.Join(dir, ".ralfrc.toml")); err != nil {
+		t.Fatalf("expected .ralfrc.toml to exist: %v", err)
+	}
+}
+
 func TestInit_MutualExclusion(t *testing.T) {
 	dir := t.TempDir()
 	chdir(t, dir)

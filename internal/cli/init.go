@@ -77,12 +77,14 @@ func runInit(cmd *cobra.Command, fromESLint, fromBiome, force bool, outFormat st
 			exitCode = ExitUsageError
 			return nil
 		}
-		// Remove the existing config and write a new file with the
-		// requested format, so only one .ralfrc.* remains.
-		if err := os.Remove(filepath.Join(cwd, existing)); err != nil && !os.IsNotExist(err) {
-			_, _ = fmt.Fprintf(w, "Error: remove %s: %v\n", existing, err)
-			exitCode = ExitInternal
-			return nil
+		// Remove all existing ralf config files so the newly generated
+		// file is always the one that config.Load discovers.
+		for _, name := range config.SearchNames {
+			if err := os.Remove(filepath.Join(cwd, name)); err != nil && !os.IsNotExist(err) {
+				_, _ = fmt.Fprintf(w, "Error: remove %s: %v\n", name, err)
+				exitCode = ExitInternal
+				return nil
+			}
 		}
 	}
 

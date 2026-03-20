@@ -230,6 +230,9 @@ func parseESLintSeverity(raw json.RawMessage) (config.Severity, bool) {
 }
 
 func eslintSevNumber(n float64) (config.Severity, bool) {
+	if n != float64(int(n)) {
+		return "", false // not an integer (e.g. 1.9)
+	}
 	switch int(n) {
 	case 0:
 		return config.SeverityOff, true

@@ -175,6 +175,9 @@ func TestStripJSONC(t *testing.T) {
 		{"single-line comment", "{// comment\n\"a\": 1}", "{\n\"a\": 1}"},
 		{"multi-line comment", `{"a": /* block */ 1}`, `{"a":  1}`},
 		{"comment inside string", `{"a": "// not a comment"}`, `{"a": "// not a comment"}`},
+		{"trailing comma object", `{"a": 1, "b": 2,}`, `{"a": 1, "b": 2}`},
+		{"trailing comma array", `[1, 2, 3,]`, `[1, 2, 3]`},
+		{"trailing comma with whitespace", "{\"a\": 1,\n}", "{\"a\": 1\n}"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

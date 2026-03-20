@@ -71,12 +71,15 @@ func runInit(cmd *cobra.Command, fromESLint, fromBiome, force bool, outFormat st
 
 	outFile := filepath.Join(cwd, ".ralfrc"+ext)
 
-	if !force {
-		if existing, found := configFileExists(cwd); found {
+	if existing, found := configFileExists(cwd); found {
+		if !force {
 			_, _ = fmt.Fprintf(w, "Error: config file already exists: %s (use --force to overwrite)\n", existing)
 			exitCode = ExitUsageError
 			return nil
 		}
+		// Overwrite the existing file to avoid creating a second .ralfrc.*
+		// that config.Load would ignore due to priority ordering.
+		outFile = filepath.Join(cwd, existing)
 	}
 
 	var (
@@ -121,8 +124,7 @@ func runInit(cmd *cobra.Command, fromESLint, fromBiome, force bool, outFormat st
 
 // configFileExists checks if any ralf config file exists in dir.
 func configFileExists(dir string) (string, bool) {
-	names := []string{".ralfrc.js", ".ralfrc.json", ".ralfrc.yaml", ".ralfrc.yml", ".ralfrc.toml"}
-	for _, name := range names {
+	for _, name := range config.SearchNames {
 		p := filepath.Join(dir, name)
 		if _, err := os.Stat(p); err == nil {
 			return name, true

@@ -165,8 +165,8 @@ func parseBiomeSeverity(raw json.RawMessage) (config.Severity, bool) {
 	return "", false
 }
 
-// stripJSONC removes single-line (//) and multi-line (/* */) comments from
-// JSONC input so it can be parsed by encoding/json.
+// stripJSONC removes single-line (//) and multi-line (/* */) comments and
+// trailing commas from JSONC input so it can be parsed by encoding/json.
 func stripJSONC(data []byte) []byte {
 	out := make([]byte, 0, len(data))
 	i := 0
@@ -213,6 +213,43 @@ func stripJSONC(data []byte) []byte {
 
 		out = append(out, data[i])
 		i++
+	}
+	return stripTrailingCommas(out)
+}
+
+// stripTrailingCommas removes commas immediately before ] or } (with optional whitespace).
+func stripTrailingCommas(data []byte) []byte {
+	out := make([]byte, 0, len(data))
+	for i := 0; i < len(data); i++ {
+		// Inside a string — copy verbatim.
+		if data[i] == '"' {
+			j := i + 1
+			for j < len(data) {
+				if data[j] == '\\' {
+					j += 2
+					continue
+				}
+				if data[j] == '"' {
+					j++
+					break
+				}
+				j++
+			}
+			out = append(out, data[i:j]...)
+			i = j - 1
+			continue
+		}
+		if data[i] == ',' {
+			// Look ahead past whitespace for ] or }.
+			j := i + 1
+			for j < len(data) && (data[j] == ' ' || data[j] == '\t' || data[j] == '\n' || data[j] == '\r') {
+				j++
+			}
+			if j < len(data) && (data[j] == ']' || data[j] == '}') {
+				continue // skip the comma
+			}
+		}
+		out = append(out, data[i])
 	}
 	return out
 }

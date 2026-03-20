@@ -82,7 +82,7 @@ E2E benchmark (100 files × 300 lines × 5 regex rules, Apple M4 Pro): **~27ms, 
 - **Symbol ID resolution** — node kinds resolved to numeric `kindID` once before the walk, same optimization as structural rules.
 
 Builtin benchmarks (Apple M4 Pro):
-- 21 builtin rules on 1.2K-line pre-parsed tree: **5.4ms** (was 77ms with per-rule walks, **14x faster**)
+- Historical microbenchmark (21 builtin rules on 1.2K-line pre-parsed tree): **5.4ms** (was 77ms with per-rule walks, **14x faster**)
 - All 61 rules E2E (50 files × 600 lines): **~197ms, ~3.9ms/file**
 
 ### Current Optimizations

@@ -53,20 +53,6 @@ func checkNoUnsafeOptionalChaining(node parser.Node, source []byte, lineStarts [
 		if p.ChildCount() > 0 && p.Child(0).StartByte() == node.StartByte() {
 			*diags = append(*diags, builtinDiag(node, lineStarts))
 		}
-	case "member_expression":
-		// Unsafe: optional chain result immediately dereferenced via
-		// non-optional member access, e.g. obj?.foo.bar.
-		object := p.ChildByFieldName("object")
-		if !object.IsNull() && object.StartByte() == node.StartByte() && !hasOptionalChain(p, source) {
-			*diags = append(*diags, builtinDiag(node, lineStarts))
-		}
-	case "call_expression":
-		// Unsafe: optional chain result immediately called via
-		// non-optional call, e.g. obj?.fn()().
-		fn := p.ChildByFieldName("function")
-		if !fn.IsNull() && fn.StartByte() == node.StartByte() && !hasOptionalChain(p, source) {
-			*diags = append(*diags, builtinDiag(node, lineStarts))
-		}
 	}
 }
 

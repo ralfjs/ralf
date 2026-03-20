@@ -43,12 +43,26 @@ func checkNoEmptyCharacterClass(node parser.Node, source []byte, lineStarts []in
 		// In JS regex: [] is truly empty (always fails to match).
 		// [^] matches any character (not empty).
 		// []] means class containing literal ] (not empty).
-		// So only flag when there's no ^ AND the next char is ].
+		// Only flag when there's no ^ AND the next char is ] AND that ]
+		// is actually the closing bracket (no later unescaped ] exists).
 		if j < end && text[j] == ']' && j == i+1 {
-			// [] — truly empty.
-			d := builtinDiag(node, lineStarts)
-			*diags = append(*diags, d)
-			return
+			isClosing := true
+			for p := j + 1; p < end; p++ {
+				if text[p] == '\\' {
+					p++
+					continue
+				}
+				if text[p] == ']' {
+					// Later ] found — first ] is a literal, class is not empty.
+					isClosing = false
+					break
+				}
+			}
+			if isClosing {
+				d := builtinDiag(node, lineStarts)
+				*diags = append(*diags, d)
+				return
+			}
 		}
 
 		// Skip to the actual closing ] of this class.

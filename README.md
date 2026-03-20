@@ -14,9 +14,9 @@ Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https:
 
 ## Table of Contents
 
+- [Why RALF](#why-ralf)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [Why RALF](#why-ralf)
 - [Rules](#rules)
 - [Configuration](#configuration)
 - [Output Formats](#output-formats)
@@ -25,6 +25,17 @@ Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https:
 - [License](#license)
 
 ---
+
+## Why RALF
+
+| | ESLint | Biome | RALF |
+|---|---|---|---|
+| Language | JS | Rust | Go |
+| Speed | Slow | Fast | Fast (Go + Rust regex via CGo) |
+| Custom rules | JS visitors (slow) | None yet | Declarative (native speed) |
+| Config migration | N/A | N/A | `--from-eslint`, `--from-biome` |
+| Output formats | Stylish, JSON | JSON | Stylish, JSON, SARIF, GitHub Actions, compact |
+| Auto-fix | Yes | Yes | Yes (`--fix` / `--fix-dry-run`) |
 
 ## Installation
 
@@ -67,17 +78,6 @@ ralf lint --fix
 # SARIF output for GitHub Code Scanning
 ralf lint --format sarif > results.sarif
 ```
-
-## Why RALF
-
-| | ESLint | Biome | RALF |
-|---|---|---|---|
-| Language | JS | Rust | Go |
-| Speed | Slow | Fast | Fast (Go + Rust regex via CGo) |
-| Custom rules | JS visitors (slow) | None yet | Declarative (native speed) |
-| Config migration | N/A | N/A | `--from-eslint`, `--from-biome` |
-| Output formats | Stylish, JSON | JSON | Stylish, JSON, SARIF, GitHub Actions, compact |
-| Auto-fix | Yes | Yes | Yes (`--fix` / `--fix-dry-run`) |
 
 ## Rules
 

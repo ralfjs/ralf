@@ -1,5 +1,7 @@
 # RALF
 
+**R**eliable **A**dvanced **L**inter and **F**ormatter
+
 [![CI](https://github.com/Hideart/ralf/actions/workflows/ci.yml/badge.svg)](https://github.com/Hideart/ralf/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ralf-lint)](https://www.npmjs.com/package/ralf-lint)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Hideart/ralf)](https://goreportcard.com/report/github.com/Hideart/ralf)
@@ -7,6 +9,22 @@
 Fast, project-aware JS/TS linter with 61 built-in rules. ESLint/Biome compatible. Zero config required.
 
 Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https://github.com/BurntSushi/rure-go). AST parsing via [tree-sitter](https://tree-sitter.github.io/tree-sitter/).
+
+---
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Why RALF](#why-ralf)
+- [Rules](#rules)
+- [Configuration](#configuration)
+- [Output Formats](#output-formats)
+- [Roadmap](#roadmap)
+- [Documentation](#documentation)
+- [License](#license)
+
+---
 
 ## Installation
 

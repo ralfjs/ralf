@@ -55,22 +55,11 @@ ralf lint --format sarif > results.sarif
 | | ESLint | Biome | RALF |
 |---|---|---|---|
 | Language | JS | Rust | Go |
-| Speed | Slow | Fast | **3.3x faster than Rust parallel** |
+| Speed | Slow | Fast | Fast (Go + Rust regex via CGo) |
 | Custom rules | JS visitors (slow) | None yet | Declarative (native speed) |
 | Config migration | N/A | N/A | `--from-eslint`, `--from-biome` |
 | Output formats | Stylish, JSON | JSON | Stylish, JSON, SARIF, GitHub Actions, compact |
 | Auto-fix | Yes | Yes | Yes (`--fix` / `--fix-dry-run`) |
-
-## Benchmarks
-
-Apple Silicon (14 cores), 390K lines of JS, 30 lint rules:
-
-| Approach | Avg per run |
-|---|---|
-| Go `regexp` stdlib | ~400ms+ |
-| Rust single-thread (`regex` crate) | 135ms |
-| Rust parallel (rayon, 14 cores) | 73ms |
-| **Go + rure-go (14 workers)** | **22ms** |
 
 ## Rules
 
@@ -88,28 +77,11 @@ Full rule gap analysis vs ESLint/Biome: [#24](https://github.com/Hideart/ralf/is
 
 ## Configuration
 
-Zero config works out of the box. To customize, run `ralf init` and edit:
+Zero config works out of the box — all 61 rules enabled with sensible defaults.
 
-```json
-{
-  "rules": {
-    "no-var": { "severity": "error", "regex": "\\bvar\\s" },
-    "no-console": { "severity": "warn" },
-    "eqeqeq": { "severity": "off" }
-  },
-  "ignores": ["dist/**", "*.test.js"],
-  "overrides": [
-    {
-      "files": ["**/*.test.*"],
-      "rules": {
-        "no-console": { "severity": "off" }
-      }
-    }
-  ]
-}
-```
+To customize, run `ralf init` and edit the generated `.ralfrc.json`. Supports JSON, YAML, TOML, and JS config formats, with `extends`, glob-scoped `overrides`, and inline suppression comments.
 
-Supports `.ralfrc.json`, `.ralfrc.yaml`, `.ralfrc.yml`, `.ralfrc.toml`, and `.ralfrc.js`.
+See the **[Configuration Guide](docs/CONFIGURATION.md)** for full syntax reference: rule types (regex, AST pattern, structural query, builtin), auto-fix, where predicates, naming conventions, import ordering, and migration from ESLint/Biome.
 
 ## Output Formats
 
@@ -133,7 +105,8 @@ Supports `.ralfrc.json`, `.ralfrc.yaml`, `.ralfrc.yml`, `.ralfrc.toml`, and `.ra
 
 ## Documentation
 
-- [Architecture & Design](docs/ARCHITECTURE.md) — full technical spec
+- [Configuration Guide](docs/CONFIGURATION.md) — full config syntax reference
+- [Architecture & Design](docs/ARCHITECTURE.md) — technical spec, benchmarks, implementation plan
 - [Branching & Releases](docs/BRANCHING.md) — Git Flow, versioning
 - [Development Status](docs/DEVELOPMENT_STATUS.md) — detailed feature matrix
 - [Contributing](CONTRIBUTING.md) — dev setup, code style, testing

@@ -41,7 +41,7 @@ func BenchmarkMatchBuiltin(b *testing.B) {
 	}
 }
 
-// BenchmarkMatchBuiltin_MultiRule runs all 21 builtin checkers via a single
+// BenchmarkMatchBuiltin_MultiRule runs all 33 builtin checkers via a single
 // matchBuiltins walk against a source that triggers multiple rules.
 func BenchmarkMatchBuiltin_MultiRule(b *testing.B) {
 	line := `if (x) {}
@@ -128,7 +128,7 @@ func BenchmarkLintE2E_Builtin(b *testing.B) {
 	}
 }
 
-// BenchmarkLintE2E_AllRules exercises all 49 built-in rules (regex, pattern,
+// BenchmarkLintE2E_AllRules exercises all 61 built-in rules (regex, pattern,
 // structural, builtin) via RecommendedConfig. 50 files × 100 lines.
 // This is the closest benchmark to real-world zero-config usage.
 func BenchmarkLintE2E_AllRules(b *testing.B) {

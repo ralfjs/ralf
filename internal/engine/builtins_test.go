@@ -27,7 +27,7 @@ func TestBuiltinRulesCompile(t *testing.T) {
 	if len(eng.structuralRules) != 1 {
 		t.Errorf("expected 1 compiled structural rule, got %d", len(eng.structuralRules))
 	}
-	if len(eng.builtinRules) != 21 {
-		t.Errorf("expected 21 compiled builtin rules, got %d", len(eng.builtinRules))
+	if len(eng.builtinRules) != 33 {
+		t.Errorf("expected 33 compiled builtin rules, got %d", len(eng.builtinRules))
 	}
 }

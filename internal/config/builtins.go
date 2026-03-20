@@ -17,7 +17,7 @@ const noLabelsNotDefault = `(?:` +
 	`|defaul[a-su-zA-Z0-9_]` +
 	`)`
 
-// BuiltinRules returns the 49 built-in rules. A fresh map is returned
+// BuiltinRules returns the 61 built-in rules. A fresh map is returned
 // on every call so callers may mutate it freely.
 //
 // Each rule is modeled after its ESLint equivalent where one exists.
@@ -324,6 +324,106 @@ func BuiltinRules() map[string]RuleConfig {
 			Severity: SeverityError,
 			Builtin:  true,
 			Message:  "Unexpected assignment within a condition.",
+		},
+
+		// ── Batch 1: Simple builtin rules (3) ────────────────────────────
+
+		// ESLint: no-self-compare — flags comparing a value to itself.
+		// Biome: noSelfCompare.
+		"no-self-compare": {
+			Severity: SeverityWarn,
+			Builtin:  true,
+			Message:  "Comparing to itself is potentially pointless.",
+		},
+		// ESLint: eqeqeq — require === and !==.
+		// Biome: noDoubleEquals.
+		"eqeqeq": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Expected '===' and instead saw '=='.",
+		},
+		// ESLint: no-empty-character-class — flags empty character classes in regex.
+		// Biome: noEmptyCharacterClassInRegex.
+		"no-empty-character-class": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Empty character class in regular expression.",
+		},
+
+		// ── Batch 2: Dedup/tracking builtin rules (2) ─────────────────────
+
+		// ESLint: no-dupe-class-members — flags duplicate method/property names in class bodies.
+		// Biome: noDuplicateClassMembers.
+		"no-dupe-class-members": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Duplicate class member.",
+		},
+		// ESLint: no-dupe-args — flags duplicate parameter names.
+		// Biome: noDuplicateParameters.
+		"no-dupe-args": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Duplicate parameter name.",
+		},
+
+		// ── Batch 3: Ancestor-walking builtin rules (3) ──────────────────
+
+		// ESLint: no-constructor-return — flags return-with-value in constructors.
+		// Biome: noConstructorReturn.
+		"no-constructor-return": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Unexpected return statement in constructor.",
+		},
+		// ESLint: no-inner-declarations — flags function declarations inside nested blocks.
+		// Biome: noInnerDeclarations.
+		"no-inner-declarations": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Move function declaration to program or function body root.",
+		},
+		// ESLint: no-unsafe-optional-chaining — flags ?. in unsafe contexts.
+		// Biome: noUnsafeOptionalChaining.
+		"no-unsafe-optional-chaining": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Unsafe usage of optional chaining.",
+		},
+
+		// ── Batch 4: Expression analysis builtin rules (2) ───────────────
+
+		// ESLint: no-constant-condition — flags constant conditions in if/while/for/ternary.
+		// Biome: noConstantCondition.
+		"no-constant-condition": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Unexpected constant condition.",
+		},
+		// ESLint: no-loss-of-precision — flags numeric literals that lose precision.
+		// Biome: noPrecisionLoss.
+		"no-loss-of-precision": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "This number literal will lose precision at runtime.",
+		},
+
+		// ── Batch 5: Complex builtin rules (2) ──────────────────────────
+
+		// ESLint: getter-return — ensure getters return a value.
+		// Biome: useGetterReturn.
+		"getter-return": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Expected to return a value in getter.",
+		},
+		// ESLint: no-fallthrough — flags switch case fallthrough.
+		// Biome: noFallthroughSwitchClause.
+		// Simplified AST-based check; full CFG analysis planned for v1.0.
+		"no-fallthrough": {
+			Severity: SeverityError,
+			Builtin:  true,
+			Message:  "Expected a break, return, throw, or continue statement.",
 		},
 	}
 }

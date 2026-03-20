@@ -6,8 +6,8 @@ func TestBuiltinRules(t *testing.T) {
 	rules := BuiltinRules()
 
 	t.Run("returns expected rule count", func(t *testing.T) {
-		if got := len(rules); got != 49 {
-			t.Errorf("BuiltinRules() returned %d rules, want 49", got)
+		if got := len(rules); got != 61 {
+			t.Errorf("BuiltinRules() returned %d rules, want 61", got)
 		}
 	})
 
@@ -45,8 +45,8 @@ func TestRecommendedConfig(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("RecommendedConfig() returned nil")
 	}
-	if len(cfg.Rules) != 49 {
-		t.Errorf("RecommendedConfig() has %d rules, want 49", len(cfg.Rules))
+	if len(cfg.Rules) != 61 {
+		t.Errorf("RecommendedConfig() has %d rules, want 61", len(cfg.Rules))
 	}
 
 	if err := Validate(cfg); err != nil {

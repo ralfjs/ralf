@@ -77,9 +77,13 @@ func runInit(cmd *cobra.Command, fromESLint, fromBiome, force bool, outFormat st
 			exitCode = ExitUsageError
 			return nil
 		}
-		// Overwrite the existing file to avoid creating a second .ralfrc.*
-		// that config.Load would ignore due to priority ordering.
-		outFile = filepath.Join(cwd, existing)
+		// Remove the existing config and write a new file with the
+		// requested format, so only one .ralfrc.* remains.
+		if err := os.Remove(filepath.Join(cwd, existing)); err != nil && !os.IsNotExist(err) {
+			_, _ = fmt.Fprintf(w, "Error: remove %s: %v\n", existing, err)
+			exitCode = ExitInternal
+			return nil
+		}
 	}
 
 	var (

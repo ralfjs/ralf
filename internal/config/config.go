@@ -45,27 +45,27 @@ type Override struct {
 // Supported fields: kind, name, parent, not. Additional query primitives
 // (children, ancestor, hasChild, etc.) are planned for future phases.
 type ASTMatcher struct {
-	Kind   string      `json:"kind,omitempty" yaml:"kind,omitempty"`
-	Name   interface{} `json:"name,omitempty" yaml:"name,omitempty"`
-	Parent *ASTMatcher `json:"parent,omitempty" yaml:"parent,omitempty"`
-	Not    *ASTMatcher `json:"not,omitempty" yaml:"not,omitempty"`
+	Kind   string      `json:"kind,omitempty" yaml:"kind,omitempty" toml:"kind,omitempty"`
+	Name   interface{} `json:"name,omitempty" yaml:"name,omitempty" toml:"name,omitempty"`
+	Parent *ASTMatcher `json:"parent,omitempty" yaml:"parent,omitempty" toml:"parent,omitempty"`
+	Not    *ASTMatcher `json:"not,omitempty" yaml:"not,omitempty" toml:"not,omitempty"`
 }
 
 // WherePredicate restricts which files or contexts a rule applies to.
 type WherePredicate struct {
-	File string          `json:"file,omitempty" yaml:"file,omitempty"`
-	Not  *WherePredicate `json:"not,omitempty" yaml:"not,omitempty"`
+	File string          `json:"file,omitempty" yaml:"file,omitempty" toml:"file,omitempty"`
+	Not  *WherePredicate `json:"not,omitempty" yaml:"not,omitempty" toml:"not,omitempty"`
 }
 
 // ImportsMatcher controls import ordering rules.
 type ImportsMatcher struct {
-	Groups         []string `json:"groups,omitempty" yaml:"groups,omitempty"`
-	Alphabetize    bool     `json:"alphabetize,omitempty" yaml:"alphabetize,omitempty"`
-	NewlineBetween bool     `json:"newlineBetween,omitempty" yaml:"newlineBetween,omitempty"`
+	Groups         []string `json:"groups,omitempty" yaml:"groups,omitempty" toml:"groups,omitempty"`
+	Alphabetize    bool     `json:"alphabetize,omitempty" yaml:"alphabetize,omitempty" toml:"alphabetize,omitempty"`
+	NewlineBetween bool     `json:"newlineBetween,omitempty" yaml:"newlineBetween,omitempty" toml:"newlineBetween,omitempty"`
 }
 
 // NamingMatcher enforces naming conventions via regex.
 type NamingMatcher struct {
-	Match   string `json:"match,omitempty" yaml:"match,omitempty"`
-	Message string `json:"message,omitempty" yaml:"message,omitempty"`
+	Match   string `json:"match,omitempty" yaml:"match,omitempty" toml:"match,omitempty"`
+	Message string `json:"message,omitempty" yaml:"message,omitempty" toml:"message,omitempty"`
 }

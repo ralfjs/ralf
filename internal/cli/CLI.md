@@ -11,7 +11,7 @@ cmd/ralf/main.go
             ├─ --config (global flag)
             ├─ --version
             └─ lint [paths...]
-                 ├─ --format (stylish|json|compact|github)
+                 ├─ --format (stylish|json|compact|github|sarif)
                  ├─ --threads (int)
                  └─ --max-warnings (int)
 ```
@@ -47,6 +47,7 @@ All formatters display columns as 1-based (engine stores 0-based).
 | **json** | Machine-readable array of diagnostic objects |
 | **compact** | One line per diagnostic, grep-friendly |
 | **github** | GitHub Actions `::error`/`::warning` workflow commands |
+| **sarif** | SARIF v2.1.0 for GitHub Code Scanning and CI tools |
 
 ## Config Loading
 
@@ -84,4 +85,4 @@ ralf lint --max-warnings 0 src/
 | `root.go` | Root cobra command, global flags, `Execute` entry point |
 | `discover.go` | File discovery: walk, filter, ignore |
 | `lint.go` | Lint subcommand: load config → engine → discover → lint → format |
-| `format.go` | Output formatters: stylish, JSON, compact, GitHub |
+| `format.go` | Output formatters: stylish, JSON, compact, GitHub, SARIF |

@@ -680,7 +680,7 @@ internal/
     root.go                  # Root cobra command, global flags, Execute entry point
     discover.go              # File discovery: WalkDir, extension filter, hardcoded skips, doublestar ignores
     lint.go                  # Lint subcommand: config → engine → discover → lint → format. --fix / --fix-dry-run (atomic writes, unified diff)
-    format.go                # Output formatters: stylish, JSON, compact, GitHub Actions
+    format.go                # Output formatters: stylish, JSON, compact, GitHub Actions, SARIF
 
   formatter/
     printer.go               # CST → formatted output
@@ -777,7 +777,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | Week | Task | Deliverable |
 |---|---|---|
 | 17 | ✅ Config JS loader (goja) | `.ralfrc.js` support via goja. Evaluate once, extract static config object. `extends` resolution. |
-| 18 | Output formats | SARIF, GitHub Actions annotations, compact format. `--format` flag. |
+| 18 | ✅ Output formats | SARIF v2.1.0, GitHub Actions annotations, compact format. `--format` flag. |
 | 19 | `yourlinter init` | Generate config from scratch. `--from-eslint` migration (rule name mapping table). |
 | 20 | Release prep | Cross-compile (macOS arm64/x64, Linux x64/arm64). GoReleaser config. npm wrapper package. README. |
 

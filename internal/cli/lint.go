@@ -32,7 +32,7 @@ func lintCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&format, "format", "stylish", "output format (stylish|json|compact|github)")
+	cmd.Flags().StringVar(&format, "format", "stylish", "output format (stylish|json|compact|github|sarif)")
 	cmd.Flags().IntVar(&threads, "threads", 0, "number of parallel workers (0 = num CPUs)")
 	cmd.Flags().IntVar(&maxWarnings, "max-warnings", -1, "max warnings before non-zero exit (-1 = unlimited)")
 	cmd.Flags().BoolVar(&fix, "fix", false, "apply auto-fixes and write files back")

@@ -42,7 +42,7 @@ internal/
     naming.go                # Naming convention checks on AST captures
     imports.go               # Import ordering / grouping analysis
     builtin_registry.go      # Custom Go builtin rules: types, registry, kind-indexed single-walk dispatch
-    builtin_*.go             # 21 per-rule checker files (no-empty, valid-typeof, no-dupe-keys, etc.)
+    builtin_*.go             # 33 per-rule checker files (no-empty, valid-typeof, no-dupe-keys, eqeqeq, etc.)
     complexity.go            # Cyclomatic complexity
     crossfile.go             # Cross-file rule evaluation (uses project.Graph)
     fix.go                   # Auto-fix: Fix/Conflict types, ApplyFixes (single-pass), expandToStatement

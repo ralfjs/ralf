@@ -78,12 +78,12 @@ E2E benchmark (100 files × 300 lines × 5 regex rules, Apple M4 Pro): **~27ms, 
 
 ### Builtin Rule Optimizations (Implemented)
 
-- **Kind-indexed single-walk dispatch** — 21 custom Go builtin rules share a single `WalkNamed` traversal. Each rule registers the tree-sitter node kinds it handles; a `builtinIndex` (kindID → rule indices map) dispatches each visited node to matching checkers. Replaces 21 independent tree walks with 1.
+- **Kind-indexed single-walk dispatch** — 33 custom Go builtin rules share a single `WalkNamed` traversal. Each rule registers the tree-sitter node kinds it handles; a `builtinIndex` (kindID → rule indices map) dispatches each visited node to matching checkers. Replaces 33 independent tree walks with 1.
 - **Symbol ID resolution** — node kinds resolved to numeric `kindID` once before the walk, same optimization as structural rules.
 
 Builtin benchmarks (Apple M4 Pro):
 - 21 builtin rules on 1.2K-line pre-parsed tree: **5.4ms** (was 77ms with per-rule walks, **14x faster**)
-- All 49 rules E2E (50 files × 600 lines): **~166ms, ~3.3ms/file**
+- All 61 rules E2E (50 files × 600 lines): **~197ms, ~3.9ms/file**
 
 ### Current Optimizations
 
@@ -769,7 +769,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 |---|---|---|
 | 13 | ✅ Naming convention engine | `naming: { match }` as modifier on `ast` rules. `compiledNaming` with rure regex, `extractNameField` (no full-text fallback). Validation: naming requires ast, rejects standalone use. |
 | 14 | ✅ Import analysis | `imports: { groups, alphabetize, newlineBetween }` — classify imports by source path, single-pass group ordering + alphabetize + newline-between checks. Symbol ID optimization for `import_statement` nodes. |
-| 15 | ✅ 29 more built-in rules | Total: 49 rules (23 regex, 4 pattern, 1 structural, 21 custom Go builtin). Custom Go builtin system with kind-indexed single-walk dispatch. Each rule has fixture test. |
+| 15 | ✅ 29 more built-in rules | Total: 49 rules (23 regex, 4 pattern, 1 structural, 21 custom Go builtin). Custom Go builtin system with kind-indexed single-walk dispatch. Each rule has fixture test. Week 19: +12 rules (eqeqeq, no-self-compare, no-empty-character-class, no-dupe-class-members, no-dupe-args, no-constructor-return, no-inner-declarations, no-unsafe-optional-chaining, no-constant-condition, no-loss-of-precision, getter-return, no-fallthrough) → total 61. |
 | 16 | ✅ Inline suppression | Five suppression forms: `lint-disable-next-line`, same-line `lint-disable`, block `lint-disable`/`lint-enable`, `lint-disable-file` (specific or all rules). Comma-separated rule lists. Post-match filter in `LintFile()`. |
 
 **Month 5 — Polish + Release**
@@ -781,7 +781,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 19 | `yourlinter init` | Generate config from scratch. `--from-eslint` migration (rule name mapping table). |
 | 20 | Release prep | Cross-compile (macOS arm64/x64, Linux x64/arm64). GoReleaser config. npm wrapper package. README. |
 
-**v0.1 deliverable:** `yourlinter lint`, `yourlinter check`, `yourlinter init`. 50 rules. JSON/YAML/JS config. Stylish + JSON + SARIF output. npm + homebrew + GitHub Releases.
+**v0.1 deliverable:** `yourlinter lint`, `yourlinter check`, `yourlinter init`. 61 rules. JSON/YAML/JS config. Stylish + JSON + SARIF output. npm + homebrew + GitHub Releases.
 
 ---
 

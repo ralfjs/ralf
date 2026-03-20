@@ -131,7 +131,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 
 | Milestone | Target | Key Deliverable |
 |---|---|---|
-| **v0.1** | Month 5 | Linter MVP — regex + AST patterns + builtin checkers, CLI, 49 rules |
+| **v0.1** | Month 5 | Linter MVP — regex + AST patterns + builtin checkers, CLI, 61 rules |
 | **v0.2** | Month 8 | Project-aware — cache, module graph, LSP, VS Code |
 | **v0.3** | Month 11 | Formatter — dprint WASM, auto-fix, import sorting |
 | **v0.4** | Month 13 | WASM plugins — Go/Rust/AS SDKs |

@@ -48,7 +48,7 @@ func newRootCmd() *cobra.Command {
 		Long: `ralf — fast, project-aware JS/TS linter written in Go.
 
 61 built-in rules (ESLint/Biome compatible). Zero config required.
-Supports .ralfrc.json, .ralfrc.yaml, .ralfrc.toml, and .ralfrc.js configs.
+Supports .ralfrc.json, .ralfrc.yaml, .ralfrc.yml, .ralfrc.toml, and .ralfrc.js configs.
 
 Exit codes:
   0  No lint errors

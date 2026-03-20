@@ -13,7 +13,9 @@ cmd/ralf/main.go
             ├─ lint [paths...]
             │    ├─ --format (stylish|json|compact|github|sarif)
             │    ├─ --threads (int)
-            │    └─ --max-warnings (int)
+            │    ├─ --max-warnings (int)
+            │    ├─ --fix
+            │    └─ --fix-dry-run
             └─ init
                  ├─ --from-eslint
                  ├─ --from-biome

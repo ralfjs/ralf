@@ -26,7 +26,13 @@ func initCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Generate a ralf config file",
-		Long:  "Generate a .ralfrc config file with all built-in rules. Use --from-eslint or --from-biome to migrate from an existing config.",
+		Long: `Generate a .ralfrc config file with all 61 built-in rules.
+Use --from-eslint or --from-biome to migrate from an existing config.
+Migration preserves source severities and lists unsupported rules.`,
+		Example: `  ralf init
+  ralf init --from-eslint
+  ralf init --from-biome --format yaml
+  ralf init --force`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runInit(cmd, fromESLint, fromBiome, force, outFormat)
 		},

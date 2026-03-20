@@ -43,8 +43,26 @@ var exitCode int
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "ralf",
-		Short:   "Fast, project-aware JS/TS linter",
+		Use:   "ralf",
+		Short: "Fast, project-aware JS/TS linter",
+		Long: `ralf — fast, project-aware JS/TS linter written in Go.
+
+61 built-in rules (ESLint/Biome compatible). Zero config required.
+Supports .ralfrc.json, .ralfrc.yaml, .ralfrc.toml, and .ralfrc.js configs.
+
+Exit codes:
+  0  No lint errors
+  1  Lint errors found (or warnings exceeded --max-warnings)
+  2  Config or usage error
+  3  Internal error
+
+Documentation: https://github.com/Hideart/ralf`,
+		Example: `  ralf lint                          # lint cwd with auto-discovered config
+  ralf lint src/ tests/              # lint specific paths
+  ralf lint --format sarif src/      # SARIF output for CI
+  ralf init                          # generate .ralfrc.json with all rules
+  ralf init --from-eslint            # migrate from ESLint config
+  ralf init --from-biome --format yaml  # migrate from Biome to YAML`,
 		Version: version.Version,
 		// Silence cobra's default error/usage printing on RunE errors
 		// so we control output.

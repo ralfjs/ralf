@@ -26,7 +26,13 @@ func lintCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "lint [paths...]",
 		Short: "Lint files for rule violations",
-		Long:  "Lint JavaScript and TypeScript files using rules defined in config.",
+		Long:  "Lint JavaScript and TypeScript files using rules defined in .ralfrc config.\nWith no paths, lints the current directory recursively.",
+		Example: `  ralf lint
+  ralf lint src/ tests/
+  ralf lint --format json src/
+  ralf lint --format sarif src/ > results.sarif
+  ralf lint --fix src/
+  ralf lint --max-warnings 0 src/`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLint(cmd, args, format, threads, maxWarnings, fix, fixDryRun)
 		},

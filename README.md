@@ -8,7 +8,7 @@
 
 Fast, project-aware JS/TS linter with 61 built-in rules. ESLint/Biome compatible. Zero config required.
 
-Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https://github.com/BurntSushi/rure-go). AST parsing via [tree-sitter](https://tree-sitter.github.io/tree-sitter/).
+Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https://github.com/BurntSushi/rure-go). AST parsing via [tree-sitter](https://tree-sitter.github.io/tree-sitter/). Supports JavaScript, TypeScript, JSX, and TSX.
 
 ---
 
@@ -17,6 +17,7 @@ Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https:
 - [Why RALF](#why-ralf)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Example Output](#example-output)
 - [Rules](#rules)
 - [Configuration](#configuration)
 - [Output Formats](#output-formats)
@@ -46,25 +47,17 @@ npx ralf lint
 ```
 
 **Binary download** (macOS, Linux):
-```bash
-# Download from GitHub Releases
-curl -fsSL https://github.com/Hideart/ralf/releases/latest/download/ralf_$(uname -s | tr A-Z a-z)_$(uname -m).tar.gz | tar xz
-sudo mv ralf /usr/local/bin/
-```
 
-**Go** (requires CGo + Rust toolchain for librure):
-```bash
-go install github.com/Hideart/ralf/cmd/ralf@latest
-```
+Download the latest binary from [GitHub Releases](https://github.com/Hideart/ralf/releases) for your platform, extract, and add to your PATH.
 
 ## Quick Start
 
 ```bash
-# Generate config with all 61 rules
-ralf init
-
-# Lint your project
+# Lint your project (zero config — all 61 rules enabled)
 ralf lint
+
+# Generate a config file to customize rules
+ralf init
 
 # Migrate from ESLint
 ralf init --from-eslint
@@ -75,8 +68,28 @@ ralf init --from-biome
 # Auto-fix
 ralf lint --fix
 
+# Preview fixes without writing
+ralf lint --fix-dry-run
+
 # SARIF output for GitHub Code Scanning
 ralf lint --format sarif > results.sarif
+
+# Suppress a rule inline
+console.log("ok"); // ralf-disable no-console
+```
+
+## Example Output
+
+```
+src/index.ts
+  3:1  error  Use `let` or `const` instead of `var`  no-var
+  7:5  error  Expected '===' and instead saw '=='.    eqeqeq
+  12:3 warn   Unexpected console statement            no-console
+
+src/utils.ts
+  21:10 error  Duplicate key 'id'.                    no-dupe-keys
+
+✖ 4 problems (3 errors, 1 warning)
 ```
 
 ## Rules
@@ -97,9 +110,28 @@ Full rule gap analysis vs ESLint/Biome: [#24](https://github.com/Hideart/ralf/is
 
 Zero config works out of the box — all 61 rules enabled with sensible defaults.
 
-To customize, run `ralf init` and edit the generated `.ralfrc.json`. Supports JSON, YAML, TOML, and JS config formats, with `extends`, glob-scoped `overrides`, and inline suppression comments.
+To customize, run `ralf init` and edit the generated config:
 
-See the **[Configuration Guide](docs/CONFIGURATION.md)** for full syntax reference: rule types (regex, AST pattern, structural query, builtin), auto-fix, where predicates, naming conventions, import ordering, and migration from ESLint/Biome.
+```json
+{
+  "rules": {
+    "no-var": { "severity": "error" },
+    "no-console": { "severity": "warn" },
+    "eqeqeq": { "severity": "off" }
+  },
+  "ignores": ["dist/**", "*.test.js"],
+  "overrides": [
+    {
+      "files": ["**/*.test.*"],
+      "rules": { "no-console": { "severity": "off" } }
+    }
+  ]
+}
+```
+
+Supports `.ralfrc.json`, `.ralfrc.yaml`, `.ralfrc.yml`, `.ralfrc.toml`, and `.ralfrc.js`.
+
+See the **[Configuration Guide](docs/CONFIGURATION.md)** for full syntax: rule types (regex, AST pattern, structural query, builtin), auto-fix, where predicates, naming conventions, import ordering, `extends`, inline suppression, and migration from ESLint/Biome.
 
 ## Output Formats
 

@@ -42,8 +42,9 @@ Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https:
 
 **npm** (recommended):
 ```bash
-npm install -D ralf-lint
-npx ralf lint
+npm install -D ralf-lint   # per-project dev dependency
+npm install -g ralf-lint   # global install
+npx ralf lint              # one-off without install
 ```
 
 **Binary download** (macOS, Linux):

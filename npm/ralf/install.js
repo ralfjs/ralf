@@ -41,7 +41,7 @@ if (!src) {
     `ralf: platform package ${pkg} not found. ` +
     `Try: npm install ${pkg}`
   );
-  process.exit(0);
+  process.exit(1);
 }
 
 const dest = join(__dirname, "bin", "ralf");

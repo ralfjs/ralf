@@ -76,8 +76,7 @@ jobs:
           CC: ${{ matrix.cc || '' }}
           CGO_LDFLAGS: -L./vendor/librure -lrure -lm -ldl -lpthread
         run: |
-          VERSION="${{ needs.release-please.outputs.tag_name }}"
-          go build -ldflags="-s -w -X main.version=${VERSION}" -o ralf ./cmd/ralf
+          go build -ldflags="-s -w" -o ralf ./cmd/ralf
 
       - name: Create archive
         run: |

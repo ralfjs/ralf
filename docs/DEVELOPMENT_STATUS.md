@@ -36,7 +36,7 @@ Tested on Apple Silicon (14 cores), 390K lines of JS, 30 lint rules, 100 iterati
 | Rust parallel (rayon, 14 cores) | 73ms |
 | **Go + rure-go guarded (14 workers)** | **22ms** |
 
-Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust single-thread on this workload. Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#benchmark-results-proven).
+Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust single-thread on this workload. Details in [ARCHITECTURE.md](ARCHITECTURE.md#benchmark-results-proven).
 
 ## Features
 

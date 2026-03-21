@@ -81,8 +81,11 @@ ralf lint --fix-dry-run
 # SARIF output for GitHub Code Scanning
 ralf lint --format sarif > results.sarif
 
-# Suppress a rule inline
-console.log("ok"); // ralf-disable no-console
+# Suppress rules inline
+// ralf-disable-next-line no-console
+// ralf-disable no-console, no-var  (block start)
+// ralf-enable no-console, no-var   (block end)
+// ralf-disable-file no-console     (entire file)
 ```
 
 ## Example Output

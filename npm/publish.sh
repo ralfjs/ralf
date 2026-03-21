@@ -33,8 +33,8 @@ for key in "${!PLATFORMS[@]}"; do
   # Find the tarball.
   tarball=$(find "$ARTIFACTS_DIR" -name "ralf_*_${goos}_${goarch}.tar.gz" | head -1)
   if [ -z "$tarball" ]; then
-    echo "Warning: no tarball found for $goos/$goarch, skipping $pkg"
-    continue
+    echo "Error: no tarball found for required platform $goos/$goarch (package $pkg)"
+    exit 1
   fi
 
   # Extract binary into package.

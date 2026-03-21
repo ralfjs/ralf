@@ -276,15 +276,17 @@ Suppression reason syntax (`-- reason text`) is planned: [#28](https://github.co
 
 ## JavaScript Config
 
-`.ralfrc.js` is evaluated once at startup via [goja](https://github.com/dop251/goja) (pure Go JS runtime). This allows computed values and regex literals:
+`.ralfrc.js` is evaluated once at startup via [goja](https://github.com/dop251/goja) (pure Go JS runtime). This allows computed values and dynamic configuration:
 
 ```js
+const path = require("path");
+
 export default {
   rules: {
     "require-error-boundary": {
       ast: {
         kind: "jsx_element",
-        name: /^[A-Z]/,
+        name: "^[A-Z]",
         parent: { not: { kind: "jsx_element", name: "ErrorBoundary" } }
       },
       where: { file: "src/pages/**" },
@@ -294,7 +296,7 @@ export default {
 }
 ```
 
-The JS runtime is only used for config loading — no JS executes during linting.
+Note: `ast.name` accepts strings (including regex patterns as strings like `"^[A-Z]"`), not JS RegExp literals. The JS runtime is only used for config loading — no JS executes during linting.
 
 ## Migration
 

@@ -1,6 +1,6 @@
 # RALF
 
-**R**eliable **A**dvanced **L**inter and **F**ormatter
+**R**eliable **A**dvanced **L**inting **F**ramework
 
 [![CI](https://github.com/Hideart/ralf/actions/workflows/ci.yml/badge.svg)](https://github.com/Hideart/ralf/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ralf-lint)](https://www.npmjs.com/package/ralf-lint)

@@ -50,6 +50,13 @@ npx ralf lint
 
 Download the latest binary from [GitHub Releases](https://github.com/Hideart/ralf/releases) for your platform, extract, and add to your PATH.
 
+**From source** (requires Go, CGo, and Rust toolchain):
+```bash
+git clone https://github.com/Hideart/ralf.git && cd ralf
+./scripts/build-librure.sh  # builds Rust regex library
+make build                   # builds ralf binary
+```
+
 ## Quick Start
 
 ```bash

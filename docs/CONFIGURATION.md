@@ -1,6 +1,6 @@
 # Configuration
 
-Ralf uses a single flat config file at the project root. Zero config works out of the box — all 61 built-in rules are enabled with sensible defaults.
+Ralf uses a single flat config file in the current working directory (or at a path passed via `--config`). Zero config works out of the box — all 61 built-in rules are enabled with sensible defaults.
 
 ## Config Files
 
@@ -256,20 +256,20 @@ Apply rule changes to specific file patterns. Later overrides take priority.
 
 ```js
 // Disable for next line
-// ralf-disable-next-line no-console
+// lint-disable-next-line no-console
 console.log("debug");
 
 // Disable for current line
-console.log("debug"); // ralf-disable no-console
+console.log("debug"); // lint-disable no-console
 
 // Disable block
-// ralf-disable no-console, no-var
+// lint-disable no-console, no-var
 var x = 1;
 console.log(x);
-// ralf-enable no-console, no-var
+// lint-enable no-console, no-var
 
 // Disable entire file
-// ralf-disable-file no-console
+// lint-disable-file no-console
 ```
 
 Suppression reason syntax (`-- reason text`) is planned: [#28](https://github.com/Hideart/ralf/issues/28).

@@ -83,10 +83,10 @@ ralf lint --fix-dry-run
 ralf lint --format sarif > results.sarif
 
 # Suppress rules inline
-// ralf-disable-next-line no-console
-// ralf-disable no-console, no-var  (block start)
-// ralf-enable no-console, no-var   (block end)
-// ralf-disable-file no-console     (entire file)
+// lint-disable-next-line no-console
+// lint-disable no-console, no-var  (block start)
+// lint-enable no-console, no-var   (block end)
+// lint-disable-file no-console     (entire file)
 ```
 
 ## Example Output

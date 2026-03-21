@@ -23,7 +23,7 @@ First public release. Fast, project-aware JS/TS linter with 61 built-in rules.
 - **Output formats:** stylish (default), JSON, compact, GitHub Actions annotations, SARIF v2.1.0 (with `partialFingerprints` for GitHub Code Scanning)
 - **Config:** `.ralfrc.json`, `.ralfrc.yaml`, `.ralfrc.yml`, `.ralfrc.toml`, `.ralfrc.js` (via goja), `extends`, glob-scoped `overrides`
 - **Auto-fix:** template fixes with capture substitution, conflict resolution, atomic file writes
-- **Inline suppression:** `ralf-disable-next-line`, `ralf-disable`/`ralf-enable` blocks, `ralf-disable-file`, same-line disable
+- **Inline suppression:** `lint-disable-next-line`, `lint-disable`/`lint-enable` blocks, `lint-disable-file`, same-line disable
 - **Parser:** tree-sitter with incremental reparsing, JS/TS/JSX/TSX support
 
 ### Rules (61)

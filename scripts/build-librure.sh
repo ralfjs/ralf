@@ -32,7 +32,9 @@ fi
 
 if [ -n "$TARGET" ]; then
   echo "Building librure for target $TARGET..."
-  rustup target add "$TARGET" 2>/dev/null || true
+  if ! rustup target list --installed | grep -q "^${TARGET}$"; then
+    rustup target add "$TARGET"
+  fi
   cargo build --release --target "$TARGET" --manifest-path "$REGEX_SRC/regex-capi/Cargo.toml"
   SRC_LIB="$REGEX_SRC/target/$TARGET/release/librure.a"
 else

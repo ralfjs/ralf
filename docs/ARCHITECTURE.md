@@ -1055,6 +1055,9 @@ console.log(x);
 
 // Disable entire file
 // lint-disable-file no-console
+
+// With reason (planned — #28)
+// lint-disable-next-line no-console -- needed for debugging
 ```
 
 ### Config Discovery

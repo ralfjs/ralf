@@ -272,6 +272,8 @@ console.log(x);
 // ralf-disable-file no-console
 ```
 
+Suppression reason syntax (`-- reason text`) is planned: [#28](https://github.com/Hideart/ralf/issues/28).
+
 ## JavaScript Config
 
 `.ralfrc.js` is evaluated once at startup via [goja](https://github.com/dop251/goja) (pure Go JS runtime). This allows computed values and regex literals:

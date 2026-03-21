@@ -81,11 +81,17 @@ ralf lint --fix-dry-run
 
 # SARIF output for GitHub Code Scanning
 ralf lint --format sarif > results.sarif
+```
 
-# Suppress rules inline
+Suppress rules inline (in your JS/TS files):
+
+```js
 // lint-disable-next-line no-console
+console.log("debug");
+
 // lint-disable no-console, no-var  (block start)
 // lint-enable no-console, no-var   (block end)
+
 // lint-disable-file no-console     (entire file)
 ```
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-const { existsSync, mkdirSync, copyFileSync, chmodSync } = require("fs");
+const { existsSync, copyFileSync, chmodSync } = require("fs");
 const { join, dirname } = require("path");
 
 const PLATFORMS = {
@@ -44,7 +44,8 @@ if (!src) {
   process.exit(1);
 }
 
-const dest = join(__dirname, "bin", "ralf");
-mkdirSync(dirname(dest), { recursive: true });
+// Copy native binary next to the Node wrapper as ralf.exe
+// (the wrapper script at bin/ralf resolves this at runtime).
+const dest = join(__dirname, "bin", "ralf.exe");
 copyFileSync(src, dest);
 chmodSync(dest, 0o755);

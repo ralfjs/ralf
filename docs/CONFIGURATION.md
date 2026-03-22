@@ -8,7 +8,7 @@ Searched in priority order:
 
 | Format | File | Comments | Regex literals | Computed values |
 |---|---|---|---|---|
-| JavaScript | `.ralfrc.js` | Yes | `/regex/` | Yes (via goja) |
+| JavaScript | `.ralfrc.js` | Yes | Strings only | Yes (via goja) |
 | JSON | `.ralfrc.json` | No | Strings only | No |
 | YAML | `.ralfrc.yaml`, `.ralfrc.yml` | Yes | Strings only | No |
 | TOML | `.ralfrc.toml` | Yes | Strings only | No |
@@ -97,7 +97,7 @@ Supported fields:
 | Field | Type | Description |
 |---|---|---|
 | `kind` | string | Tree-sitter node kind (e.g., `"function_declaration"`, `"binary_expression"`) |
-| `name` | string or regex | Match the node's name field (exact string or `/regex/` in JS config) |
+| `name` | string | Match the node's name field. Exact match, or wrap in `/` for regex: `"/^[A-Z]/"` |
 | `parent` | object | Parent node must match this query |
 | `not` | object | Node must NOT match this sub-query |
 

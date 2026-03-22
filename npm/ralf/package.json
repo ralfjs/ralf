@@ -1,0 +1,23 @@
+{
+  "name": "ralf-lint",
+  "version": "0.0.0",
+  "description": "Fast, project-aware JS/TS linter — 61 built-in rules, ESLint/Biome compatible",
+  "bin": {
+    "ralf": "bin/ralf"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "optionalDependencies": {
+    "ralf-darwin-arm64": "0.0.0",
+    "ralf-darwin-x64": "0.0.0",
+    "ralf-linux-x64": "0.0.0",
+    "ralf-linux-arm64": "0.0.0"
+  },
+  "keywords": ["linter", "javascript", "typescript", "eslint", "biome"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hideart/ralf"
+  }
+}

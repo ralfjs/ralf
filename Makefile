@@ -1,11 +1,15 @@
 .PHONY: build test test-race coverage lint fmt clean bench install verify build-librure
 
 BINARY      := ralf
-VERSION     := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-LDFLAGS     := -s -w -X main.version=$(VERSION)
+LDFLAGS     := -s -w
 CGO_ENABLED := 1
 LIBRURE_DIR := ./vendor/librure
+UNAME_S     := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+CGO_LDFLAGS := -L$(LIBRURE_DIR) -lrure -lm -lpthread
+else
 CGO_LDFLAGS := -L$(LIBRURE_DIR) -lrure -lm -ldl -lpthread
+endif
 GOFLAGS     := -mod=mod
 
 export CGO_ENABLED CGO_LDFLAGS GOFLAGS
@@ -16,7 +20,8 @@ build-librure:
 
 ## Build
 build:
-	go build -ldflags="$(LDFLAGS)" -o $(BINARY) ./cmd/ralf
+	@mkdir -p build
+	go build -ldflags="$(LDFLAGS)" -o build/$(BINARY) ./cmd/ralf
 
 ## Install locally
 install:
@@ -54,4 +59,4 @@ verify: lint
 
 ## Clean
 clean:
-	rm -f $(BINARY) coverage.out
+	rm -rf build/ coverage.out

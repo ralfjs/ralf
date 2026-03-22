@@ -782,7 +782,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 17 | ✅ Config JS loader (goja) | `.ralfrc.js` support via goja. Evaluate once, extract static config object. `extends` resolution. |
 | 18 | ✅ Output formats | SARIF v2.1.0, GitHub Actions annotations, compact format. `--format` flag. |
 | 19 | ✅ `ralf init` | `ralf init` generates config from 61 built-in rules. `--from-eslint` (JSON/YAML, 60-rule mapping table). `--from-biome` (JSON/JSONC, 48-rule mapping table). `--format json\|yaml\|toml`. `--force`. Migration report. |
-| 20 | Release prep | Cross-compile (macOS arm64/x64, Linux x64/arm64). GoReleaser config. npm wrapper package. README. |
+| 20 | ✅ Release prep | GitHub Actions matrix build (macOS arm64/x64, Linux x64/arm64). npm wrapper packages (`ralf-lint` + 4 platform packages). README rewrite. CHANGELOG. Cross-compile librure per target via Rust target triples. |
 
 **v0.1 deliverable:** `yourlinter lint`, `yourlinter check`, `yourlinter init`. 61 rules. JSON/YAML/JS config. Stylish + JSON + SARIF output. npm + homebrew + GitHub Releases.
 
@@ -1055,6 +1055,9 @@ console.log(x);
 
 // Disable entire file
 // lint-disable-file no-console
+
+// With reason (planned — #28)
+// lint-disable-next-line no-console -- needed for debugging
 ```
 
 ### Config Discovery

@@ -11,6 +11,7 @@ coverage.out
 
 # Build
 dist/
+build/
 vendor/
 
 # IDE

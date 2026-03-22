@@ -82,13 +82,14 @@ jobs:
           CC: ${{ matrix.cc || '' }}
           CGO_LDFLAGS: ${{ matrix.cgo_ldflags }}
         run: |
-          go build -ldflags="-s -w" -o ralf ./cmd/ralf
+          mkdir -p build
+          go build -ldflags="-s -w" -o build/ralf ./cmd/ralf
 
       - name: Create archive
         run: |
           VERSION="${{ needs.release-please.outputs.tag_name }}"
           ARCHIVE="ralf_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz"
-          tar czf "$ARCHIVE" ralf
+          tar czf "$ARCHIVE" -C build ralf
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
       - name: Upload artifact

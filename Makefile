@@ -15,7 +15,8 @@ build-librure:
 
 ## Build
 build:
-	go build -ldflags="$(LDFLAGS)" -o $(BINARY) ./cmd/ralf
+	@mkdir -p build
+	go build -ldflags="$(LDFLAGS)" -o build/$(BINARY) ./cmd/ralf
 
 ## Install locally
 install:
@@ -53,4 +54,4 @@ verify: lint
 
 ## Clean
 clean:
-	rm -f $(BINARY) coverage.out
+	rm -rf build/ coverage.out

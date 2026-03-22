@@ -284,7 +284,7 @@ export default {
     "require-error-boundary": {
       ast: {
         kind: "jsx_element",
-        name: "^[A-Z]",
+        name: "/^[A-Z]/",
         parent: { not: { kind: "jsx_element", name: "ErrorBoundary" } }
       },
       where: { file: "src/pages/**" },
@@ -294,7 +294,7 @@ export default {
 }
 ```
 
-Note: `ast.name` accepts strings (including regex patterns as strings like `"^[A-Z]"`), not JS RegExp literals. The JS runtime is only used for config loading — no JS executes during linting.
+Note: `ast.name` accepts strings. For regex matching, wrap the pattern in `/`: `"/^[A-Z]/"`. JS RegExp literals are not supported. The JS runtime is only used for config loading — no JS executes during linting.
 
 ## Migration
 

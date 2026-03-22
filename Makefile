@@ -4,7 +4,12 @@ BINARY      := ralf
 LDFLAGS     := -s -w
 CGO_ENABLED := 1
 LIBRURE_DIR := ./vendor/librure
+UNAME_S     := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+CGO_LDFLAGS := -L$(LIBRURE_DIR) -lrure -lm -lpthread
+else
 CGO_LDFLAGS := -L$(LIBRURE_DIR) -lrure -lm -ldl -lpthread
+endif
 GOFLAGS     := -mod=mod
 
 export CGO_ENABLED CGO_LDFLAGS GOFLAGS

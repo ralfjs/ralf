@@ -1,8 +1,7 @@
 .PHONY: build test test-race coverage lint fmt clean bench install verify build-librure
 
 BINARY      := ralf
-VERSION     := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-LDFLAGS     := -s -w -X main.version=$(VERSION)
+LDFLAGS     := -s -w
 CGO_ENABLED := 1
 LIBRURE_DIR := ./vendor/librure
 CGO_LDFLAGS := -L$(LIBRURE_DIR) -lrure -lm -ldl -lpthread

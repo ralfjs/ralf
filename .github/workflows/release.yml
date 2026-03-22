@@ -36,16 +36,19 @@ jobs:
             goos: darwin
             goarch: arm64
             rust_target: aarch64-apple-darwin
+            cc: clang
             cgo_ldflags: -L./vendor/librure -lrure -lm -lpthread
           - os: macos-14
             goos: darwin
             goarch: amd64
             rust_target: x86_64-apple-darwin
+            cc: clang
             cgo_ldflags: -L./vendor/librure -lrure -lm -lpthread
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
             rust_target: x86_64-unknown-linux-gnu
+            cc: gcc
             cgo_ldflags: -L./vendor/librure -lrure -lm -ldl -lpthread
           - os: ubuntu-latest
             goos: linux
@@ -79,7 +82,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "1"
-          CC: ${{ matrix.cc || '' }}
+          CC: ${{ matrix.cc }}
           CGO_LDFLAGS: ${{ matrix.cgo_ldflags }}
         run: |
           mkdir -p build

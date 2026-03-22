@@ -276,11 +276,9 @@ Suppression reason syntax (`-- reason text`) is planned: [#28](https://github.co
 
 ## JavaScript Config
 
-`.ralfrc.js` is evaluated once at startup via [goja](https://github.com/dop251/goja) (pure Go JS runtime). This allows computed values and dynamic configuration:
+`.ralfrc.js` is evaluated once at startup via [goja](https://github.com/dop251/goja) (pure Go JS runtime). This allows computed values using plain JavaScript (no `require`/`import` — the config runs in an isolated context):
 
 ```js
-const path = require("path");
-
 export default {
   rules: {
     "require-error-boundary": {

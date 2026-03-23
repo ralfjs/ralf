@@ -3,7 +3,7 @@
 **R**eliable **A**dvanced **L**inting **F**ramework
 
 [![CI](https://github.com/ralfjs/ralf/actions/workflows/ci.yml/badge.svg)](https://github.com/ralfjs/ralf/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/ralf-lint)](https://www.npmjs.com/package/ralf-lint)
+[![npm](https://img.shields.io/npm/v/@ralfjs/cli)](https://www.npmjs.com/package/@ralfjs/cli)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ralfjs/ralf)](https://goreportcard.com/report/github.com/ralfjs/ralf)
 
 Fast, project-aware JS/TS linter with 61 built-in rules. ESLint/Biome compatible. Zero config required.
@@ -42,9 +42,9 @@ Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https:
 
 **npm** (recommended):
 ```bash
-npm install -D ralf-lint   # per-project dev dependency
-npm install -g ralf-lint   # global install
-npx ralf lint              # one-off without install
+npm install -D @ralfjs/cli   # per-project dev dependency
+npm install -g @ralfjs/cli   # global install
+npx @ralfjs/cli lint         # one-off without install
 ```
 
 **Binary download** (macOS, Linux):

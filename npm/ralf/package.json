@@ -1,5 +1,5 @@
 {
-  "name": "ralf-lint",
+  "name": "@ralfjs/cli",
   "version": "0.0.0",
   "description": "Fast, project-aware JS/TS linter — 61 built-in rules, ESLint/Biome compatible",
   "bin": {
@@ -13,10 +13,10 @@
     "postinstall": "node install.js"
   },
   "optionalDependencies": {
-    "ralf-darwin-arm64": "0.0.0",
-    "ralf-darwin-x64": "0.0.0",
-    "ralf-linux-x64": "0.0.0",
-    "ralf-linux-arm64": "0.0.0"
+    "@ralfjs/cli-darwin-arm64": "0.0.0",
+    "@ralfjs/cli-darwin-x64": "0.0.0",
+    "@ralfjs/cli-linux-x64": "0.0.0",
+    "@ralfjs/cli-linux-arm64": "0.0.0"
   },
   "keywords": ["linter", "javascript", "typescript", "eslint", "biome"],
   "license": "MIT",

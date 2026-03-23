@@ -1,19 +1,15 @@
 {
-  "name": "ralf-linux-x64",
+  "name": "@ralfjs/cli-linux-x64",
   "version": "0.0.0",
   "description": "ralf binary for linux/x64",
-  "os": [
-    "linux"
-  ],
-  "cpu": [
-    "x64"
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "files": [
+    "bin/ralf"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/ralfjs/ralf"
-  },
-  "files": [
-    "bin/ralf"
-  ]
+  }
 }

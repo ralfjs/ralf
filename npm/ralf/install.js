@@ -5,10 +5,10 @@ const { existsSync, copyFileSync, chmodSync } = require("fs");
 const { join, dirname } = require("path");
 
 const PLATFORMS = {
-  "darwin-arm64": "ralf-darwin-arm64",
-  "darwin-x64": "ralf-darwin-x64",
-  "linux-x64": "ralf-linux-x64",
-  "linux-arm64": "ralf-linux-arm64",
+  "darwin-arm64": "@ralfjs/cli-darwin-arm64",
+  "darwin-x64": "@ralfjs/cli-darwin-x64",
+  "linux-x64": "@ralfjs/cli-linux-x64",
+  "linux-arm64": "@ralfjs/cli-linux-arm64",
 };
 
 const key = `${process.platform}-${process.arch}`;
@@ -23,9 +23,10 @@ if (!pkg) {
 }
 
 // Resolve the platform binary from node_modules.
+// Scoped packages live under node_modules/@ralfjs/cli-<platform>/
 const candidates = [
   join(__dirname, "node_modules", pkg, "bin", "ralf"),
-  join(dirname(__dirname), pkg, "bin", "ralf"),
+  join(dirname(__dirname), ...pkg.split("/"), "bin", "ralf"),
 ];
 
 let src = null;

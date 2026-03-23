@@ -36,4 +36,7 @@ jobs:
             plugin
             rules
             deps
+            build
+            npm
+            release
           requireScope: false

@@ -12,5 +12,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Hideart/ralf"
-  }
+  },
+  "files": [
+    "bin/ralf"
+  ]
 }

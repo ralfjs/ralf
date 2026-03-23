@@ -207,7 +207,7 @@ Releases are automated via release-please + GitHub Actions:
 | Secret | Where | Purpose |
 |---|---|---|
 | `GITHUB_TOKEN` | Automatic | GitHub Release upload, release-please |
-| `NPM_TOKEN` | Repo Settings > Secrets > Actions | npm publish (`ralf-lint` + platform packages) |
+| `NPM_TOKEN` | Repo Settings > Secrets > Actions | npm publish — passed as `NODE_AUTH_TOKEN` to the workflow step |
 | `CODECOV_TOKEN` | Repo Settings > Secrets > Actions | Coverage upload |
 
 **Setting up NPM_TOKEN:**

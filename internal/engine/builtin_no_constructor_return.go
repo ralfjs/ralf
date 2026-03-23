@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 // checkNoConstructorReturn flags return statements with a value inside class constructors.
 // Bare "return;" is allowed (early exit). Nested functions are not checked.

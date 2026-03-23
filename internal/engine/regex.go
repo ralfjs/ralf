@@ -5,7 +5,7 @@ import (
 
 	"github.com/BurntSushi/rure-go"
 
-	"github.com/Hideart/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/config"
 )
 
 // compiledRegex is a pre-compiled regex rule ready for matching.

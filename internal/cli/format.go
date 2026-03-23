@@ -14,9 +14,9 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/Hideart/ralf/internal/config"
-	"github.com/Hideart/ralf/internal/engine"
-	"github.com/Hideart/ralf/internal/version"
+	"github.com/ralfjs/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/engine"
+	"github.com/ralfjs/ralf/internal/version"
 )
 
 // Formatter writes diagnostics to a writer in a specific format.
@@ -333,7 +333,7 @@ func (sarifFormat) Format(w io.Writer, diagnostics []engine.Diagnostic) error {
 	// Envelope + tool header.
 	buf.WriteString(`{"$schema":"https://json.schemastore.org/sarif-2.1.0.json","version":"2.1.0","runs":[{"tool":{"driver":{"name":"ralf","semanticVersion":`)
 	appendJSONStr(buf, version.Version)
-	buf.WriteString(`,"informationUri":"https://github.com/Hideart/ralf","rules":[`)
+	buf.WriteString(`,"informationUri":"https://github.com/ralfjs/ralf","rules":[`)
 
 	// Rules array.
 	for i, id := range ruleIDs {

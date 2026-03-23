@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Hideart/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/config"
 )
 
 // biomeToRalf maps Biome "category/ruleName" to ralf rule names.

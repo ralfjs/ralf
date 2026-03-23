@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"github.com/Hideart/ralf/internal/config"
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/ralfjs/ralf/internal/config"
 )
 
 // matchesWhere evaluates a Where predicate against a file path.

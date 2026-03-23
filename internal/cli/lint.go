@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Hideart/ralf/internal/config"
-	"github.com/Hideart/ralf/internal/engine"
+	"github.com/ralfjs/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/engine"
 	"github.com/spf13/cobra"
 )
 

@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 func checkNoDuplicateCase(node parser.Node, source []byte, lineStarts []int, diags *[]Diagnostic) {
 	body := node.ChildByFieldName("body")

@@ -5,7 +5,7 @@ RALF — fast, project-aware JS/TS linter + formatter written in Go.
 ## Quick Reference
 
 **Language:** Go 1.25+
-**Module:** `github.com/Hideart/ralf`
+**Module:** `github.com/ralfjs/ralf`
 **CGo deps:** rure-go (Rust regex), go-tree-sitter
 **Pure Go deps:** modernc.org/sqlite, fsnotify, goja, wazero, xxhash
 

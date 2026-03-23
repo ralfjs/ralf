@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Hideart/ralf/internal/parser"
+	"github.com/ralfjs/ralf/internal/parser"
 )
 
 // checkNoLossOfPrecision flags numeric literals that lose precision

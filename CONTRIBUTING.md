@@ -12,7 +12,7 @@
 ### 1. Clone the repo
 
 ```bash
-git clone git@github.com:Hideart/ralf.git
+git clone git@github.com:ralfjs/ralf.git
 cd ralf
 git checkout develop
 ```

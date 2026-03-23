@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Hideart/ralf/internal/parser"
+	"github.com/ralfjs/ralf/internal/parser"
 )
 
 func checkNoUnsafeFinally(node parser.Node, _ []byte, lineStarts []int, diags *[]Diagnostic) {

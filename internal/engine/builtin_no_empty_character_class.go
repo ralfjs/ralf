@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"github.com/Hideart/ralf/internal/parser"
+	"github.com/ralfjs/ralf/internal/parser"
 )
 
 // checkNoEmptyCharacterClass flags regex literals containing truly empty

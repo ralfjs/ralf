@@ -17,7 +17,7 @@ const pkg = PLATFORMS[key];
 if (!pkg) {
   console.error(
     `ralf: unsupported platform ${key}. ` +
-    `Download manually from https://github.com/Hideart/ralf/releases`
+    `Download manually from https://github.com/ralfjs/ralf/releases`
   );
   process.exit(0); // Don't fail install for unsupported platforms
 }

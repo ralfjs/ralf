@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 // checkNoFallthrough flags switch cases that fall through to the next case
 // without a break, return, throw, or continue statement.

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Hideart/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/config"
 )
 
 func TestCompileNaming(t *testing.T) {

@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 func checkNoEmptyPattern(node parser.Node, _ []byte, lineStarts []int, diags *[]Diagnostic) {
 	if node.NamedChildCount() > 0 {

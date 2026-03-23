@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 func checkNoEmptyStaticBlock(node parser.Node, _ []byte, lineStarts []int, diags *[]Diagnostic) {
 	// Check if block body (statement_block child) has any named children.

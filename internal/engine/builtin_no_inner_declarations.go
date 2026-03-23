@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 // checkNoInnerDeclarations flags function declarations inside nested blocks
 // (if/for/while bodies, etc.). Functions at program top level or directly

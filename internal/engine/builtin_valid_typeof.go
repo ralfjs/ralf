@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 var validTypeofValues = map[string]bool{
 	`"undefined"`: true, `'undefined'`: true,

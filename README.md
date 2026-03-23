@@ -2,9 +2,9 @@
 
 **R**eliable **A**dvanced **L**inting **F**ramework
 
-[![CI](https://github.com/Hideart/ralf/actions/workflows/ci.yml/badge.svg)](https://github.com/Hideart/ralf/actions/workflows/ci.yml)
+[![CI](https://github.com/ralfjs/ralf/actions/workflows/ci.yml/badge.svg)](https://github.com/ralfjs/ralf/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ralf-lint)](https://www.npmjs.com/package/ralf-lint)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Hideart/ralf)](https://goreportcard.com/report/github.com/Hideart/ralf)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ralfjs/ralf)](https://goreportcard.com/report/github.com/ralfjs/ralf)
 
 Fast, project-aware JS/TS linter with 61 built-in rules. ESLint/Biome compatible. Zero config required.
 
@@ -49,11 +49,11 @@ npx ralf lint              # one-off without install
 
 **Binary download** (macOS, Linux):
 
-Download the latest binary from [GitHub Releases](https://github.com/Hideart/ralf/releases) for your platform, extract, and add to your PATH.
+Download the latest binary from [GitHub Releases](https://github.com/ralfjs/ralf/releases) for your platform, extract, and add to your PATH.
 
 **From source** (requires Go, CGo, and Rust toolchain):
 ```bash
-git clone https://github.com/Hideart/ralf.git && cd ralf
+git clone https://github.com/ralfjs/ralf.git && cd ralf
 ./scripts/build-librure.sh  # builds Rust regex library
 make build                   # builds ralf binary
 ```
@@ -121,7 +121,7 @@ src/utils.ts
 
 **Style:** `no-console`, `no-debugger`, `no-alert`
 
-Full rule gap analysis vs ESLint/Biome: [#24](https://github.com/Hideart/ralf/issues/24)
+Full rule gap analysis vs ESLint/Biome: [#24](https://github.com/ralfjs/ralf/issues/24)
 
 ## Configuration
 

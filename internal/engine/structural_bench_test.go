@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Hideart/ralf/internal/config"
-	"github.com/Hideart/ralf/internal/parser"
+	"github.com/ralfjs/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/parser"
 )
 
 // BenchmarkMatchStructural measures structural AST matching on a file with

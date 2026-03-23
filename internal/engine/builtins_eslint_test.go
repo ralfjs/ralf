@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Hideart/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/config"
 )
 
 // TestBuiltinRules_ESLintParity verifies each built-in regex rule against

@@ -43,9 +43,12 @@ for key in "${!PLATFORMS[@]}"; do
   tar xzf "$tarball" -C "${pkg_dir}/bin"
   chmod +x "${pkg_dir}/bin/ralf"
 
-  # Update version.
+  # Update version and verify contents before publishing.
   cd "$pkg_dir"
   npm version "$VERSION" --no-git-tag-version --allow-same-version
+  echo "--- $pkg pack contents ---"
+  npm pack --dry-run 2>&1
+  echo "---"
   npm publish --access public
   echo "Published $pkg@$VERSION"
   cd -
@@ -64,5 +67,8 @@ node -e "
   require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
 
+echo "--- ralf-lint pack contents ---"
+npm pack --dry-run 2>&1
+echo "---"
 npm publish --access public
 echo "Published ralf-lint@$VERSION"

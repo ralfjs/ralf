@@ -2,11 +2,18 @@
   "name": "ralf-darwin-arm64",
   "version": "0.0.0",
   "description": "ralf binary for darwin/arm64",
-  "os": ["darwin"],
-  "cpu": ["arm64"],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Hideart/ralf"
-  }
+  },
+  "files": [
+    "bin/ralf"
+  ]
 }

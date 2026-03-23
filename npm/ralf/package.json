@@ -5,6 +5,10 @@
   "bin": {
     "ralf": "bin/ralf"
   },
+  "files": [
+    "bin/ralf",
+    "install.js"
+  ],
   "scripts": {
     "postinstall": "node install.js"
   },

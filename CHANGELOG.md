@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.0](https://github.com/ralfjs/ralf/compare/v0.1.0...v0.1.0) (2026-03-24)
+
+
+### Bug Fixes
+
+* **release:** add Release environment to npm-publish job ([#39](https://github.com/ralfjs/ralf/issues/39)) ([9e4581b](https://github.com/ralfjs/ralf/commit/9e4581b5f7ed4b6279af6b68c52c55b091225ac8))
+
 ## 0.1.0 (2026-03-24)
 
 

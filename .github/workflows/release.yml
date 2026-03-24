@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v0.1.0)"
+        required: true
 
 permissions:
   contents: write
@@ -15,6 +20,7 @@ env:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' }}
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -27,7 +33,7 @@ jobs:
 
   build:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ always() && (needs.release-please.outputs.release_created || github.event_name == 'workflow_dispatch') }}
     strategy:
       fail-fast: false
       matrix:
@@ -90,7 +96,7 @@ jobs:
 
       - name: Create archive
         run: |
-          VERSION="${{ needs.release-please.outputs.tag_name }}"
+          VERSION="${{ needs.release-please.outputs.tag_name || github.event.inputs.tag }}"
           ARCHIVE="ralf_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz"
           tar czf "$ARCHIVE" -C build ralf
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
@@ -103,6 +109,7 @@ jobs:
 
   upload:
     needs: [release-please, build]
+    if: ${{ always() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -120,7 +127,7 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          tag_name: ${{ needs.release-please.outputs.tag_name || github.event.inputs.tag }}
           files: |
             artifacts/*.tar.gz
             artifacts/checksums.txt
@@ -131,7 +138,7 @@ jobs:
     needs: [release-please, upload]
     runs-on: ubuntu-latest
     environment: Release
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ always() && needs.upload.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -148,5 +155,5 @@ jobs:
       - name: Publish npm packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          VERSION: ${{ needs.release-please.outputs.version }}
+          VERSION: ${{ needs.release-please.outputs.version || github.event.inputs.tag }}
         run: bash npm/publish.sh

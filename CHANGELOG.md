@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.1.0 (2026-03-24)
+
+
+### Features
+
+* add branching strategy, CI workflow, and validation rules ([ccfefe1](https://github.com/ralfjs/ralf/commit/ccfefe188b9ffa6b11efd1bf14d38e598556eb22))
+* **ci:** add release-please for auto versioning and changelog ([2e65a70](https://github.com/ralfjs/ralf/commit/2e65a70b2e3e296d5868fe027f2835a97a4c0e0f))
+* **cli:** add ralf init with ESLint/Biome migration ([#26](https://github.com/ralfjs/ralf/issues/26)) ([11d4a70](https://github.com/ralfjs/ralf/commit/11d4a70ef5b81cdf0f55beaada276d1cd93ec485))
+* **cli:** add SARIF v2.1.0 output format ([#23](https://github.com/ralfjs/ralf/issues/23)) ([0d337c0](https://github.com/ralfjs/ralf/commit/0d337c03ec5a31a04aa42eea5d04372e2cf60228))
+* **config:** add JS config loader and extends resolution ([#22](https://github.com/ralfjs/ralf/issues/22)) ([b415220](https://github.com/ralfjs/ralf/commit/b4152201f92028f62ba83fd46b9c200c48ce94ce))
+* **config:** config loader with JSON, YAML, TOML support ([#2](https://github.com/ralfjs/ralf/issues/2)) ([3084872](https://github.com/ralfjs/ralf/commit/3084872ee52d26da6ce2c2c3fd20d7430b924fb7))
+* **engine,cli:** lint engine core + CLI lint command + rename to ralf ([#6](https://github.com/ralfjs/ralf/issues/6)) ([1ffc429](https://github.com/ralfjs/ralf/commit/1ffc429d083604e9f3cca199e6a38d6b6aedfe70))
+* **engine:** add 29 built-in rules with custom Go checker system ([#19](https://github.com/ralfjs/ralf/issues/19)) ([f8dbd1f](https://github.com/ralfjs/ralf/commit/f8dbd1f7daed33aa655640cce39e9d49ae4910b5))
+* **engine:** add auto-fix engine with --fix and --fix-dry-run CLI flags ([#13](https://github.com/ralfjs/ralf/issues/13)) ([129ad8f](https://github.com/ralfjs/ralf/commit/129ad8fd7f0873e8e982c2da7966dbbaedee528d))
+* **engine:** add inline suppression comments ([#20](https://github.com/ralfjs/ralf/issues/20)) ([0dfeae2](https://github.com/ralfjs/ralf/commit/0dfeae27fa8dcd218cf211fc09b76996ededfba2))
+* **engine:** AST pattern matching with tree-sitter integration ([#9](https://github.com/ralfjs/ralf/issues/9)) ([a2d972d](https://github.com/ralfjs/ralf/commit/a2d972d331a835a4ad4ae1df9225bae9032bb7c9))
+* **engine:** import ordering engine with group, alphabetize, and newline checks ([#18](https://github.com/ralfjs/ralf/issues/18)) ([cba9515](https://github.com/ralfjs/ralf/commit/cba9515b3986dc7590de55efa099c1a07afb405c))
+* **engine:** naming convention engine with AST integration ([#16](https://github.com/ralfjs/ralf/issues/16)) ([5bf31c6](https://github.com/ralfjs/ralf/commit/5bf31c619f02ebed4fcdb8fa033786a025a9cf3b))
+* **engine:** rure-go integration + performance optimizations ([#7](https://github.com/ralfjs/ralf/issues/7)) ([8fcee16](https://github.com/ralfjs/ralf/commit/8fcee1612b2411a51ad52056d39631754e797fd3))
+* **engine:** structural AST queries with tree-sitter integration ([#14](https://github.com/ralfjs/ralf/issues/14)) ([fc112a2](https://github.com/ralfjs/ralf/commit/fc112a25c17e3d1cdf8cdf0170a46ccc3c2d0dff))
+* **parser:** tree-sitter integration for JS/TS parsing ([#1](https://github.com/ralfjs/ralf/issues/1)) ([d043e0e](https://github.com/ralfjs/ralf/commit/d043e0e2b21ca751be092190d1b98afe83e45a99))
+* **rules:** add 12 ESLint/Biome-equivalent builtin rules ([#25](https://github.com/ralfjs/ralf/issues/25)) ([ae2a4db](https://github.com/ralfjs/ralf/commit/ae2a4db2c13aa69d32af4abbc2ef9516764b51d2))
+* **rules:** add 20 built-in regex rules with zero-config fallback ([#11](https://github.com/ralfjs/ralf/issues/11)) ([d7f3b64](https://github.com/ralfjs/ralf/commit/d7f3b645001277996427973f271c94ed9500e7b2))
+
+
+### Bug Fixes
+
+* address CLAUDE.md review findings ([28aa92c](https://github.com/ralfjs/ralf/commit/28aa92c3346ca5e57d6f76afb59c089e644ee51f))
+* **npm:** add files fields, pack verification, release docs ([#29](https://github.com/ralfjs/ralf/issues/29)) ([a6af23f](https://github.com/ralfjs/ralf/commit/a6af23f7c2dbcfb6572fdab7a53787ca24f4f5b4))
+
+
+### Performance
+
+* **engine:** SIMD-accelerated buildLineIndex via bytes.IndexByte ([#8](https://github.com/ralfjs/ralf/issues/8)) ([593a118](https://github.com/ralfjs/ralf/commit/593a118a0759729598892a6cebf47a848f92c71f))
+
+
+### Documentation
+
+* add conventional commits rules with scopes and examples ([b810615](https://github.com/ralfjs/ralf/commit/b810615dd9a66c9f3680e3c94375d278565ee563))
+* update ARCHITECTURE.md and CLAUDE.md for structural AST queries ([#15](https://github.com/ralfjs/ralf/issues/15)) ([ad7eb6b](https://github.com/ralfjs/ralf/commit/ad7eb6b1c37e61fc269cc84d42b87c1c14d4bb9f)), closes [#14](https://github.com/ralfjs/ralf/issues/14)
+* update README and ARCHITECTURE.md status markers ([#17](https://github.com/ralfjs/ralf/issues/17)) ([b637e81](https://github.com/ralfjs/ralf/commit/b637e8181b898a6d4a08c9214299a90aae005bc3))
+
+
+### Build
+
+* v0.1.0 release preparation ([#27](https://github.com/ralfjs/ralf/issues/27)) ([79d0130](https://github.com/ralfjs/ralf/commit/79d0130199bb839727360bbded30c0899e95729c))
+
+
+### Miscellaneous
+
+* add golangci-lint config, changelog, contributing guide, and license ([1f5d5c9](https://github.com/ralfjs/ralf/commit/1f5d5c948c07c802845a14288214f8c5328c48c9))
+* **config:** remove dead struct fields and fix doc markers ([#21](https://github.com/ralfjs/ralf/issues/21)) ([e9820a1](https://github.com/ralfjs/ralf/commit/e9820a102b7bb0edbc8ed480c69b37a6eb3d2990))
+* **release:** set release-as 0.1.0 ([8c1930d](https://github.com/ralfjs/ralf/commit/8c1930da47c2f912729a34ad3f820a4825df56d4))
+* **release:** set release-as 0.1.0 for initial release ([2bcf54a](https://github.com/ralfjs/ralf/commit/2bcf54ac767c894d225ee9f1a85aa57e74055757))
+* **release:** v0.1.0 ([5926528](https://github.com/ralfjs/ralf/commit/5926528ec8108c0a1f3fe8cab7ea31e9a0665acb))
+
 ## [Unreleased]
 
 No changes yet.

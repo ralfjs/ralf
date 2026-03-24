@@ -1,176 +1,183 @@
-# BEPRO
+# RALF
 
-[![CI](https://github.com/Hideart/bepro/actions/workflows/ci.yml/badge.svg)](https://github.com/Hideart/bepro/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/Hideart/bepro/branch/main/graph/badge.svg)](https://codecov.io/gh/Hideart/bepro)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Hideart/bepro)](https://goreportcard.com/report/github.com/Hideart/bepro)
+**R**eliable **A**dvanced **L**inting **F**ramework
 
-Fast, project-aware JS/TS linter and formatter with declarative custom rules and incremental cross-file analysis.
+[![CI](https://github.com/ralfjs/ralf/actions/workflows/ci.yml/badge.svg)](https://github.com/ralfjs/ralf/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@ralfjs/cli)](https://www.npmjs.com/package/@ralfjs/cli)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ralfjs/ralf)](https://goreportcard.com/report/github.com/ralfjs/ralf)
 
-Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https://github.com/BurntSushi/rure-go). AST parsing via [tree-sitter](https://tree-sitter.github.io/tree-sitter/).
+Fast, project-aware JS/TS linter with 61 built-in rules. ESLint/Biome compatible. Zero config required.
 
-> **Status: Early development.** Not ready for production use.
+Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https://github.com/BurntSushi/rure-go). AST parsing via [tree-sitter](https://tree-sitter.github.io/tree-sitter/). Supports JavaScript, TypeScript, JSX, and TSX.
 
-## Why
+---
 
-| | ESLint | Biome | Prettier | BEPRO |
-|---|---|---|---|---|
-| Language | JS | Rust | JS | Go |
-| Speed | Slow | Fast | Slow | Fast |
-| Cross-file analysis | Plugins, re-parse all | None (single file) | N/A | First-class, incremental |
-| Custom rules | JS visitors (slow) | None yet | N/A | Declarative (native speed) |
-| Watch + LSP | Third-party | Partial | N/A | Built-in, cache-backed |
-| Formatter | N/A | Built-in | Built-in | Built-in |
-| Plugin escape hatch | N/A | N/A | N/A | WASM |
+## Table of Contents
 
-## Benchmarks
+- [Why RALF](#why-ralf)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Example Output](#example-output)
+- [Rules](#rules)
+- [Configuration](#configuration)
+- [Output Formats](#output-formats)
+- [Roadmap](#roadmap)
+- [Documentation](#documentation)
+- [License](#license)
 
-Tested on Apple Silicon (14 cores), 390K lines of JS, 30 lint rules, 100 iterations averaged:
+---
 
-| Approach | Avg per run |
-|---|---|
-| Go `regexp` stdlib | ~400ms+ |
-| Rust single-thread (`regex` crate) | 135ms |
-| Rust parallel (rayon, 14 cores) | 73ms |
-| **Go + rure-go guarded (14 workers)** | **22ms** |
+## Why RALF
 
-Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust single-thread on this workload. Details in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#benchmark-results-proven).
+| | ESLint | Biome | RALF |
+|---|---|---|---|
+| Language | JS | Rust | Go |
+| Speed | Slow | Fast | Fast (Go + Rust regex via CGo) |
+| Custom rules | JS visitors (slow) | None yet | Declarative (native speed) |
+| Config migration | N/A | N/A | `--from-eslint`, `--from-biome` |
+| Output formats | Stylish, JSON | JSON | Stylish, JSON, SARIF, GitHub Actions, compact |
+| Auto-fix | Yes | Yes | Yes (`--fix` / `--fix-dry-run`) |
 
-## Features
+## Installation
 
-### Linter
+**npm** (recommended):
+```bash
+npm install -D @ralfjs/cli   # per-project dev dependency
+npm install -g @ralfjs/cli   # global install
+npx @ralfjs/cli lint         # one-off without install
+```
 
-| Feature | Status | Description |
+**Binary download** (macOS, Linux):
+
+Download the latest binary from [GitHub Releases](https://github.com/ralfjs/ralf/releases) for your platform, extract, and add to your PATH.
+
+**From source** (requires Go, CGo, and Rust toolchain):
+```bash
+git clone https://github.com/ralfjs/ralf.git && cd ralf
+./scripts/build-librure.sh  # builds Rust regex library
+make build                   # builds ralf binary
+```
+
+## Quick Start
+
+```bash
+# Lint your project (zero config — all 61 rules enabled)
+ralf lint
+
+# Generate a config file to customize rules
+ralf init
+
+# Migrate from ESLint
+ralf init --from-eslint
+
+# Migrate from Biome
+ralf init --from-biome
+
+# Auto-fix
+ralf lint --fix
+
+# Preview fixes without writing
+ralf lint --fix-dry-run
+
+# SARIF output for GitHub Code Scanning
+ralf lint --format sarif > results.sarif
+```
+
+Suppress rules inline (in your JS/TS files):
+
+```js
+// lint-disable-next-line no-console
+console.log("debug");
+
+// lint-disable no-console, no-var  (block start)
+// lint-enable no-console, no-var   (block end)
+
+// lint-disable-file no-console     (entire file)
+```
+
+## Example Output
+
+```
+src/index.ts
+  3:1  error  Use `let` or `const` instead of `var`  no-var
+  7:5  error  Expected '===' and instead saw '=='.    eqeqeq
+  12:3 warn   Unexpected console statement            no-console
+
+src/utils.ts
+  21:10 error  Duplicate key 'id'.                    no-dupe-keys
+
+✖ 4 problems (3 errors, 1 warning)
+```
+
+## Rules
+
+61 built-in rules covering ESLint recommended and Biome stable equivalents:
+
+**Error prevention:** `no-dupe-keys`, `no-dupe-args`, `no-dupe-class-members`, `no-duplicate-case`, `no-self-assign`, `no-self-compare`, `valid-typeof`, `use-isnan`, `for-direction`, `getter-return`, `no-setter-return`, `no-unsafe-finally`, `no-unsafe-negation`, `no-unsafe-optional-chaining`, `no-constant-condition`, `no-loss-of-precision`, `no-fallthrough`, `no-inner-declarations`, `no-constructor-return`, `no-empty-character-class`, `no-sparse-arrays`, `no-cond-assign`, `no-compare-neg-zero`
+
+**Best practices:** `eqeqeq`, `no-var`, `no-eval`, `no-implied-eval`, `no-new-func`, `no-caller`, `no-void`, `no-with`, `no-labels`, `no-extend-native`, `no-proto`, `no-iterator`, `no-new-wrappers`, `no-return-await`, `no-case-declarations`, `no-delete-var`, `no-octal`, `no-octal-escape`, `no-nonoctal-decimal-escape`, `no-multi-str`, `no-script-url`, `no-inner-html`
+
+**Code quality:** `no-empty`, `no-empty-pattern`, `no-empty-static-block`, `no-useless-catch`, `no-extra-boolean-cast`, `no-shadow-restricted-names`, `no-prototype-builtins`, `require-yield`, `no-async-promise-executor`, `no-new-native-nonconstructor`, `no-obj-calls`, `no-regex-spaces`, `no-control-regex`
+
+**Style:** `no-console`, `no-debugger`, `no-alert`
+
+Full rule gap analysis vs ESLint/Biome: [#24](https://github.com/ralfjs/ralf/issues/24)
+
+## Configuration
+
+Zero config works out of the box — all 61 rules enabled with sensible defaults.
+
+To customize, run `ralf init` and edit the generated config:
+
+```json
+{
+  "rules": {
+    "no-var": { "severity": "error" },
+    "no-console": { "severity": "warn" },
+    "eqeqeq": { "severity": "off" }
+  },
+  "ignores": ["dist/**", "*.test.js"],
+  "overrides": [
+    {
+      "files": ["**/*.test.*"],
+      "rules": { "no-console": { "severity": "off" } }
+    }
+  ]
+}
+```
+
+Supports `.ralfrc.json`, `.ralfrc.yaml`, `.ralfrc.yml`, `.ralfrc.toml`, and `.ralfrc.js`.
+
+See the **[Configuration Guide](docs/CONFIGURATION.md)** for full syntax: rule types (regex, AST pattern, structural query, builtin), auto-fix, where predicates, naming conventions, import ordering, `extends`, inline suppression, and migration from ESLint/Biome.
+
+## Output Formats
+
+| Format | Flag | Use Case |
 |---|---|---|
-| Regex rules (rure-go) | Planned | Pattern-based lint rules via Rust regex engine |
-| AST pattern matching | Planned | ast-grep-style `$VAR` / `$$$ARGS` syntax |
-| Structural queries | Planned | `ast: { kind, parent, ancestor, capture }` |
-| Naming conventions | Planned | `naming: { match }` on AST captures |
-| Import ordering | Planned | `imports: { groups, alphabetize }` |
-| Complexity checks | Planned | Cyclomatic complexity threshold |
-| Inline suppression | Planned | `// lint-disable-next-line`, block disables |
-| Built-in rules (50+) | Planned | ESLint recommended + React plugin equivalents |
-
-### Custom Rules (Declarative)
-
-| Feature | Status | Description |
-|---|---|---|
-| Regex rules in config | Planned | `regex: "pattern"` — compiled to rure-go |
-| AST patterns in config | Planned | `pattern: "console.log($$$)"` — native matching |
-| Structural queries in config | Planned | `ast: { kind, ancestor, enclosingFunction }` |
-| Capture + assertions | Planned | `capture: { name: "$X" }`, `assert: { "$X": ... }` |
-| Cross-file rules | Planned | `scope: "cross-file"` — module graph queries |
-| WASM plugin escape hatch | Planned | Imperative rules in Go/Rust/AS compiled to WASM |
-
-### Formatter
-
-| Feature | Status | Description |
-|---|---|---|
-| dprint WASM integration | Planned | Prettier-compatible formatting via Wazero |
-| Import auto-sorting | Planned | Group, alphabetize, remove unused |
-| Native CST printer | Planned | Full control over output (long-term replacement for dprint) |
-
-### Project-Aware Analysis
-
-| Feature | Status | Description |
-|---|---|---|
-| SQLite project cache | Planned | Per-file cache with content hashing |
-| Module graph | Planned | Import/export dependency tracking |
-| Cross-file rules | Planned | Unused exports, circular deps, layer violations, dead modules |
-| File watcher | Planned | fsnotify + cascade invalidation |
-| Incremental re-analysis | Planned | Only changed files + their dependents |
-
-### LSP + Editor Integration
-
-| Feature | Status | Description |
-|---|---|---|
-| LSP server | Planned | JSON-RPC over stdio |
-| Push diagnostics | Planned | Real-time lint errors in editor |
-| Quick fixes | Planned | Code actions for auto-fixable rules |
-| Format on save | Planned | Integrated formatter |
-| Go to definition | Planned | Import → export via module graph |
-| Find references | Planned | All importers of a symbol |
-| VS Code extension | Planned | Language client + config intellisense |
-
-### Auto-Fix
-
-| Feature | Status | Description |
-|---|---|---|
-| Template fixes | Planned | `fix: { replace: "const $NAME = $VALUE" }` |
-| Safe / unsafe categories | Planned | `--fix` (safe), `--fix-unsafe` (all), `--fix-dry-run` |
-| Conflict resolution | Planned | Overlapping fixes resolved by severity + specificity |
-
-### CLI
-
-| Feature | Status | Description |
-|---|---|---|
-| `bepro lint` | Planned | Lint files with configurable rules |
-| `bepro format` | Planned | Format files |
-| `bepro check` | Planned | Lint + format check (for CI) |
-| `bepro init` | Planned | Generate config, migrate from ESLint/Biome |
-| `bepro lsp` | Planned | Start LSP server |
-| `bepro debug` | Planned | Inspect rules, AST, module graph |
-| Output formats | Planned | Stylish, JSON, SARIF, GitHub Actions annotations |
-
-### Config
-
-| Feature | Status | Description |
-|---|---|---|
-| JSON config | Planned | `.lintrc.json` |
-| YAML config | Planned | `.lintrc.yaml` |
-| TOML config | Planned | `.lintrc.toml` |
-| JS config | Planned | `.lintrc.js` via goja (eval once) |
-| `extends` | Planned | Inherit from shared config packages |
-| `overrides` | Planned | Glob-scoped rule overrides |
-| Monorepo workspaces | Planned | Per-workspace config with shared base |
-| ESLint migration | Planned | `bepro init --from-eslint` |
-| Biome migration | Planned | `bepro init --from-biome` |
+| Stylish | `--format stylish` (default) | Human-readable, grouped by file |
+| JSON | `--format json` | Machine-readable |
+| SARIF | `--format sarif` | GitHub Code Scanning |
+| GitHub | `--format github` | GitHub Actions annotations |
+| Compact | `--format compact` | Grep-friendly, one line per diagnostic |
 
 ## Roadmap
 
-| Milestone | Target | Key Deliverable |
-|---|---|---|
-| **v0.1** | Month 5 | Linter MVP — regex + AST patterns, CLI, 50 rules |
-| **v0.2** | Month 8 | Project-aware — cache, module graph, LSP, VS Code |
-| **v0.3** | Month 11 | Formatter — dprint WASM, auto-fix, import sorting |
-| **v0.4** | Month 13 | WASM plugins — Go/Rust/AS SDKs |
-| **v1.0** | Month 16 | Type-aware rules via typescript-go, production-ready |
-
-## Project Structure
-
-```
-cmd/bepro/              # CLI entry point (thin)
-internal/
-  engine/               # Rule execution (regex, AST, structural, naming)
-  parser/               # tree-sitter wrapper
-  formatter/            # dprint WASM bridge → native printer
-  project/              # Module graph, SQLite cache, file watcher
-  lsp/                  # LSP server
-  config/               # Config loader (JSON/YAML/TOML/JS)
-  cli/                  # CLI commands
-  plugin/               # WASM plugin host (Wazero)
-testdata/               # Test fixtures
-docs/                   # Architecture & design docs
-```
-
-## Tech Stack
-
-| Component | Technology | Why |
-|---|---|---|
-| Language | Go 1.25+ | Goroutine parallelism, fast compilation, single binary |
-| Regex engine | rure-go (Rust regex via CGo) | 3.3x faster than Rust rayon in benchmarks |
-| Parser | tree-sitter (Phase 1), typescript-go (Phase 4) | Error-tolerant, incremental, full TS support |
-| Formatter | dprint WASM (Phase 3), native printer (later) | Prettier-compatible without writing a printer |
-| Cache | SQLite (modernc.org/sqlite, pure Go) | Concurrent reads, single file, indexed |
-| WASM runtime | Wazero (pure Go) | Plugins + dprint, no CGo dependency |
-| Config eval | goja (pure Go) | Evaluate .lintrc.js once at startup |
-| File watching | fsnotify | Cross-platform, standard Go library |
-| Hashing | xxhash | Fast content-based cache invalidation |
+| Milestone | Key Deliverable |
+|---|---|
+| **v0.1** (current) | Linter MVP — 61 rules, CLI, config, SARIF, migration |
+| **v0.2** | Project-aware — SQLite cache, module graph, LSP, VS Code |
+| **v0.3** | Formatter — dprint WASM, import sorting |
+| **v0.4** | WASM plugins — Go/Rust/AS SDKs |
+| **v1.0** | Type-aware rules via typescript-go, scope analysis, CFG |
 
 ## Documentation
 
-- [Architecture & Design](docs/ARCHITECTURE.md) — full technical spec: benchmarks, architecture, declarative API, cross-file analysis, implementation plan, Go conventions
-- [Branching & Releases](docs/BRANCHING.md) — Git Flow, branch naming, release process, versioning, merge strategy
+- [Configuration Guide](docs/CONFIGURATION.md) — full config syntax reference
+- [Architecture & Design](docs/ARCHITECTURE.md) — technical spec, benchmarks, implementation plan
+- [Branching & Releases](docs/BRANCHING.md) — Git Flow, versioning
+- [Development Status](docs/DEVELOPMENT_STATUS.md) — detailed feature matrix
+- [Contributing](CONTRIBUTING.md) — dev setup, code style, testing
 
 ## License
 
-TBD
+[MIT](LICENSE)

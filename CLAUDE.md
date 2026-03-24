@@ -1,11 +1,11 @@
 # CLAUDE.md
 
-BEPRO — fast, project-aware JS/TS linter + formatter written in Go.
+RALF — fast, project-aware JS/TS linter + formatter written in Go.
 
 ## Quick Reference
 
 **Language:** Go 1.25+
-**Module:** `github.com/Hideart/bepro`
+**Module:** `github.com/ralfjs/ralf`
 **CGo deps:** rure-go (Rust regex), go-tree-sitter
 **Pure Go deps:** modernc.org/sqlite, fsnotify, goja, wazero, xxhash
 
@@ -30,7 +30,7 @@ Full technical spec: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 ### Project Layout
 
 ```
-cmd/bepro/main.go           # Entry point — MUST stay thin (~30 lines)
+cmd/ralf/main.go           # Entry point — MUST stay thin (~30 lines)
                              # Parse flags, wire deps, call internal packages. No logic here.
 
 internal/
@@ -38,12 +38,14 @@ internal/
     engine.go                # Orchestrator: takes config + files, returns diagnostics
     regex.go                 # rure-go pattern matching (parallel, semaphore-limited)
     ast_pattern.go           # AST pattern matching ("console.log($$$)" syntax)
-    structural.go            # Structural AST queries (kind, parent, ancestor, capture)
+    structural.go            # Structural AST queries (kind, name, parent, not). Symbol ID optimization
     naming.go                # Naming convention checks on AST captures
     imports.go               # Import ordering / grouping analysis
+    builtin_registry.go      # Custom Go builtin rules: types, registry, kind-indexed single-walk dispatch
+    builtin_*.go             # 33 per-rule checker files (no-empty, valid-typeof, no-dupe-keys, eqeqeq, etc.)
     complexity.go            # Cyclomatic complexity
     crossfile.go             # Cross-file rule evaluation (uses project.Graph)
-    fix.go                   # Auto-fix: replacement, deletion, insertion, templates
+    fix.go                   # Auto-fix: Fix/Conflict types, ApplyFixes (single-pass), expandToStatement
     lineindex.go             # Line/col resolution (binary search on line starts)
 
   parser/                    # tree-sitter wrapper
@@ -68,17 +70,17 @@ internal/
     codelens.go              # Inline code actions
 
   config/                    # Configuration
-    loader.go                # Load .lintrc.{json,yaml,toml,js} → *Config struct
+    loader.go                # Load .ralfrc.{json,yaml,toml,js} → *Config struct
     compiler.go              # Compile declarative rules → engine representation
     schema.go                # Config validation
     defaults.go              # Built-in recommended ruleset
 
   cli/                       # CLI commands
-    lint.go                  # bepro lint
-    format.go                # bepro format
-    check.go                 # bepro check (lint + format)
-    init.go                  # bepro init, --from-eslint, --from-biome
-    debug.go                 # bepro debug (rules, parse, graph)
+    lint.go                  # ralf lint
+    format.go                # ralf format
+    check.go                 # ralf check (lint + format)
+    init.go                  # ralf init, --from-eslint, --from-biome
+    debug.go                 # ralf debug (rules, parse, graph)
 
   plugin/                    # WASM plugin system
     host.go                  # Load + run .wasm plugins via Wazero
@@ -93,7 +95,7 @@ testdata/                    # Test fixtures (Go tooling ignores during builds)
 ### Dependency Direction
 
 ```
-cmd/bepro → internal/cli → internal/engine, internal/config, internal/project
+cmd/ralf → internal/cli → internal/engine, internal/config, internal/project
 internal/engine → internal/parser
 internal/project → internal/parser, internal/engine
 internal/lsp → internal/engine, internal/project, internal/formatter
@@ -103,7 +105,7 @@ internal/config → standalone (no internal deps)
 ```
 
 **Rules:**
-- `cmd/bepro/main.go` imports only `internal/cli`. Never import engine/parser/etc directly from main.
+- `cmd/ralf/main.go` imports only `internal/cli`. Never import engine/parser/etc directly from main.
 - `internal/config` must have zero dependencies on other internal packages.
 - `internal/parser` must not depend on `internal/engine` (parser is a low-level primitive).
 - `internal/engine` must not depend on `internal/project` — the project layer calls engine, not the reverse.
@@ -229,7 +231,7 @@ CGO_ENABLED=1 go test -race -count=1 -coverprofile=coverage.out ./...
 ## Anti-Patterns (MUST NOT do)
 
 ### Architecture
-- **Never** put logic in `cmd/bepro/main.go` — it must be a thin wrapper.
+- **Never** put logic in `cmd/ralf/main.go` — it must be a thin wrapper.
 - **Never** import `internal/engine` from `internal/parser` — parser is lower-level.
 - **Never** import `internal/project` from `internal/engine` — project calls engine, not reverse.
 - **Never** use `pkg/` directory — everything goes in `internal/`.
@@ -392,18 +394,20 @@ Use --output to specify output format (stylish, json, sarif).
 5. **If you added a lint rule:** there must be a corresponding fixture test in `testdata/rules/<rule-name>/`.
 6. **If you changed engine/parser/project:** run `make bench` and note any regressions.
 
-### Before Suggesting a Commit
+### Before Committing or Creating a PR
+
+**BLOCKING: You MUST run the full validation sequence and confirm all steps pass before committing code or creating a PR.** Do not skip any step. CI runs `make lint` with gocritic, which catches issues like `rangeValCopy` (large struct copies in range loops) and `hugeParam` (large value parameters) that compile and test fine locally but fail CI.
 
 - Confirm all tests pass. If tests fail, fix the code — don't skip or disable tests.
 - If a new test is needed for the change, write it first or alongside the implementation.
-- Never commit code that doesn't compile. Run `make build` to verify.
+- Never commit code that doesn't compile.
 
 ### Validation Sequence
 
 ```bash
 make build      # must compile
 make test-race  # must pass with zero races
-make lint       # must pass with zero warnings
+make lint       # MUST pass with zero warnings — CI will reject the PR otherwise
 make fmt        # then: git diff — must be clean
 ```
 

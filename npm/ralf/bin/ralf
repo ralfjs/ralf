@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+"use strict";
+
+const { existsSync } = require("fs");
+const { join, dirname } = require("path");
+const { execFileSync } = require("child_process");
+
+const PLATFORMS = {
+  "darwin-arm64": "@ralfjs/cli-darwin-arm64",
+  "darwin-x64": "@ralfjs/cli-darwin-x64",
+  "linux-x64": "@ralfjs/cli-linux-x64",
+  "linux-arm64": "@ralfjs/cli-linux-arm64",
+};
+
+const key = `${process.platform}-${process.arch}`;
+const pkg = PLATFORMS[key];
+
+if (!pkg) {
+  console.error(`ralf: unsupported platform ${key}`);
+  process.exit(1);
+}
+
+// Look for the native binary installed by postinstall or the platform package.
+// Scoped packages live under node_modules/@ralfjs/cli-<platform>/
+const candidates = [
+  join(__dirname, "ralf.exe"),  // postinstall copy (same dir)
+  join(dirname(__dirname), "node_modules", ...pkg.split("/"), "bin", "ralf"),
+  join(dirname(dirname(__dirname)), ...pkg.split("/"), "bin", "ralf"),
+];
+
+let bin = null;
+for (const c of candidates) {
+  if (existsSync(c)) {
+    bin = c;
+    break;
+  }
+}
+
+if (!bin) {
+  console.error(
+    `ralf: binary not found for ${key}. Try reinstalling: npm install @ralfjs/cli`
+  );
+  process.exit(1);
+}
+
+try {
+  execFileSync(bin, process.argv.slice(2), {
+    stdio: "inherit",
+  });
+} catch (e) {
+  process.exit(e.status || 1);
+}

@@ -1,0 +1,14 @@
+{
+  "rules": {
+    "no-var": {
+      "severity": "error",
+      "regex": "\\bvar\\b",
+      "message": "Use let or const instead of var"
+    },
+    "no-console": {
+      "severity": "warn",
+      "regex": "console\\.log",
+      "message": "Remove console.log calls"
+    }
+  }
+}

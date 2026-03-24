@@ -161,7 +161,7 @@ While in `v0.x`:
 
 | Version | Milestone |
 |---|---|
-| `v0.1.0` | Linter MVP — regex + AST patterns, CLI, 50 rules |
+| `v0.1.0` | Linter MVP — regex + AST patterns, CLI, 61 rules |
 | `v0.2.0` | Project-aware — cache, module graph, LSP, VS Code |
 | `v0.3.0` | Formatter — dprint WASM, auto-fix, import sorting |
 | `v0.4.0` | WASM plugins — Go/Rust/AS SDKs |
@@ -206,7 +206,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/):
 ### Added
 - Regex rule engine with rure-go parallel scanning
 - AST pattern matching with $VAR syntax
-- CLI: `bepro lint`, `bepro check`, `bepro init`
+- CLI: `ralf lint`, `ralf check`, `ralf init`
 - 50 built-in rules (ESLint recommended + React plugin)
 - JSON, YAML, JS config support
 

@@ -1,0 +1,42 @@
+name: Lint PR Title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            test
+            docs
+            build
+            ci
+            chore
+          scopes: |
+            engine
+            parser
+            formatter
+            project
+            lsp
+            config
+            cli
+            plugin
+            rules
+            deps
+            build
+            npm
+            release
+          requireScope: false

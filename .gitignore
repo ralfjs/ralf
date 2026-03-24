@@ -1,5 +1,5 @@
 # Binaries
-/bepro
+/ralf
 *.exe
 *.dll
 *.so
@@ -11,9 +11,9 @@ coverage.out
 
 # Build
 dist/
-vendor/librure/*.a
-vendor/librure/*.dylib
-vendor/librure/*.lib
+build/
+vendor/
+*.tgz
 
 # IDE
 .idea/
@@ -27,4 +27,4 @@ vendor/librure/*.lib
 Thumbs.db
 
 # Cache
-.bepro/
+.ralf/

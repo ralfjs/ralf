@@ -1,0 +1,10 @@
+{
+  "extends": ["./base.json", "./strict.json"],
+  "rules": {
+    "no-debugger": {
+      "regex": "\\bdebugger\\b",
+      "message": "Remove debugger statements",
+      "severity": "error"
+    }
+  }
+}

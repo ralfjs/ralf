@@ -1,0 +1,37 @@
+A-engine:
+  - changed-files:
+      - any-glob-to-any-file: "internal/engine/**"
+
+A-parser:
+  - changed-files:
+      - any-glob-to-any-file: "internal/parser/**"
+
+A-config:
+  - changed-files:
+      - any-glob-to-any-file: "internal/config/**"
+
+A-cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "internal/cli/**"
+          - "cmd/**"
+
+A-ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - "Makefile"
+          - "scripts/**"
+
+A-docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - "docs/**"
+
+A-deps:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "go.mod"
+          - "go.sum"
+          - "vendor/**"

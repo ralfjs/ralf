@@ -56,15 +56,44 @@ Benchmarks run on Apple Silicon (14 cores), 390K lines of JS, 30 lint rules, 100
 
 6. **WASM compilation penalty:** Go WASM 26x slower, Rust WASM 4x slower. Native binaries only.
 
-### Production Guardrails (Implemented in Benchmarks)
+### Production Guardrails (Implemented)
 
-- **Semaphore** — `chan struct{}` sized to `runtime.NumCPU()` limits concurrent CGo threads
+- **Semaphore** — `chan struct{}` sized to `runtime.NumCPU()` limits concurrent CGo threads. Acquired once per file in `LintFile`, not per rule.
 - **Iter-based scanning** — `rure.Iter` instead of `FindAllBytes`, avoids bulk C malloc
 - **Match cap** — `maxMatchesPerRule = 10000`, breaks early per rule
 - **Per-line dedup** — `seen` map ensures one diagnostic per rule per line
 - **Line/col resolution** — Binary search on pre-built `lineStarts` index
 
 Cost of guardrails: ~9ms (13ms → 22ms). Acceptable for production safety.
+
+### Engine Optimizations (Implemented)
+
+- **Worker batching** — files partitioned statically across `NumCPU` workers. No per-file goroutine spawn, no mutex during processing.
+- **Two-level sort** — `LintFile` sorts per-file diagnostics (small sorts). `Lint` sorts contiguous per-file chunks by filename — O(N + C·log C) vs O(N·log N).
+- **Pre-allocated slices** — `lineStarts`, `seen` map, diagnostic slices all pre-sized to avoid growth allocations.
+- **config.Merge fast path** — zero allocation when no overrides exist (common case).
+- **`slices.SortFunc`** — avoids interface boxing overhead of `sort.Slice`.
+
+E2E benchmark (100 files × 300 lines × 5 regex rules, Apple M4 Pro): **~27ms, 6.7K allocs, 162MB**.
+
+### Builtin Rule Optimizations (Implemented)
+
+- **Kind-indexed single-walk dispatch** — 33 custom Go builtin rules share a single `WalkNamed` traversal. Each rule registers the tree-sitter node kinds it handles; a `builtinIndex` (kindID → rule indices map) dispatches each visited node to matching checkers. Replaces 33 independent tree walks with 1.
+- **Symbol ID resolution** — node kinds resolved to numeric `kindID` once before the walk, same optimization as structural rules.
+
+Builtin benchmarks (Apple M4 Pro):
+- Historical microbenchmark (21 builtin rules on 1.2K-line pre-parsed tree): **5.4ms** (was 77ms with per-rule walks, **14x faster**)
+- All 61 rules E2E (50 files × 600 lines): **~197ms, ~3.9ms/file**
+
+### Current Optimizations
+
+- **SIMD newline scanning** — `buildLineIndex` uses `bytes.IndexByte` loop (platform-optimized assembly, SIMD on supported architectures)
+
+### Future Optimizations
+
+- **mmap file reads** — benchmarked, deferred: syscall overhead on small warm-cache files outweighs eliminated copy. Revisit if cold-scan matters before project cache (Phase 2)
+- **Buffer pooling** — `sync.Pool` for `lineStarts` and `[]Diagnostic` slices, reducing GC pressure in LSP/watch mode (Phase 2)
+- **Parallel file readahead** — separate I/O goroutines pre-read files into a bounded buffer pool, overlapping I/O and compute
 
 ---
 
@@ -119,7 +148,7 @@ Go has established LSP patterns from `gopls`. Use `golang.org/x/tools/gopls/inte
 ```
 ┌──────────────────────────────────────────────┐
 │              JS/JSON config                   │  ← user writes declarative rules
-│              (.lintrc.js)                     │
+│              (.ralfrc.js)                     │
 └──────────────────┬───────────────────────────┘
                    │ parsed once at startup (goja)
 ┌──────────────────▼───────────────────────────┐
@@ -242,7 +271,7 @@ Users write declarative config describing **what to match**. Go executes everyth
 ### Example Config
 
 ```js
-// .lintrc.js
+// .ralfrc.js
 export default {
   rules: {
     // Regex mode — runs via rure-go
@@ -319,7 +348,7 @@ export default {
     // Import ordering
     "consistent-imports": {
       imports: {
-        groups: ["builtin", "external", "internal", "relative"],
+        groups: ["builtin", "external", "internal", "parent", "sibling"],
         alphabetize: true,
         newlineBetween: true
       }
@@ -329,7 +358,7 @@ export default {
     "no-feature-cross-imports": {
       scope: "cross-file",
       ast: {
-        kind: "import_declaration",
+        kind: "import_statement",
         source: { match: /^\.\.\/.*/ }
       },
       where: {
@@ -565,7 +594,7 @@ func Run(ctx plugin.Context) []plugin.Diagnostic {
 **Config integration:**
 
 ```js
-// .lintrc.js
+// .ralfrc.js
 export default {
   rules: {
     "api-error-exhaustive": {
@@ -625,19 +654,36 @@ cmd/
   linter --lsp               # LSP server mode (same binary)
 
 internal/
-  parser/
-    treesitter.go            # tree-sitter wrapper
-    treesitter_queries.go    # pre-built queries for JS/TS/JSX/TSX
+  parser/                      # ✅ Implemented (Sprint 1)
+    lang.go                  # Lang type, extension→grammar mapping (JS/JSX/TS/TSX)
+    parser.go                # Parser wrapper with context cancellation + incremental reparse
+    tree.go                  # Tree/Node/Point value types (isolates tree-sitter C internals). KindID/SymbolForKind (zero-alloc symbol IDs), FieldID/ChildByFieldID (cached field lookups)
+    walk.go                  # Walk/WalkNamed depth-first traversal via TreeCursor
+    query.go                 # S-expression query wrapper for AST pattern matching
 
-  linter/
-    engine.go                # rule execution orchestrator
-    regex.go                 # rure-go pattern rules
-    ast_pattern.go           # AST pattern matching ("console.log($$$)")
-    structural.go            # structural AST queries
-    naming.go                # naming convention checker
-    imports.go               # import ordering / grouping
-    complexity.go            # cyclomatic complexity
-    crossfile.go             # cross-file rule evaluation
+  engine/                      # ✅ Implemented (Sprint 2)
+    diagnostic.go            # Diagnostic, FileError, Result types. Shared helpers: nodeDiag, nodeFix, setFilePath
+    lineindex.go             # buildLineIndex (O(n)), offsetToLineCol (O(log n) binary search)
+    regex.go                 # compiledRegex, compileRegexRules, matchRegex (rure-go via CGo)
+    semaphore.go             # CGo concurrency limiter (NumCPU bound)
+    where.go                 # matchesWhere — Where predicate evaluation (doublestar globs)
+    engine.go                # Engine orchestrator: New, LintFile, Lint (parallel via errgroup)
+    ast_pattern.go           # AST pattern matching ("console.log($$$)" syntax), capture bindings for fix templates
+    fix.go                   # Auto-fix: Fix/Conflict types, ApplyFixes (single-pass, conflict detection), expandToStatement
+    structural.go            # Structural AST queries: kind, name (exact/regex), parent, not. Symbol ID optimization (KindID)
+    naming.go                # Naming convention checker: compiledNaming, compileNaming, regex validation on AST node name fields
+    imports.go               # ✅ Import ordering / grouping (group order, alphabetize, newline-between)
+    complexity.go            # (planned) cyclomatic complexity
+    crossfile.go             # (planned) cross-file rule evaluation
+
+  cli/                         # ✅ Implemented (Sprint 2)
+    root.go                  # Root cobra command, global flags, Execute entry point
+    discover.go              # File discovery: WalkDir, extension filter, hardcoded skips, doublestar ignores
+    lint.go                  # Lint subcommand: config → engine → discover → lint → format. --fix / --fix-dry-run (atomic writes, unified diff)
+    init.go                  # Init subcommand: generate config, --from-eslint, --from-biome, --format json|yaml|toml
+    migrate_eslint.go        # ESLint config parser + 60-rule mapping table
+    migrate_biome.go         # Biome config parser + 48-rule mapping table + JSONC stripping
+    format.go                # Output formatters: stylish, JSON, compact, GitHub Actions, SARIF
 
   formatter/
     printer.go               # CST → formatted output
@@ -657,11 +703,13 @@ internal/
     codelens.go              # inline code actions
     completion.go            # rule name completion in config
 
-  config/
-    loader.go                # parse .lintrc.js via goja (once at startup)
-    compiler.go              # compile declarative rules → engine representation
-    schema.go                # config validation
-    defaults.go              # built-in recommended ruleset
+  config/                      # ✅ Implemented (Sprint 1)
+    config.go                # Config/RuleConfig/Severity types, matcher stubs (AST, Imports, Naming, Where)
+    loader.go                # Load (dir search) + LoadFile (JSON/YAML/TOML dispatch)
+    validate.go              # Structural validation: one matcher, valid severity, override rules
+    merge.go                 # Override resolution: file-glob matching, later-wins semantics
+    builtins.go              # BuiltinRules (20 regex rules) + RecommendedConfig (zero-config fallback)
+    compiler.go              # (planned) compile declarative rules → engine representation
 
   plugin/
     host.go                  # WASM plugin host (Wazero)
@@ -695,48 +743,48 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 1 | Project scaffolding | Repo, `cmd/` + `internal/` layout, go.mod, Makefile, CI (lint + test), .golangci.yml |
-| 2 | librure vendoring + build | Static librure.a for macOS arm64/x64 + Linux x64. CGo build working. Smoke test: compile regex, match string. |
-| 3 | tree-sitter integration | `internal/parser/`: load JS/TS/JSX/TSX grammars, parse file to AST, walk nodes. Tests: parse valid + invalid files. |
-| 4 | Config loader (JSON/YAML) | `internal/config/`: load `.lintrc.json` / `.lintrc.yaml`, deserialize to `*Config` struct. Validate schema. Override resolution. |
+| 1 | ✅ Project scaffolding | Repo, `cmd/` + `internal/` layout, go.mod, Makefile, CI (lint + test), .golangci.yml |
+| 2 | ✅ librure vendoring + rure-go integration | `scripts/build-librure.sh`: shallow clone + cargo build. `regex.go`: `rure.Compile` + `rure.IterBytes` iterator matching. `semaphore.go`: CGo concurrency limiter (`NumCPU()` bound). Makefile `CGO_LDFLAGS` wiring. CI: Rust toolchain + librure build. Worker batching, two-level sort, pre-allocations, config.Merge fast path. E2E ~27ms (100 files × 5 rules). 1 new test, 2 benchmarks (regex + e2e). |
+| 3 | ✅ tree-sitter integration | `internal/parser/`: Lang registry, Parser wrapper (context + incremental), Tree/Node types, Walk/WalkNamed, Query wrapper. 17 tests, 6 fixtures. |
+| 4 | ✅ Config loader (JSON/YAML/TOML) | `internal/config/`: Config types, Load/LoadFile (JSON/YAML/TOML), Validate (rules + overrides), Merge with file-scoped overrides. 26 tests, 6 fixtures. Known limitations: no `**` globstar (#4), no JSONC (#5), no field-level override merge (#3). |
 
 **Month 2 — Regex Engine + CLI Shell**
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 5 | Regex rule engine | `internal/engine/regex.go`: compile rure-go patterns, parallel scan (semaphore, iter-based, dedup, match cap). Port from benchmark prototype. |
-| 6 | Line/col resolution | `internal/engine/lineindex.go`: `buildLineIndex`, `offsetToLine`. Diagnostic struct with file, line, col, end col, rule name, message, severity. |
-| 7 | CLI `lint` command | `internal/cli/lint.go`: file discovery (glob + ignore), parallel file processing (goroutine per file), output formatters (stylish, JSON). Exit codes. |
-| 8 | First 20 regex rules | Built-in rules: no-var, no-console, no-eval, no-debugger, eqeqeq, no-alert, no-inner-html, etc. Fixture tests for each. |
+| 5 | ✅ Regex rule engine | `internal/engine/regex.go`: compile regex patterns + match with dedup + max cap (now rure-go, swapped in week 2). `internal/engine/where.go`: Where predicate evaluation with doublestar. 9 regex tests, 9 where tests. |
+| 6 | ✅ Line/col resolution | `internal/engine/lineindex.go`: `buildLineIndex` (O(n)), `offsetToLineCol` (O(log n) binary search). `internal/engine/diagnostic.go`: Diagnostic, FileError, Result types. 14 tests including CRLF. |
+| 7 | ✅ CLI `lint` command | `internal/cli/`: cobra root + lint subcommand, file discovery (WalkDir + doublestar ignores), 4 output formatters (stylish, JSON, compact, GitHub Actions). Exit codes 0/1/2/3. 7 discover tests, 6 format tests, 4 integration tests. |
+| 8 | ✅ First 20 regex rules | `internal/config/builtins.go`: 20 ESLint-equivalent regex rules + `RecommendedConfig` zero-config fallback. `ErrNoConfig` sentinel in loader. CLI falls back to built-ins when no `.ralfrc` found. Fixture tests (valid.js + invalid.js) for each rule. ESLint parity test suite. |
 
 **Month 3 — AST Pattern Matching (Critical Path)**
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 9 | Pattern parser | Parse `"console.log($$$ARGS)"` into a pattern AST. Handle `$NAME` (single node) and `$$$NAME` (variadic). |
-| 10 | Pattern matcher | Match pattern AST against tree-sitter AST. Capture bindings. Handle nested patterns. |
-| 11 | Pattern integration | Wire pattern matcher into engine. Config: `pattern: "..."` field compiles to matcher. Tests: 10+ pattern-based rules. |
-| 12 | Structural queries | `ast: { kind, parent, children, capture }` syntax. Compile to tree-sitter query or custom walker. |
+| 9 | ✅ Pattern parser | Parse `"console.log($$$ARGS)"` into a pattern AST. Handle `$NAME` (single node) and `$$$NAME` (variadic). |
+| 10 | ✅ Pattern matcher | Match pattern AST against tree-sitter AST. Capture bindings. Handle nested patterns. |
+| 11 | ✅ Pattern integration | Wire pattern matcher into engine. Config: `pattern: "..."` field compiles to matcher. Auto-fix with `--fix` and `--fix-dry-run` CLI flags. Tests: 10+ pattern-based rules. |
+| 12 | ✅ Structural queries | `ast: { kind, name, parent, not }` — Phase 1 fields. Compiled to native walker with symbol ID optimization (KindID). Kind-indexed rule dispatch, cached ChildByFieldID for name extraction. Shared tree parsing with pattern rules. |
 
 **Month 4 — Naming Rules + Rule Expansion**
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 13 | Naming convention engine | `naming: { match }` on captures. Integrate with structural queries. Rules: component naming, prop naming, file naming. |
-| 14 | Import analysis | `imports: { groups, alphabetize }` — parse import statements, detect ordering violations. |
-| 15 | 30 more built-in rules | Total: 50 rules. Cover ESLint recommended + React plugin essentials. Each with fixture test. |
-| 16 | Inline suppression | Parse `// lint-disable-next-line`, `// lint-disable`, `/* lint-disable-file */`. Skip diagnostics for suppressed ranges. |
+| 13 | ✅ Naming convention engine | `naming: { match }` as modifier on `ast` rules. `compiledNaming` with rure regex, `extractNameField` (no full-text fallback). Validation: naming requires ast, rejects standalone use. |
+| 14 | ✅ Import analysis | `imports: { groups, alphabetize, newlineBetween }` — classify imports by source path, single-pass group ordering + alphabetize + newline-between checks. Symbol ID optimization for `import_statement` nodes. |
+| 15 | ✅ 29 more built-in rules | Total: 49 rules (23 regex, 4 pattern, 1 structural, 21 custom Go builtin). Custom Go builtin system with kind-indexed single-walk dispatch. Each rule has fixture test. Week 19: +12 rules (eqeqeq, no-self-compare, no-empty-character-class, no-dupe-class-members, no-dupe-args, no-constructor-return, no-inner-declarations, no-unsafe-optional-chaining, no-constant-condition, no-loss-of-precision, getter-return, no-fallthrough) → total 61. |
+| 16 | ✅ Inline suppression | Five suppression forms: `lint-disable-next-line`, same-line `lint-disable`, block `lint-disable`/`lint-enable`, `lint-disable-file` (specific or all rules). Comma-separated rule lists. Post-match filter in `LintFile()`. |
 
 **Month 5 — Polish + Release**
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 17 | Config JS loader (goja) | `.lintrc.js` support via goja. Evaluate once, extract static config object. `extends` resolution. |
-| 18 | Output formats | SARIF, GitHub Actions annotations, compact format. `--format` flag. |
-| 19 | `yourlinter init` | Generate config from scratch. `--from-eslint` migration (rule name mapping table). |
-| 20 | Release prep | Cross-compile (macOS arm64/x64, Linux x64/arm64). GoReleaser config. npm wrapper package. README. |
+| 17 | ✅ Config JS loader (goja) | `.ralfrc.js` support via goja. Evaluate once, extract static config object. `extends` resolution. |
+| 18 | ✅ Output formats | SARIF v2.1.0, GitHub Actions annotations, compact format. `--format` flag. |
+| 19 | ✅ `ralf init` | `ralf init` generates config from 61 built-in rules. `--from-eslint` (JSON/YAML, 60-rule mapping table). `--from-biome` (JSON/JSONC, 48-rule mapping table). `--format json\|yaml\|toml`. `--force`. Migration report. |
+| 20 | ✅ Release prep | GitHub Actions matrix build (macOS arm64/x64, Linux x64/arm64). npm wrapper packages (`ralf-lint` + 4 platform packages). README rewrite. CHANGELOG. Cross-compile librure per target via Rust target triples. |
 
-**v0.1 deliverable:** `yourlinter lint`, `yourlinter check`, `yourlinter init`. 50 rules. JSON/YAML/JS config. Stylish + JSON + SARIF output. npm + homebrew + GitHub Releases.
+**v0.1 deliverable:** `yourlinter lint`, `yourlinter check`, `yourlinter init`. 61 rules. JSON/YAML/JS config. Stylish + JSON + SARIF output. npm + homebrew + GitHub Releases.
 
 ---
 
@@ -762,7 +810,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 27 | LSP server core | `internal/lsp/server.go`: JSON-RPC over stdio. Initialize, shutdown, didOpen, didChange, didSave, didClose. |
 | 28 | Push diagnostics | `textDocument/publishDiagnostics`: lint on open, re-lint on change (debounced), push results. Cross-file diagnostics from cache. |
 | 29 | Code actions | `textDocument/codeAction`: quick fixes for auto-fixable rules. "Fix all" action. |
-| 30 | VS Code extension | TypeScript extension: language client, status bar, config intellisense (JSON schema for `.lintrc.*`). |
+| 30 | VS Code extension | TypeScript extension: language client, status bar, config intellisense (JSON schema for `.ralfrc.*`). |
 | 31 | Workspace diagnostics | `workspace/diagnostic`: project-wide cross-file errors in Problems panel. Efficient pull-based diagnostics. |
 | 32 | LSP extras | Hover (rule description on squiggle), go-to-definition (import → export via graph), find references (symbol → all importers). |
 
@@ -787,9 +835,9 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 37 | Fix infrastructure | `internal/engine/fix.go`: fix types (replacement, deletion, insertion). Range-based. Conflict resolution (priority, overlap detection). |
-| 38 | Template fixes | `fix: { replace: "const $NAME = $VALUE" }` — substitution using captured variables from pattern/AST match. |
-| 39 | Safe vs unsafe fixes | Categorize all built-in rule fixes. `--fix` (safe only), `--fix-unsafe` (all), `--fix-dry-run` (show diff). |
+| 37 | ✅ Fix infrastructure | `internal/engine/fix.go`: Fix/Conflict types (replacement, deletion, delete-statement). Single-pass forward application with exact-alloc output buffer. Overlap detection (leftmost wins). `Diagnostic.Fix` optional field. Wired into `compiledRegex` + `compiledPattern`. 7 unit tests, 6 integration tests, 3 benchmarks. |
+| 38 | ✅ Template fixes | `fix: "const $NAME = $VALUE"` — string field on `RuleConfig`, substitution using captured metavariables from pattern match. Captures collected via unified `matchNode`/`matchChildren` with optional bindings map. |
+| 39 | Partial: safe vs unsafe fixes | `--fix` and `--fix-dry-run` implemented in CLI (atomic writes, unified diff output). `--fix-unsafe` and safe/unsafe categorization deferred. |
 | 40 | Fix in LSP | Code actions return fixes. "Fix all auto-fixable" command. Format after fix. |
 
 **Month 10-11 — Import Fixer + Polish**
@@ -939,7 +987,7 @@ AST pattern matching is the highest-risk, highest-value component. It's the core
 ESLint's cascading config (merging `.eslintrc` from every parent directory) is a known source of confusion and bugs. Biome uses a single config. This tool uses a **flat config with explicit overrides** — one config file at project root, with glob-scoped override blocks.
 
 ```js
-// .lintrc.js (project root — single source of truth)
+// .ralfrc.js (project root — single source of truth)
 export default {
   // Base rules — apply to all files
   rules: {
@@ -1005,20 +1053,23 @@ var x = 1;
 console.log(x);
 // lint-enable no-console, no-var
 
-// Disable entire file (must be at top)
+// Disable entire file
 // lint-disable-file no-console
+
+// With reason (planned — #28)
+// lint-disable-next-line no-console -- needed for debugging
 ```
 
 ### Config Discovery
 
 ```
-1. Look for .lintrc.{js,ts,mjs,json,yaml,yml,toml} in CWD
+1. Look for .ralfrc.{js,ts,mjs,json,yaml,yml,toml} in CWD
 2. Walk up to find project root (nearest package.json or .git)
 3. Check "lint" key in package.json as alternative
 4. No config found → use built-in recommended preset
 ```
 
-Priority order: `.lintrc.js` > `.lintrc.ts` > `.lintrc.json` > `.lintrc.yaml` > `.lintrc.toml` > `package.json#lint`
+Priority order: `.ralfrc.js` > `.ralfrc.ts` > `.ralfrc.json` > `.ralfrc.yaml` > `.ralfrc.toml` > `package.json#lint`
 
 No merging across directories. One config per project. Monorepos use workspace-level overrides (see Monorepo Support section).
 
@@ -1056,7 +1107,7 @@ func LoadConfig(path string) (*Config, error) {
 **JSON example:**
 
 ```jsonc
-// .lintrc.json
+// .ralfrc.json
 {
   "extends": ["@myorg/lint-rules-react"],
   "rules": {
@@ -1085,7 +1136,7 @@ func LoadConfig(path string) (*Config, error) {
 **YAML example:**
 
 ```yaml
-# .lintrc.yaml
+# .ralfrc.yaml
 extends:
   - "@myorg/lint-rules-react"
 
@@ -1112,7 +1163,7 @@ overrides:
 **TOML example:**
 
 ```toml
-# .lintrc.toml
+# .ralfrc.toml
 extends = ["@myorg/lint-rules-react"]
 
 [rules]
@@ -1147,68 +1198,114 @@ These cover <5% of use cases. The recommendation is YAML or JSON for most projec
 
 ## Auto-Fix Architecture
 
-### Fix Types
+### Fix Types (Implemented)
+
+| Type | Config syntax | What it does |
+|---|---|---|
+| **Replacement** | `fix: "const $NAME = $VALUE"` | Replace matched range with template string |
+| **Delete statement** | `fix: "delete-statement"` | Delete the entire line(s) containing the match |
+| *(no fix)* | `fix: ""` or omitted | No fix attached to diagnostics |
+
+The `Fix` field on `RuleConfig` is a plain string. Convention:
+- Empty string → no fix
+- `"delete-statement"` → delete enclosing line(s) including trailing newline
+- Anything else → replacement template (may contain `$NAME`/`$$$NAME` captures for pattern rules)
+
+### Fix Types (Planned)
 
 | Type | Description | Example |
 |---|---|---|
-| **Replacement** | Replace matched range with new text | `var x` → `const x` |
-| **Template** | Pattern-based substitution using captures | `$X == null` → `$X === null` |
-| **Deletion** | Remove matched code | Remove `console.log(...)` |
 | **Insertion** | Add code before/after match | Add missing `ErrorBoundary` wrapper |
 | **Import fix** | Add/remove/reorder imports | Auto-sort, remove unused |
 
-### Fix Definition in Config
+### Core Types (`internal/engine/fix.go`)
 
-```js
-"no-var": {
-  pattern: "var $NAME = $VALUE",
-  fix: {
-    // Simple replacement template
-    replace: "const $NAME = $VALUE"
-  }
-},
+```go
+// Fix represents a concrete source code edit.
+type Fix struct {
+    StartByte int    // inclusive byte offset in source
+    EndByte   int    // exclusive byte offset in source
+    NewText   string // replacement text (empty = deletion)
+}
 
-"no-console-in-prod": {
-  pattern: "console.log($$$ARGS)",
-  fix: {
-    // Delete the entire statement
-    action: "delete-statement"
-  }
-},
-
-"prefer-template": {
-  pattern: "$A + $B + $C",
-  where: {
-    "$A": { kind: "string" },
-    "$C": { kind: "string" }
-  },
-  fix: {
-    // Template literal conversion
-    replace: "`${$A.stripQuotes}${$B}${$C.stripQuotes}`"
-  }
+// Conflict records a fix skipped due to overlap.
+type Conflict struct {
+    Fix    Fix
+    Reason string
 }
 ```
 
-### Conflict Resolution
+`Diagnostic` carries an optional fix:
 
-When multiple fixes target overlapping ranges:
+```go
+type Diagnostic struct {
+    // ... line, col, rule, message, severity ...
+    Fix *Fix // nil if rule has no fix
+}
+```
 
+Byte offsets live only on `Fix`, not on `Diagnostic`. Display uses line/col; editing uses byte offsets.
+
+### Fix Definition in Config
+
+```jsonc
+// Replacement template with captures
+"no-var": {
+  "pattern": "var $NAME = $VALUE",
+  "fix": "const $NAME = $VALUE"
+}
+
+// Delete the entire statement line
+"no-console-in-prod": {
+  "pattern": "console.log($$$ARGS)",
+  "fix": "delete-statement"
+}
+
+// Regex rule with literal replacement
+"no-var-regex": {
+  "regex": "\\bvar\\b",
+  "fix": "let"
+}
+
+// Pattern rule: rewrite console.log → console.debug
+"log-to-debug": {
+  "pattern": "console.log($$$ARGS)",
+  "fix": "console.debug($$$ARGS)"
+}
 ```
-1. Sort fixes by range start position (ascending)
-2. If two fixes overlap:
-   a. Higher-severity rule wins
-   b. Same severity → smaller range (more specific) wins
-   c. Same range → first rule in config order wins
-3. Losing fix is reported as "unfixable conflict" in output
-4. User can re-run to apply remaining fixes iteratively
-```
+
+### Fix Application (`ApplyFixes`)
+
+Fixes are applied in a single forward pass with O(1) allocations:
+
+1. Sort fixes by `StartByte` ascending (skip copy if already sorted — common case from `LintFile`)
+2. Scan for overlaps: fix B overlaps fix A if `B.StartByte < A.EndByte`
+3. Keep the first (leftmost) non-overlapping fix, skip conflicts
+4. Compute exact output size, allocate once
+5. Interleave unchanged source segments with fix replacements in one forward pass
+
+**Performance:** 10k fixes on a large file: ~53us, 1 allocation (output buffer only).
+
+### Capture Substitution
+
+For pattern rules with `$VAR` or `$$$VAR` in the fix template:
+- `matchNode` collects capture bindings (name → matched source text) via an optional `captures map[string]string` parameter
+- `substituteCaptures` replaces `$$$NAME` and `$NAME` tokens in the template (longer keys first to avoid partial matches)
+- Variadic captures (`$$$ARGS`) record the concatenated source text of all consumed nodes
+
+### CLI Flags
+
+- `--fix`: Apply fixes and write files back (atomic: temp file + rename)
+- `--fix-dry-run`: Print unified diffs per file without writing
+- Fixed diagnostics are removed from output; unfixed diagnostics still reported
 
 ### Safety
 
 - **Dry-run mode** (`--fix-dry-run`): Show diffs without applying. Output unified diff format.
-- **Fix categories**: `safe` (always correct, e.g., `==` → `===`) vs `unsafe` (might change semantics, e.g., `var` → `const` in loops). `--fix` applies safe only. `--fix-unsafe` applies both.
-- **Atomic writes**: Fixes applied per-file atomically — either all fixes for a file succeed or none are written.
-- **Formatter re-run**: After fixes are applied, formatter runs on changed files to ensure consistent style.
+- **Atomic writes**: Fixes written to temp file in same directory, then renamed over original. Original file permissions preserved.
+- **Conflict reporting**: Overlapping fixes logged via `slog.Debug`, count reported to stderr.
+- **Fix categories** (planned): `safe` vs `unsafe` classification. `--fix-unsafe` flag deferred.
+- **Formatter re-run** (planned): After fixes are applied, formatter runs on changed files to ensure consistent style.
 
 ---
 
@@ -1276,7 +1373,7 @@ yourlinter format --diff            # show what would change
 yourlinter check                    # lint + format check, exit 1 on any issue
 
 # Project
-yourlinter init                     # create .lintrc.js with recommended preset
+yourlinter init                     # create .ralfrc.js with recommended preset
 yourlinter init --from-eslint       # migrate from ESLint config
 yourlinter init --from-biome        # migrate from Biome config
 yourlinter cache clean              # clear project cache
@@ -1350,7 +1447,7 @@ Performance:
        │  Extension provides:
        ├─ Language client (vscode-languageclient)
        ├─ Status bar item (diagnostics count, running state)
-       ├─ Config file intellisense (.lintrc.js schema)
+       ├─ Config file intellisense (.ralfrc.js schema)
        └─ Commands palette integration
 ```
 
@@ -1371,7 +1468,7 @@ Performance:
 
 ### Config File Intellisense
 
-The extension ships a JSON Schema for `.lintrc.js` that provides:
+The extension ships a JSON Schema for `.ralfrc.js` that provides:
 - Autocomplete for rule names (all built-in + custom rules from config)
 - Severity value suggestions (`"error"`, `"warn"`, `"off"`)
 - Validation of rule options
@@ -1387,7 +1484,7 @@ The extension ships a JSON Schema for `.lintrc.js` that provides:
 yourlinter init --from-eslint
 ```
 
-This reads `.eslintrc.*` / `eslint.config.*` and generates `.lintrc.js`:
+This reads `.eslintrc.*` / `eslint.config.*` and generates `.ralfrc.js`:
 
 1. **Rule mapping** — built-in lookup table of ESLint rule name → equivalent rule:
    ```
@@ -1528,7 +1625,7 @@ test:
 ### Workspace Config
 
 ```js
-// .lintrc.js (monorepo root)
+// .ralfrc.js (monorepo root)
 export default {
   workspaces: [
     "apps/*",
@@ -1574,7 +1671,7 @@ The module graph respects workspace boundaries. Cross-workspace imports are reso
 ```js
 "no-cross-workspace-relative-imports": {
   scope: "cross-file",
-  ast: { kind: "import_declaration" },
+  ast: { kind: "import_statement" },
   where: {
     importCrossesWorkspace: true,
     source: { match: /^\./ }      // relative path crossing workspace
@@ -1588,7 +1685,7 @@ The module graph respects workspace boundaries. Cross-workspace imports are reso
 Teams can publish reusable rule configs as npm packages:
 
 ```js
-// .lintrc.js
+// .ralfrc.js
 import reactRules from "@myorg/lint-rules-react";
 import securityRules from "@myorg/lint-rules-security";
 
@@ -1632,11 +1729,12 @@ Results tracked over time. Regressions block merge.
 ### Optimization Priorities
 
 ```
-1. File I/O (parallel reads, mmap for large files)
-2. Regex matching (rure-go, batch per-rule)
-3. AST traversal (single pass, multiple rules per visitor)
-4. Cache hits (avoid redundant work)
-5. Memory (pool allocators for diagnostics, reuse tree-sitter parsers)
+1. File I/O (mmap benchmarked & deferred, parallel readahead deferred)
+2. Line indexing — SIMD-accelerated bytes.IndexByte (done)
+3. Regex matching (rure-go, batch per-rule)
+4. AST traversal (single pass, multiple rules per visitor)
+5. Cache hits (avoid redundant work)
+6. Memory (pool allocators for diagnostics, reuse tree-sitter parsers)
 ```
 
 ---
@@ -1874,12 +1972,13 @@ yourlinter/
 │   │   ├── engine.go            # Rule execution orchestrator
 │   │   ├── engine_test.go       # Table-driven tests
 │   │   ├── regex.go             # rure-go pattern rules
-│   │   ├── ast_pattern.go       # AST pattern matching
+│   │   ├── ast_pattern.go       # AST pattern matching + capture bindings
+│   │   ├── fix.go               # Auto-fix application + conflict resolution
 │   │   ├── structural.go        # Structural AST queries
 │   │   ├── naming.go            # Naming convention checker
 │   │   ├── imports.go           # Import ordering / grouping
-│   │   ├── complexity.go        # Cyclomatic complexity
-│   │   └── crossfile.go         # Cross-file rule evaluation
+│   │   ├── complexity.go        # (planned) Cyclomatic complexity
+│   │   └── crossfile.go         # (planned) Cross-file rule evaluation
 │   │
 │   ├── parser/
 │   │   ├── treesitter.go        # tree-sitter wrapper
@@ -1905,7 +2004,7 @@ yourlinter/
 │   │   └── codelens.go          # Inline code actions
 │   │
 │   ├── config/
-│   │   ├── loader.go            # Parse .lintrc.{js,json,yaml,toml}
+│   │   ├── loader.go            # Parse .ralfrc.{js,json,yaml,toml}
 │   │   ├── loader_test.go
 │   │   ├── compiler.go          # Compile declarative rules → engine repr
 │   │   ├── schema.go            # Config validation

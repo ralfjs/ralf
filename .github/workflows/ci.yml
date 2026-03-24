@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main, develop]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOFLAGS: -mod=mod
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -14,20 +21,77 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - uses: golangci/golangci-lint-action@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build librure
+        run: ./scripts/build-librure.sh
+      - uses: golangci/golangci-lint-action@v7
         with:
-          version: v2
+          version: v2.11.3
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build librure
+        run: ./scripts/build-librure.sh
       - name: Run tests with coverage
+        run: make coverage
+      - name: Check overall coverage threshold
         run: |
-          CGO_ENABLED=1 go test -race -count=1 -coverprofile=coverage.out ./...
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
+          echo "Total coverage: ${COVERAGE}%"
+          THRESHOLD=70
+          if [ "$(echo "$COVERAGE < $THRESHOLD" | bc -l)" -eq 1 ]; then
+            echo "::error::Overall coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+            exit 1
+          fi
+      - name: Check new file coverage (PR only)
+        if: github.event_name == 'pull_request'
+        run: |
+          # Check statement coverage for newly added non-test Go files only.
+          # Modified files are excluded — their pre-existing uncovered code
+          # should not penalize a PR that touches a few lines.
+          NEW_FILES=$(git diff --diff-filter=A --name-only origin/${{ github.base_ref }}...HEAD -- '*.go' | grep -v '_test.go' || true)
+          if [ -z "$NEW_FILES" ]; then
+            echo "No new non-test Go files — skipping new-file coverage check"
+            exit 0
+          fi
+          echo "New files: $NEW_FILES"
+
+          # Parse coverage.out for statement-level coverage on new files.
+          # Format: module/path/file.go:startLine.startCol,endLine.endCol numStatements count
+          TOTAL_STMTS=0
+          COVERED_STMTS=0
+          while IFS= read -r file; do
+            MOD_PATH="github.com/ralfjs/ralf/${file}"
+            while IFS= read -r line; do
+              stmts=$(echo "$line" | awk '{print $(NF-1)}')
+              count=$(echo "$line" | awk '{print $NF}')
+              TOTAL_STMTS=$((TOTAL_STMTS + stmts))
+              if [ "$count" -gt 0 ]; then
+                COVERED_STMTS=$((COVERED_STMTS + stmts))
+              fi
+            done < <(grep "^${MOD_PATH}:" coverage.out || true)
+          done <<< "$NEW_FILES"
+
+          if [ "$TOTAL_STMTS" -eq 0 ]; then
+            echo "No coverable statements in new files — skipping"
+            exit 0
+          fi
+
+          DIFF_COV=$(echo "scale=1; $COVERED_STMTS * 100 / $TOTAL_STMTS" | bc)
+          echo "New file coverage: ${DIFF_COV}% ($COVERED_STMTS/$TOTAL_STMTS statements)"
+          THRESHOLD=70
+          if [ "$(echo "$DIFF_COV < $THRESHOLD" | bc -l)" -eq 1 ]; then
+            echo "::error::New file coverage ${DIFF_COV}% is below ${THRESHOLD}% threshold"
+            exit 1
+          fi
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -57,5 +121,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build librure
+        run: ./scripts/build-librure.sh
       - name: Build
-        run: CGO_ENABLED=1 go build -o bepro ./cmd/bepro
+        run: make build

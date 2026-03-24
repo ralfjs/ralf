@@ -1,33 +1,47 @@
-.PHONY: build test test-race coverage lint fmt clean bench install verify
+.PHONY: build test test-race coverage lint fmt clean bench install verify build-librure
 
-BINARY     := bepro
-VERSION    := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-LDFLAGS    := -s -w -X main.version=$(VERSION)
+BINARY      := ralf
+LDFLAGS     := -s -w
 CGO_ENABLED := 1
+LIBRURE_DIR := ./vendor/librure
+UNAME_S     := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+CGO_LDFLAGS := -L$(LIBRURE_DIR) -lrure -lm -lpthread
+else
+CGO_LDFLAGS := -L$(LIBRURE_DIR) -lrure -lm -ldl -lpthread
+endif
+GOFLAGS     := -mod=mod
+
+export CGO_ENABLED CGO_LDFLAGS GOFLAGS
+
+## Build librure from Rust regex-capi
+build-librure:
+	./scripts/build-librure.sh
 
 ## Build
 build:
-	CGO_ENABLED=$(CGO_ENABLED) go build -ldflags="$(LDFLAGS)" -o $(BINARY) ./cmd/bepro
+	@mkdir -p build
+	go build -ldflags="$(LDFLAGS)" -o build/$(BINARY) ./cmd/ralf
 
 ## Install locally
 install:
-	CGO_ENABLED=$(CGO_ENABLED) go install -ldflags="$(LDFLAGS)" ./cmd/bepro
+	go install -ldflags="$(LDFLAGS)" ./cmd/ralf
 
 ## Test
 test:
-	CGO_ENABLED=$(CGO_ENABLED) go test -count=1 ./...
+	go test -count=1 ./...
 
 test-race:
-	CGO_ENABLED=$(CGO_ENABLED) go test -race -count=1 ./...
+	go test -race -count=1 ./...
 
 ## Coverage
 coverage:
-	CGO_ENABLED=$(CGO_ENABLED) go test -race -count=1 -coverprofile=coverage.out ./...
+	go test -race -count=1 -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out
 
 ## Benchmark
 bench:
-	CGO_ENABLED=$(CGO_ENABLED) go test -bench=. -benchmem ./internal/engine/
+	go test -bench=. -benchmem ./internal/engine/
 
 ## Lint
 lint:
@@ -45,4 +59,4 @@ verify: lint
 
 ## Clean
 clean:
-	rm -f $(BINARY)
+	rm -rf build/ coverage.out

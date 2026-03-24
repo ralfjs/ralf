@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.0](https://github.com/ralfjs/ralf/compare/v0.1.0...v0.1.0) (2026-03-24)
+
+
+### Bug Fixes
+
+* **release:** add Release environment to npm-publish job ([#39](https://github.com/ralfjs/ralf/issues/39)) ([9e4581b](https://github.com/ralfjs/ralf/commit/9e4581b5f7ed4b6279af6b68c52c55b091225ac8))
+
+
+### Build
+
+* **deps:** bump actions/labeler from 5 to 6 ([#46](https://github.com/ralfjs/ralf/issues/46)) ([49cba4e](https://github.com/ralfjs/ralf/commit/49cba4e7f399eaf4f95778cd46f57a3e5706604d))
+* **deps:** bump actions/setup-go from 5 to 6 ([#45](https://github.com/ralfjs/ralf/issues/45)) ([221ef21](https://github.com/ralfjs/ralf/commit/221ef21f69a0799237b2eaa58b077f2b9aea7eb6))
+* **deps:** bump actions/upload-artifact from 4 to 7 ([#44](https://github.com/ralfjs/ralf/issues/44)) ([1c1ba3f](https://github.com/ralfjs/ralf/commit/1c1ba3f7e8bf6a99cab8fac97c85031d3c02972f))
+* **deps:** bump amannn/action-semantic-pull-request from 5 to 6 ([#43](https://github.com/ralfjs/ralf/issues/43)) ([7bee09c](https://github.com/ralfjs/ralf/commit/7bee09c528734ca91d22add9efe94a74df3d1319))
+
 ## 0.1.0 (2026-03-24)
 
 

@@ -130,6 +130,7 @@ jobs:
   npm-publish:
     needs: [release-please, upload]
     runs-on: ubuntu-latest
+    environment: Release
     if: ${{ needs.release-please.outputs.release_created }}
     steps:
       - uses: actions/checkout@v4

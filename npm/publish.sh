@@ -18,10 +18,18 @@ fi
 
 # Map Go os/arch to npm package names and archive names.
 declare -A PLATFORMS=(
-  ["darwin-arm64"]="ralf-darwin-arm64"
-  ["darwin-amd64"]="ralf-darwin-x64"
-  ["linux-amd64"]="ralf-linux-x64"
-  ["linux-arm64"]="ralf-linux-arm64"
+  ["darwin-arm64"]="@ralfjs/cli-darwin-arm64"
+  ["darwin-amd64"]="@ralfjs/cli-darwin-x64"
+  ["linux-amd64"]="@ralfjs/cli-linux-x64"
+  ["linux-arm64"]="@ralfjs/cli-linux-arm64"
+)
+
+# Map scoped package names to directory names.
+declare -A PKG_DIRS=(
+  ["@ralfjs/cli-darwin-arm64"]="ralf-darwin-arm64"
+  ["@ralfjs/cli-darwin-x64"]="ralf-darwin-x64"
+  ["@ralfjs/cli-linux-x64"]="ralf-linux-x64"
+  ["@ralfjs/cli-linux-arm64"]="ralf-linux-arm64"
 )
 
 # Extract binaries and publish platform packages.
@@ -38,14 +46,17 @@ for key in "${!PLATFORMS[@]}"; do
   fi
 
   # Extract binary into package.
-  pkg_dir="${SCRIPT_DIR}/${pkg}"
+  pkg_dir="${SCRIPT_DIR}/${PKG_DIRS[$pkg]}"
   mkdir -p "${pkg_dir}/bin"
   tar xzf "$tarball" -C "${pkg_dir}/bin"
   chmod +x "${pkg_dir}/bin/ralf"
 
-  # Update version.
+  # Update version and verify contents before publishing.
   cd "$pkg_dir"
   npm version "$VERSION" --no-git-tag-version --allow-same-version
+  echo "--- $pkg pack contents ---"
+  npm pack --dry-run 2>&1
+  echo "---"
   npm publish --access public
   echo "Published $pkg@$VERSION"
   cd -
@@ -64,5 +75,8 @@ node -e "
   require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
 
+echo "--- ralf-lint pack contents ---"
+npm pack --dry-run 2>&1
+echo "---"
 npm publish --access public
-echo "Published ralf-lint@$VERSION"
+echo "Published @ralfjs/cli@$VERSION"

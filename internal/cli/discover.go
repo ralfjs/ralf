@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/Hideart/ralf/internal/parser"
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/ralfjs/ralf/internal/parser"
 )
 
 // hardcodedSkips are directories always excluded from traversal.

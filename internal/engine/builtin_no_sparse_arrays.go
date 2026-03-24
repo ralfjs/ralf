@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 func checkNoSparseArrays(node parser.Node, _ []byte, lineStarts []int, diags *[]Diagnostic) {
 	// In tree-sitter, sparse array elements appear as consecutive ","

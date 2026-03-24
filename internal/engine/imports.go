@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Hideart/ralf/internal/config"
-	"github.com/Hideart/ralf/internal/parser"
+	"github.com/ralfjs/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/parser"
 )
 
 // ErrImportCompile indicates an import rule failed to compile.

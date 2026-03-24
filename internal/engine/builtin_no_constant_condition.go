@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 // checkNoConstantCondition flags constant (always truthy/falsy) conditions
 // in if/while/do/for/ternary statements.

@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Hideart/ralf/internal/version"
+	"github.com/ralfjs/ralf/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -56,7 +56,7 @@ Exit codes:
   2  Config or usage error
   3  Internal error
 
-Documentation: https://github.com/Hideart/ralf`,
+Documentation: https://github.com/ralfjs/ralf`,
 		Example: `  ralf lint                          # lint cwd with auto-discovered config
   ralf lint src/ tests/              # lint specific paths
   ralf lint --format sarif src/      # SARIF output for CI

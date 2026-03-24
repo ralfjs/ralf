@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"github.com/Hideart/ralf/internal/parser"
+	"github.com/ralfjs/ralf/internal/parser"
 )
 
 func checkNoCompareNegZero(node parser.Node, source []byte, lineStarts []int, diags *[]Diagnostic) {

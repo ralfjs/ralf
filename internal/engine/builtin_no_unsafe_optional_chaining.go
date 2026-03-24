@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 // checkNoUnsafeOptionalChaining flags optional chaining (?.) in contexts
 // where undefined would cause a runtime error: arithmetic, spread, new,

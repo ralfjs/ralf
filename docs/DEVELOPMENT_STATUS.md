@@ -3,9 +3,9 @@
 > This is a snapshot of the development-phase README, preserved for reference.
 > The main README was rewritten for the v0.1 public release.
 
-[![CI](https://github.com/Hideart/ralf/actions/workflows/ci.yml/badge.svg)](https://github.com/Hideart/ralf/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/Hideart/ralf/branch/main/graph/badge.svg)](https://codecov.io/gh/Hideart/ralf)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Hideart/ralf)](https://goreportcard.com/report/github.com/Hideart/ralf)
+[![CI](https://github.com/ralfjs/ralf/actions/workflows/ci.yml/badge.svg)](https://github.com/ralfjs/ralf/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/ralfjs/ralf/branch/main/graph/badge.svg)](https://codecov.io/gh/ralfjs/ralf)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ralfjs/ralf)](https://goreportcard.com/report/github.com/ralfjs/ralf)
 
 Fast, project-aware JS/TS linter and formatter with declarative custom rules and incremental cross-file analysis.
 

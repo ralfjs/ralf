@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 func isOctalLiteral(text string) bool {
 	if len(text) < 2 || text[0] != '0' {

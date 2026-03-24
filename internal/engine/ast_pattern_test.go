@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Hideart/ralf/internal/config"
-	"github.com/Hideart/ralf/internal/parser"
+	"github.com/ralfjs/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/parser"
 )
 
 func TestCompilePatternRules(t *testing.T) {

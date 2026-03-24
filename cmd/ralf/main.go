@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/Hideart/ralf/internal/cli"
+	"github.com/ralfjs/ralf/internal/cli"
 )
 
 func main() {

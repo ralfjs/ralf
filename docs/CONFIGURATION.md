@@ -272,7 +272,7 @@ console.log(x);
 // lint-disable-file no-console
 ```
 
-Suppression reason syntax (`-- reason text`) is planned: [#28](https://github.com/Hideart/ralf/issues/28).
+Suppression reason syntax (`-- reason text`) is planned: [#28](https://github.com/ralfjs/ralf/issues/28).
 
 ## JavaScript Config
 

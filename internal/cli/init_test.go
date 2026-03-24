@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Hideart/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/config"
 )
 
 func TestInit_DefaultConfig(t *testing.T) {

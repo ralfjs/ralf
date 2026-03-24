@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 
-	"github.com/Hideart/ralf/internal/parser"
+	"github.com/ralfjs/ralf/internal/parser"
 )
 
 // memberKindTag distinguishes get/set/method/field for duplicate detection.

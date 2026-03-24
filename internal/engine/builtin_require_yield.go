@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 func checkRequireYield(node parser.Node, _ []byte, lineStarts []int, diags *[]Diagnostic) {
 	body := node.ChildByFieldName("body")

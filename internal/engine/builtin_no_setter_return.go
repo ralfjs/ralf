@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 func checkNoSetterReturn(node parser.Node, source []byte, lineStarts []int, diags *[]Diagnostic) {
 	// Check for setter methods: method_definition with "set" keyword

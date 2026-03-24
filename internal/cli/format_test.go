@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Hideart/ralf/internal/config"
-	"github.com/Hideart/ralf/internal/engine"
+	"github.com/ralfjs/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/engine"
 )
 
 func TestStylishFormatter(t *testing.T) {

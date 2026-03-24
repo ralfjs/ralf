@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 // checkGetterReturn ensures getter methods contain at least one return statement
 // with a value. This is a simplified check (exists-any-return, not all-paths-return)

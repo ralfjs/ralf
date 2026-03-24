@@ -12,7 +12,7 @@
 ### 1. Clone the repo
 
 ```bash
-git clone git@github.com:Hideart/ralf.git
+git clone git@github.com:ralfjs/ralf.git
 cd ralf
 git checkout develop
 ```
@@ -190,6 +190,33 @@ This project has two CGo dependencies: **rure-go** (Rust regex) and **go-tree-si
 - The Makefile handles this automatically
 - Cross-compilation requires a C cross-compiler and pre-built librure for each target
 - See [docs/ARCHITECTURE.md — CGo Best Practices](docs/ARCHITECTURE.md) for details
+
+## Release Process
+
+Releases are automated via release-please + GitHub Actions:
+
+1. Merge feature PRs to `develop`
+2. Create `release/vX.Y.Z` from `develop`, PR to `main`
+3. Merge to `main` — release-please creates a release PR (bumps version in `internal/version/version.go`)
+4. Merge release-please PR — tag created, matrix build runs, GitHub Release published
+5. npm packages published automatically (requires `NPM_TOKEN` secret)
+6. Back-merge `main` into `develop`
+
+### Required Secrets
+
+| Secret | Where | Purpose |
+|---|---|---|
+| `GITHUB_TOKEN` | Automatic | GitHub Release upload, release-please |
+| `NPM_TOKEN` | Repo Settings > Secrets > Actions | npm publish — passed as `NODE_AUTH_TOKEN` to the workflow step |
+| `CODECOV_TOKEN` | Repo Settings > Secrets > Actions | Coverage upload |
+
+**Setting up NPM_TOKEN:**
+
+1. Go to [npmjs.com](https://www.npmjs.com/) > Account > Access Tokens
+2. Generate New Token > type: **Automation**
+3. Copy the token
+4. GitHub repo > Settings > Secrets and variables > Actions > New repository secret
+5. Name: `NPM_TOKEN`, Value: paste the token
 
 ## Questions?
 

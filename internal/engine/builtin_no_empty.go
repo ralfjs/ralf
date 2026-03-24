@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/Hideart/ralf/internal/parser"
+import "github.com/ralfjs/ralf/internal/parser"
 
 func checkNoEmpty(node parser.Node, _ []byte, lineStarts []int, diags *[]Diagnostic) {
 	// ESLint's no-empty skips blocks that contain any content, including

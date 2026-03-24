@@ -1,4 +1,4 @@
-module github.com/Hideart/ralf
+module github.com/ralfjs/ralf
 
 go 1.25.6
 

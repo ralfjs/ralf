@@ -10,7 +10,7 @@ import (
 	"sort"
 
 	"github.com/BurntSushi/toml"
-	"github.com/Hideart/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )

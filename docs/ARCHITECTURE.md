@@ -796,7 +796,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 21 | SQLite cache layer | `internal/project/cache.go`: per-file cache (content hash, diagnostics, exports, imports). WAL mode. Read/write benchmarks. |
+| 21 | ✅ SQLite cache layer | `internal/project/cache.go` + `hasher.go`: per-file cache (xxhash content hash, JSON diagnostics blob), config hash invalidation, WAL mode. Prepared exports/imports tables for week 23. Benchmarks: lookup 5.6μs, batch-store 1000 files 2.4ms, xxhash 100KB 4.2μs. |
 | 22 | Project scanner | `internal/project/scanner.go`: walk project, parse all files, populate cache. Parallel file processing. Progress reporting. |
 | 23 | Module graph | `internal/project/graph.go`: build import→export graph from cache. `ImportedBy`, `ExportedBy`, `ExportMap` queries. Cycle detection. |
 | 24 | Incremental update | Content hash check → skip unchanged. Re-parse changed files. Update graph edges. |

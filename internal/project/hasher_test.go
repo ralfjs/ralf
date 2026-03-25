@@ -61,8 +61,14 @@ func TestHashConfig_DifferentRules(t *testing.T) {
 			"no-console": {Severity: config.SeverityWarn},
 		},
 	}
-	h1, _ := HashConfig(cfg1)
-	h2, _ := HashConfig(cfg2)
+	h1, err := HashConfig(cfg1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h2, err := HashConfig(cfg2)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if h1 == h2 {
 		t.Error("expected different hashes for different configs")
 	}

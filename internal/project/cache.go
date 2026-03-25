@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/ralfjs/ralf/internal/engine"
 
@@ -118,9 +119,11 @@ func (c *Cache) checkConfigHash(ctx context.Context) error {
 	}
 
 	if stored != hashStr {
-		// Config changed — invalidate all cached results.
-		if _, err := c.db.ExecContext(ctx, "DELETE FROM files"); err != nil {
-			return fmt.Errorf("invalidate cache: %w", err)
+		// Config changed — invalidate all cached data (files + module graph).
+		for _, table := range []string{"files", "exports", "imports"} {
+			if _, err := c.db.ExecContext(ctx, "DELETE FROM "+table); err != nil { //nolint:gosec // table names are hardcoded
+				return fmt.Errorf("invalidate cache table %s: %w", table, err)
+			}
 		}
 		if _, err := c.db.ExecContext(ctx, "UPDATE meta SET value = ? WHERE key = 'config_hash'", hashStr); err != nil {
 			return fmt.Errorf("update config hash: %w", err)
@@ -172,13 +175,13 @@ func (c *Cache) Store(ctx context.Context, entry CacheEntry) error {
 
 	_, err = c.db.ExecContext(ctx,
 		`INSERT INTO files (path, content_hash, mod_time_ns, diag_json, updated_at)
-		 VALUES (?, ?, ?, ?, unixepoch('subsec')*1e9)
+		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(path) DO UPDATE SET
 		   content_hash = excluded.content_hash,
 		   mod_time_ns  = excluded.mod_time_ns,
 		   diag_json    = excluded.diag_json,
 		   updated_at   = excluded.updated_at`,
-		entry.Path, int64(entry.ContentHash), entry.ModTimeNS, diagJSON) //nolint:gosec // intentional uint64→int64
+		entry.Path, int64(entry.ContentHash), entry.ModTimeNS, diagJSON, time.Now().UnixNano()) //nolint:gosec // intentional uint64→int64
 	if err != nil {
 		return fmt.Errorf("cache store %s: %w", entry.Path, err)
 	}
@@ -199,7 +202,7 @@ func (c *Cache) StoreBatch(ctx context.Context, entries []CacheEntry) error {
 
 	stmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO files (path, content_hash, mod_time_ns, diag_json, updated_at)
-		 VALUES (?, ?, ?, ?, unixepoch('subsec')*1e9)
+		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(path) DO UPDATE SET
 		   content_hash = excluded.content_hash,
 		   mod_time_ns  = excluded.mod_time_ns,
@@ -210,12 +213,13 @@ func (c *Cache) StoreBatch(ctx context.Context, entries []CacheEntry) error {
 	}
 	defer func() { _ = stmt.Close() }()
 
+	now := time.Now().UnixNano()
 	for _, e := range entries {
 		diagJSON, err := marshalDiags(e.Diagnostics)
 		if err != nil {
 			return err
 		}
-		if _, err := stmt.ExecContext(ctx, e.Path, int64(e.ContentHash), e.ModTimeNS, diagJSON); err != nil { //nolint:gosec // intentional uint64→int64
+		if _, err := stmt.ExecContext(ctx, e.Path, int64(e.ContentHash), e.ModTimeNS, diagJSON, now); err != nil { //nolint:gosec // intentional uint64→int64
 			return fmt.Errorf("cache store batch %s: %w", e.Path, err)
 		}
 	}

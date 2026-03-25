@@ -146,13 +146,19 @@ func TestCacheStore_Upsert(t *testing.T) {
 	}
 
 	// Lookup with old hash — miss.
-	_, hit, _ := c.Lookup(ctx, "a.js", 1)
+	_, hit, err := c.Lookup(ctx, "a.js", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if hit {
 		t.Error("expected miss for old hash")
 	}
 
 	// Lookup with new hash — hit.
-	got, hit, _ := c.Lookup(ctx, "a.js", 2)
+	got, hit, err := c.Lookup(ctx, "a.js", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !hit {
 		t.Fatal("expected hit for new hash")
 	}
@@ -229,7 +235,10 @@ func TestCacheRemove(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, hit, _ := c.Lookup(ctx, "a.js", 1)
+	_, hit, err := c.Lookup(ctx, "a.js", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if hit {
 		t.Error("expected miss after remove")
 	}

@@ -58,7 +58,8 @@ internal/
 
   project/                   # Project-level analysis
     graph.go                 # Module graph: imports, exports, ImportedBy, ExportedBy
-    cache.go                 # SQLite cache: per-file hash, diagnostics, symbols
+    cache.go                 # SQLite cache: per-file content hash, diagnostics (JSON blob), config hash invalidation
+    hasher.go                # xxhash content hashing (HashFile, HashConfig)
     watcher.go               # fsnotify + cascade invalidation
     scanner.go               # Initial project scan (parallel file processing)
     hasher.go                # xxhash content hashing

@@ -127,7 +127,7 @@ Go link: `CGO_LDFLAGS="-L<path> -lrure"`
 
 **SQLite** via `modernc.org/sqlite` (pure Go, no CGo dependency for cache layer).
 - Concurrent read-safe (LSP reads while watcher writes)
-- Single file: `.yourlinter/cache.db` at project root
+- Single file: `.ralf/cache.db` at project root
 - ~50-100MB for a 10K file project
 - Indexed by path + content hash
 
@@ -691,7 +691,8 @@ internal/
 
   project/
     graph.go                 # module graph + dependency tracking
-    cache.go                 # SQLite cache layer
+    cache.go                 # SQLite cache: per-file hash, diagnostics blob, config invalidation, WAL mode
+    hasher.go                # xxhash content hashing (HashFile, HashConfig)
     watcher.go               # fsnotify + invalidation logic
     scanner.go               # initial project scan
     hasher.go                # xxhash content hashing

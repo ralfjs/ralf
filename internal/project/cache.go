@@ -175,14 +175,7 @@ func (c *Cache) Store(ctx context.Context, entry CacheEntry) error {
 		return err
 	}
 
-	_, err = c.db.ExecContext(ctx,
-		`INSERT INTO files (path, content_hash, mod_time_ns, diag_json, updated_at)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(path) DO UPDATE SET
-		   content_hash = excluded.content_hash,
-		   mod_time_ns  = excluded.mod_time_ns,
-		   diag_json    = excluded.diag_json,
-		   updated_at   = excluded.updated_at`,
+	_, err = c.db.ExecContext(ctx, upsertFileSQL,
 		entry.Path, int64(entry.ContentHash), entry.ModTimeNS, diagJSON, time.Now().UnixNano()) //nolint:gosec // intentional uint64→int64
 	if err != nil {
 		return fmt.Errorf("cache store %s: %w", entry.Path, err)
@@ -202,14 +195,7 @@ func (c *Cache) StoreBatch(ctx context.Context, entries []CacheEntry) error {
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback on commit is a no-op
 
-	stmt, err := tx.PrepareContext(ctx,
-		`INSERT INTO files (path, content_hash, mod_time_ns, diag_json, updated_at)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(path) DO UPDATE SET
-		   content_hash = excluded.content_hash,
-		   mod_time_ns  = excluded.mod_time_ns,
-		   diag_json    = excluded.diag_json,
-		   updated_at   = excluded.updated_at`)
+	stmt, err := tx.PrepareContext(ctx, upsertFileSQL)
 	if err != nil {
 		return fmt.Errorf("prepare batch statement: %w", err)
 	}
@@ -242,6 +228,14 @@ func (c *Cache) Remove(ctx context.Context, path string) error {
 func (c *Cache) Close() error {
 	return c.db.Close()
 }
+
+const upsertFileSQL = `INSERT INTO files (path, content_hash, mod_time_ns, diag_json, updated_at)
+		 VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT(path) DO UPDATE SET
+		   content_hash = excluded.content_hash,
+		   mod_time_ns  = excluded.mod_time_ns,
+		   diag_json    = excluded.diag_json,
+		   updated_at   = excluded.updated_at`
 
 func marshalDiags(diags []engine.Diagnostic) ([]byte, error) {
 	if len(diags) == 0 {

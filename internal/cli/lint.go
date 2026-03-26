@@ -490,11 +490,17 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 }
 
 // projectRootDir returns the project root for cache storage.
+// Derives at call time to respect working directory changes (e.g. in tests).
 func projectRootDir() string {
 	if configPath != "" {
 		return filepath.Dir(configPath)
 	}
-	return cachedCwd
+	dir, err := os.Getwd()
+	if err != nil {
+		slog.Debug("failed to get working directory for project root", "error", err)
+		return cachedCwd
+	}
+	return dir
 }
 
 func loadConfig() (*config.Config, error) {

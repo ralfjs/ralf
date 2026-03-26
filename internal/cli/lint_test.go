@@ -266,9 +266,13 @@ func TestLintIntegration(t *testing.T) {
 		cmd.SetOut(&bytes.Buffer{})
 		cmd.SetErr(&bytes.Buffer{})
 		cmd.SetArgs([]string{"lint", "--config", filepath.Join(cacheDir, ".ralfrc.json"), cacheDir})
-		_ = cmd.Execute()
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if exitCode != ExitLintErrors {
+			t.Fatalf("expected exit %d, got %d", ExitLintErrors, exitCode)
+		}
 
-		// Cache DB should exist.
 		if _, err := os.Stat(filepath.Join(cacheDir, ".ralf", "cache.db")); err != nil {
 			t.Errorf("expected .ralf/cache.db after lint, got: %v", err)
 		}
@@ -289,7 +293,12 @@ func TestLintIntegration(t *testing.T) {
 		cmd1.SetOut(&out1)
 		cmd1.SetErr(&bytes.Buffer{})
 		cmd1.SetArgs([]string{"lint", "--format", "json", "--config", configFile, cacheDir})
-		_ = cmd1.Execute()
+		if err := cmd1.Execute(); err != nil {
+			t.Fatalf("first run error: %v", err)
+		}
+		if exitCode != ExitLintErrors {
+			t.Fatalf("first run: expected exit %d, got %d", ExitLintErrors, exitCode)
+		}
 
 		// Second run — should produce identical output from cache.
 		exitCode = 0
@@ -299,7 +308,12 @@ func TestLintIntegration(t *testing.T) {
 		cmd2.SetOut(&out2)
 		cmd2.SetErr(&bytes.Buffer{})
 		cmd2.SetArgs([]string{"lint", "--format", "json", "--config", configFile, cacheDir})
-		_ = cmd2.Execute()
+		if err := cmd2.Execute(); err != nil {
+			t.Fatalf("second run error: %v", err)
+		}
+		if exitCode != ExitLintErrors {
+			t.Fatalf("second run: expected exit %d, got %d", ExitLintErrors, exitCode)
+		}
 
 		if out1.String() != out2.String() {
 			t.Errorf("cached run produced different output:\nfirst:  %s\nsecond: %s", out1.String(), out2.String())
@@ -318,7 +332,12 @@ func TestLintIntegration(t *testing.T) {
 		cmd.SetOut(&bytes.Buffer{})
 		cmd.SetErr(&bytes.Buffer{})
 		cmd.SetArgs([]string{"lint", "--no-cache", "--config", filepath.Join(noCacheDir, ".ralfrc.json"), noCacheDir})
-		_ = cmd.Execute()
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if exitCode != ExitLintErrors {
+			t.Fatalf("expected exit %d, got %d", ExitLintErrors, exitCode)
+		}
 
 		if _, err := os.Stat(filepath.Join(noCacheDir, ".ralf")); !os.IsNotExist(err) {
 			t.Error("expected .ralf directory to not exist with --no-cache")

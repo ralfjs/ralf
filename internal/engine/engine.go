@@ -216,22 +216,72 @@ func (e *Engine) Lint(ctx context.Context, files []string, threads int) *Result 
 	if len(files) == 0 {
 		return &Result{}
 	}
-
-	// Read all files, collecting sources and read errors.
-	sources := make([]FileSource, 0, len(files))
-	var readErrors []FileError
-	for _, filePath := range files {
-		source, err := os.ReadFile(filePath) //nolint:gosec // caller-controlled paths from discoverFiles
-		if err != nil {
-			readErrors = append(readErrors, FileError{File: filePath, Err: err})
-			continue
-		}
-		sources = append(sources, FileSource{Path: filePath, Source: source})
+	if threads <= 0 {
+		threads = runtime.NumCPU()
+	}
+	if threads > len(files) {
+		threads = len(files)
 	}
 
-	result := e.LintSources(ctx, sources, threads)
-	result.Errors = append(result.Errors, readErrors...)
-	return result
+	type workerResult struct {
+		diags  []Diagnostic
+		errors []FileError
+	}
+	results := make([]workerResult, threads)
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	batchSize := (len(files) + threads - 1) / threads
+	for w := range threads {
+		start := w * batchSize
+		if start >= len(files) {
+			break
+		}
+		end := start + batchSize
+		if end > len(files) {
+			end = len(files)
+		}
+		batch := files[start:end]
+		wr := &results[w]
+
+		g.Go(func() error {
+			wr.diags = make([]Diagnostic, 0, len(batch)*4)
+			for _, filePath := range batch {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				source, err := os.ReadFile(filePath) //nolint:gosec // caller-controlled paths from discoverFiles
+				if err != nil {
+					wr.errors = append(wr.errors, FileError{File: filePath, Err: err})
+					continue
+				}
+				diags := e.LintFile(ctx, filePath, source)
+				wr.diags = append(wr.diags, diags...)
+			}
+			return nil
+		})
+	}
+
+	var result Result
+	if err := g.Wait(); err != nil {
+		result.Errors = append(result.Errors, FileError{
+			File: "",
+			Err:  fmt.Errorf("lint cancelled: %w", err),
+		})
+	}
+
+	totalDiags := 0
+	for i := range results {
+		totalDiags += len(results[i].diags)
+	}
+	result.Diagnostics = make([]Diagnostic, 0, totalDiags)
+	for i := range results {
+		result.Diagnostics = append(result.Diagnostics, results[i].diags...)
+		result.Errors = append(result.Errors, results[i].errors...)
+	}
+
+	SortDiagChunksByFile(result.Diagnostics)
+	return &result
 }
 
 // FileSource pairs a file path with its already-read contents.
@@ -271,6 +321,7 @@ func (e *Engine) LintSources(ctx context.Context, files []FileSource, threads in
 		if end > len(files) {
 			end = len(files)
 		}
+		// batch and wr are per-iteration in Go 1.22+ (no closure capture issue).
 		batch := files[start:end]
 		wr := &results[w]
 

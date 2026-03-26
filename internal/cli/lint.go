@@ -455,9 +455,14 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 
 		entries := make([]project.CacheEntry, len(readFiles))
 		for i, rf := range readFiles {
+			var modTimeNS int64
+			if fi, err := os.Stat(rf.path); err == nil {
+				modTimeNS = fi.ModTime().UnixNano()
+			}
 			entries[i] = project.CacheEntry{
 				Path:        rf.path,
 				ContentHash: rf.hash,
+				ModTimeNS:   modTimeNS,
 				Diagnostics: freshByFile[rf.path],
 			}
 		}

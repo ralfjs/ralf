@@ -321,7 +321,7 @@ func (e *Engine) LintSources(ctx context.Context, files []FileSource, threads in
 		if end > len(files) {
 			end = len(files)
 		}
-		// batch and wr are per-iteration in Go 1.22+ (no closure capture issue).
+		// batch and wr are per-iteration variables, so capturing them in the goroutine is safe.
 		batch := files[start:end]
 		wr := &results[w]
 

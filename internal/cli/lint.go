@@ -11,6 +11,7 @@ import (
 
 	"github.com/ralfjs/ralf/internal/config"
 	"github.com/ralfjs/ralf/internal/engine"
+	"github.com/ralfjs/ralf/internal/project"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +22,7 @@ func lintCmd() *cobra.Command {
 		maxWarnings int
 		fix         bool
 		fixDryRun   bool
+		noCache     bool
 	)
 
 	cmd := &cobra.Command{
@@ -34,7 +36,7 @@ func lintCmd() *cobra.Command {
   ralf lint --fix src/
   ralf lint --max-warnings 0 src/`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLint(cmd, args, format, threads, maxWarnings, fix, fixDryRun)
+			return runLint(cmd, args, format, threads, maxWarnings, fix, fixDryRun, noCache)
 		},
 	}
 
@@ -43,11 +45,12 @@ func lintCmd() *cobra.Command {
 	cmd.Flags().IntVar(&maxWarnings, "max-warnings", -1, "max warnings before non-zero exit (-1 = unlimited)")
 	cmd.Flags().BoolVar(&fix, "fix", false, "apply auto-fixes and write files back")
 	cmd.Flags().BoolVar(&fixDryRun, "fix-dry-run", false, "show unified diffs without writing")
+	cmd.Flags().BoolVar(&noCache, "no-cache", false, "disable result caching")
 
 	return cmd
 }
 
-func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarnings int, fix, fixDryRun bool) error {
+func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarnings int, fix, fixDryRun, noCache bool) error {
 	w := cmd.ErrOrStderr()
 
 	if fix && fixDryRun {
@@ -109,7 +112,7 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 		return nil
 	}
 
-	result := eng.Lint(cmd.Context(), files, threads)
+	result := lintWithCache(cmd, eng, cfg, files, threads, noCache, fix || fixDryRun)
 
 	for _, fe := range result.Errors {
 		_, _ = fmt.Fprintf(w, "Error reading %s: %v\n", fe.File, fe.Err)
@@ -369,6 +372,124 @@ func splitLines(s string) []string {
 	// so the diff can distinguish "foo\n" from "foo".
 	lines = append(lines, s[start:])
 	return lines
+}
+
+// lintWithCache runs the lint pipeline with optional caching.
+// When caching is enabled, files are read once, hashed, and looked up in the cache.
+// Cache misses are linted via LintSources, and results are stored back.
+func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, files []string, threads int, noCache, isFixMode bool) *engine.Result {
+	ctx := cmd.Context()
+
+	// Determine whether to use cache.
+	useCache := !noCache && !isFixMode
+	var cache *project.Cache
+	if useCache {
+		configHash, err := project.HashConfig(cfg)
+		if err != nil {
+			slog.Debug("cache disabled: config hash failed", "error", err)
+		} else {
+			c, err := project.Open(ctx, projectRootDir(), configHash)
+			if err != nil {
+				slog.Debug("cache disabled: open failed", "error", err)
+			} else {
+				cache = c
+				defer func() { _ = cache.Close() }()
+			}
+		}
+	}
+
+	// If no cache, fall back to the standard path.
+	if cache == nil {
+		return eng.Lint(ctx, files, threads)
+	}
+
+	// Read files, hash, partition into cache hits vs misses.
+	type readFile struct {
+		path string
+		hash uint64
+	}
+	var (
+		cachedDiags []engine.Diagnostic
+		toLint      []engine.FileSource
+		readFiles   []readFile
+		readErrors  []engine.FileError
+	)
+
+	for _, filePath := range files {
+		source, err := os.ReadFile(filePath) //nolint:gosec // paths from discoverFiles
+		if err != nil {
+			readErrors = append(readErrors, engine.FileError{File: filePath, Err: err})
+			continue
+		}
+
+		h := project.HashFile(source)
+
+		diags, hit, err := cache.Lookup(ctx, filePath, h)
+		if err != nil {
+			slog.Debug("cache lookup error, linting file", "file", filePath, "error", err)
+		}
+		if hit {
+			cachedDiags = append(cachedDiags, diags...)
+			continue
+		}
+
+		toLint = append(toLint, engine.FileSource{Path: filePath, Source: source})
+		readFiles = append(readFiles, readFile{path: filePath, hash: h})
+	}
+
+	// Lint cache-miss files.
+	var result *engine.Result
+	if len(toLint) > 0 {
+		result = eng.LintSources(ctx, toLint, threads)
+	} else {
+		result = &engine.Result{}
+	}
+	result.Errors = append(result.Errors, readErrors...)
+
+	// Store fresh results in cache.
+	if len(readFiles) > 0 {
+		freshByFile := make(map[string][]engine.Diagnostic, len(readFiles))
+		for _, d := range result.Diagnostics {
+			freshByFile[d.File] = append(freshByFile[d.File], d)
+		}
+
+		entries := make([]project.CacheEntry, len(readFiles))
+		for i, rf := range readFiles {
+			entries[i] = project.CacheEntry{
+				Path:        rf.path,
+				ContentHash: rf.hash,
+				Diagnostics: freshByFile[rf.path],
+			}
+		}
+		if err := cache.StoreBatch(ctx, entries); err != nil {
+			slog.Debug("cache store failed", "error", err)
+		}
+	}
+
+	// Merge cached + fresh diagnostics.
+	if len(cachedDiags) > 0 {
+		all := make([]engine.Diagnostic, 0, len(cachedDiags)+len(result.Diagnostics))
+		all = append(all, cachedDiags...)
+		all = append(all, result.Diagnostics...)
+		result.Diagnostics = all
+		engine.SortDiagChunksByFile(result.Diagnostics)
+	}
+
+	slog.Debug("lint cache summary",
+		"total", len(files),
+		"cached", len(files)-len(toLint)-len(readErrors),
+		"linted", len(toLint),
+		"errors", len(readErrors))
+
+	return result
+}
+
+// projectRootDir returns the project root for cache storage.
+func projectRootDir() string {
+	if configPath != "" {
+		return filepath.Dir(configPath)
+	}
+	return cachedCwd
 }
 
 func loadConfig() (*config.Config, error) {

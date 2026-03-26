@@ -293,8 +293,82 @@ func (e *Engine) Lint(ctx context.Context, files []string, threads int) *Result 
 	// Diagnostics arrive in contiguous per-file chunks (already sorted by
 	// line/col/rule within each chunk by LintFile). Sort the chunks by
 	// filename for deterministic output.
-	sortDiagChunksByFile(result.Diagnostics)
+	SortDiagChunksByFile(result.Diagnostics)
 
+	return &result
+}
+
+// FileSource pairs a file path with its already-read contents.
+// Used by LintSources to avoid double-reading files (once for hashing, once for linting).
+type FileSource struct {
+	Path   string
+	Source []byte
+}
+
+// LintSources is like Lint but accepts pre-read file contents.
+// This avoids re-reading files when the caller has already read them (e.g., for cache hashing).
+func (e *Engine) LintSources(ctx context.Context, files []FileSource, threads int) *Result {
+	if len(files) == 0 {
+		return &Result{}
+	}
+	if threads <= 0 {
+		threads = runtime.NumCPU()
+	}
+	if threads > len(files) {
+		threads = len(files)
+	}
+
+	type workerResult struct {
+		diags []Diagnostic
+	}
+	results := make([]workerResult, threads)
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	batchSize := (len(files) + threads - 1) / threads
+	for w := range threads {
+		start := w * batchSize
+		if start >= len(files) {
+			break
+		}
+		end := start + batchSize
+		if end > len(files) {
+			end = len(files)
+		}
+		batch := files[start:end]
+		wr := &results[w]
+
+		g.Go(func() error {
+			wr.diags = make([]Diagnostic, 0, len(batch)*4)
+			for _, fs := range batch {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				diags := e.LintFile(ctx, fs.Path, fs.Source)
+				wr.diags = append(wr.diags, diags...)
+			}
+			return nil
+		})
+	}
+
+	var result Result
+	if err := g.Wait(); err != nil {
+		result.Errors = append(result.Errors, FileError{
+			File: "",
+			Err:  fmt.Errorf("lint cancelled: %w", err),
+		})
+	}
+
+	totalDiags := 0
+	for i := range results {
+		totalDiags += len(results[i].diags)
+	}
+	result.Diagnostics = make([]Diagnostic, 0, totalDiags)
+	for i := range results {
+		result.Diagnostics = append(result.Diagnostics, results[i].diags...)
+	}
+
+	SortDiagChunksByFile(result.Diagnostics)
 	return &result
 }
 
@@ -304,11 +378,10 @@ type fileChunk struct {
 	start, end int
 }
 
-// sortDiagChunksByFile sorts diagnostics that arrive in contiguous per-file
-// chunks. Within each chunk, diagnostics are already sorted by line/col/rule.
-// This is O(N + C·log C) where C is the number of file chunks (typically
-// equal to the number of files), vs O(N·log N) for a full sort.
-func sortDiagChunksByFile(diags []Diagnostic) {
+// SortDiagChunksByFile sorts diagnostics that arrive in contiguous per-file
+// chunks by filename. Exported for use by the CLI layer when merging cached
+// and fresh diagnostics.
+func SortDiagChunksByFile(diags []Diagnostic) {
 	if len(diags) == 0 {
 		return
 	}

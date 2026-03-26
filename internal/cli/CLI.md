@@ -15,7 +15,8 @@ cmd/ralf/main.go
             │    ├─ --threads (int)
             │    ├─ --max-warnings (int)
             │    ├─ --fix
-            │    └─ --fix-dry-run
+            │    ├─ --fix-dry-run
+            │    └─ --no-cache
             └─ init
                  ├─ --from-eslint
                  ├─ --from-biome

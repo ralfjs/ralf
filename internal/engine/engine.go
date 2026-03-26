@@ -216,86 +216,22 @@ func (e *Engine) Lint(ctx context.Context, files []string, threads int) *Result 
 	if len(files) == 0 {
 		return &Result{}
 	}
-	if threads <= 0 {
-		threads = runtime.NumCPU()
-	}
-	if threads > len(files) {
-		threads = len(files)
-	}
 
-	// Partition files into batches — one per worker. Each worker processes
-	// its batch sequentially, collecting results locally with no mutex.
-	type workerResult struct {
-		diags []Diagnostic
-		errs  []FileError
-	}
-	results := make([]workerResult, threads)
-
-	g, ctx := errgroup.WithContext(ctx)
-
-	batchSize := (len(files) + threads - 1) / threads
-	for w := range threads {
-		start := w * batchSize
-		if start >= len(files) {
-			break
+	// Read all files, collecting sources and read errors.
+	sources := make([]FileSource, 0, len(files))
+	var readErrors []FileError
+	for _, filePath := range files {
+		source, err := os.ReadFile(filePath) //nolint:gosec // caller-controlled paths from discoverFiles
+		if err != nil {
+			readErrors = append(readErrors, FileError{File: filePath, Err: err})
+			continue
 		}
-		end := start + batchSize
-		if end > len(files) {
-			end = len(files)
-		}
-		batch := files[start:end]
-		wr := &results[w]
-
-		g.Go(func() error {
-			wr.diags = make([]Diagnostic, 0, len(batch)*(len(e.regexRules)+len(e.patternRules)+len(e.structuralRules)+len(e.importRules)+len(e.builtinRules)))
-
-			for _, filePath := range batch {
-				if err := ctx.Err(); err != nil {
-					return err
-				}
-
-				source, err := os.ReadFile(filePath) //nolint:gosec // caller-controlled paths from discoverFiles
-				if err != nil {
-					wr.errs = append(wr.errs, FileError{File: filePath, Err: err})
-					continue
-				}
-
-				diags := e.LintFile(ctx, filePath, source)
-				wr.diags = append(wr.diags, diags...)
-			}
-			return nil
-		})
+		sources = append(sources, FileSource{Path: filePath, Source: source})
 	}
 
-	var result Result
-	if err := g.Wait(); err != nil {
-		result.Errors = append(result.Errors, FileError{
-			File: "",
-			Err:  fmt.Errorf("lint cancelled: %w", err),
-		})
-	}
-
-	// Merge worker results — no sorting needed within workers since files
-	// are processed in order and LintFile sorts within each file.
-	totalDiags := 0
-	totalErrs := 0
-	for i := range results {
-		totalDiags += len(results[i].diags)
-		totalErrs += len(results[i].errs)
-	}
-	result.Diagnostics = make([]Diagnostic, 0, totalDiags)
-	result.Errors = make([]FileError, 0, totalErrs)
-	for i := range results {
-		result.Diagnostics = append(result.Diagnostics, results[i].diags...)
-		result.Errors = append(result.Errors, results[i].errs...)
-	}
-
-	// Diagnostics arrive in contiguous per-file chunks (already sorted by
-	// line/col/rule within each chunk by LintFile). Sort the chunks by
-	// filename for deterministic output.
-	SortDiagChunksByFile(result.Diagnostics)
-
-	return &result
+	result := e.LintSources(ctx, sources, threads)
+	result.Errors = append(result.Errors, readErrors...)
+	return result
 }
 
 // FileSource pairs a file path with its already-read contents.

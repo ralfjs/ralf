@@ -450,8 +450,9 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 	}
 	result.Errors = append(result.Errors, readErrors...)
 
-	// Store fresh results in cache.
-	if len(readFiles) > 0 {
+	// Store fresh results in cache. Skip on cancellation to avoid persisting
+	// partial results that would cause false cache hits on subsequent runs.
+	if len(readFiles) > 0 && ctx.Err() == nil {
 		freshByFile := make(map[string][]engine.Diagnostic, len(readFiles))
 		for _, d := range result.Diagnostics {
 			freshByFile[d.File] = append(freshByFile[d.File], d)

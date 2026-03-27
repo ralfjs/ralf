@@ -271,10 +271,13 @@ func (e *Engine) Lint(ctx context.Context, files []string, threads int) *Result 
 	}
 
 	totalDiags := 0
+	totalErrs := 0
 	for i := range results {
 		totalDiags += len(results[i].diags)
+		totalErrs += len(results[i].errors)
 	}
 	result.Diagnostics = make([]Diagnostic, 0, totalDiags)
+	result.Errors = append(make([]FileError, 0, totalErrs), result.Errors...)
 	for i := range results {
 		result.Diagnostics = append(result.Diagnostics, results[i].diags...)
 		result.Errors = append(result.Errors, results[i].errors...)
@@ -365,9 +368,15 @@ type fileChunk struct {
 	start, end int
 }
 
-// SortDiagChunksByFile sorts diagnostics that arrive in contiguous per-file
-// chunks by filename. Exported for use by the CLI layer when merging cached
-// and fresh diagnostics.
+// SortDiagChunksByFile reorders diagnostics that are already grouped into
+// contiguous per-file chunks so that those chunks are ordered by filename.
+//
+// Precondition: all diagnostics for a given file must appear in a single
+// contiguous segment, and diagnostics within each chunk must already be
+// sorted (e.g., by position). This function only reorders chunks by filename;
+// it does not fully sort an arbitrary diagnostics slice.
+//
+// Exported for use by the CLI layer when merging cached and fresh diagnostics.
 func SortDiagChunksByFile(diags []Diagnostic) {
 	if len(diags) == 0 {
 		return

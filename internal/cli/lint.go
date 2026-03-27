@@ -416,8 +416,7 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 	)
 
 	for _, filePath := range files {
-		if err := ctx.Err(); err != nil {
-			readErrors = append(readErrors, engine.FileError{File: filePath, Err: err})
+		if ctx.Err() != nil {
 			break
 		}
 		source, err := os.ReadFile(filePath) //nolint:gosec // paths from discoverFiles

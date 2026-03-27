@@ -485,11 +485,18 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 		engine.SortDiagChunksByFile(result.Diagnostics)
 	}
 
-	slog.Debug("lint cache summary",
-		"total", len(files),
-		"cached", len(files)-len(toLint)-len(readErrors),
-		"linted", len(toLint),
-		"errors", len(readErrors))
+	if ctx.Err() != nil {
+		slog.Debug("lint cache summary (partial)",
+			"processed", len(toLint)+len(readErrors),
+			"linted", len(toLint),
+			"errors", len(readErrors))
+	} else {
+		slog.Debug("lint cache summary",
+			"total", len(files),
+			"cached", len(files)-len(toLint)-len(readErrors),
+			"linted", len(toLint),
+			"errors", len(readErrors))
+	}
 
 	return result
 }

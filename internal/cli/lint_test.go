@@ -253,4 +253,94 @@ func TestLintIntegration(t *testing.T) {
 			t.Errorf("file should not be modified in dry-run, got %q", got)
 		}
 	})
+
+	t.Run("cache creates .ralf directory", func(t *testing.T) {
+		cacheDir := t.TempDir()
+		writeTestFile(t, filepath.Join(cacheDir, ".ralfrc.json"), configJSON)
+		writeTestFile(t, filepath.Join(cacheDir, "a.js"), "var x = 1;")
+
+		exitCode = 0
+		configPath = ""
+
+		cmd := newRootCmd()
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs([]string{"lint", "--config", filepath.Join(cacheDir, ".ralfrc.json"), cacheDir})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if exitCode != ExitLintErrors {
+			t.Fatalf("expected exit %d, got %d", ExitLintErrors, exitCode)
+		}
+
+		if _, err := os.Stat(filepath.Join(cacheDir, ".ralf", "cache.db")); err != nil {
+			t.Errorf("expected .ralf/cache.db after lint, got: %v", err)
+		}
+	})
+
+	t.Run("second lint run uses cache", func(t *testing.T) {
+		cacheDir := t.TempDir()
+		writeTestFile(t, filepath.Join(cacheDir, ".ralfrc.json"), configJSON)
+		writeTestFile(t, filepath.Join(cacheDir, "a.js"), "var x = 1;")
+
+		configFile := filepath.Join(cacheDir, ".ralfrc.json")
+
+		// First run — populates cache.
+		exitCode = 0
+		configPath = ""
+		cmd1 := newRootCmd()
+		var out1 bytes.Buffer
+		cmd1.SetOut(&out1)
+		cmd1.SetErr(&bytes.Buffer{})
+		cmd1.SetArgs([]string{"lint", "--format", "json", "--config", configFile, cacheDir})
+		if err := cmd1.Execute(); err != nil {
+			t.Fatalf("first run error: %v", err)
+		}
+		if exitCode != ExitLintErrors {
+			t.Fatalf("first run: expected exit %d, got %d", ExitLintErrors, exitCode)
+		}
+
+		// Second run — should produce identical output from cache.
+		exitCode = 0
+		configPath = ""
+		cmd2 := newRootCmd()
+		var out2 bytes.Buffer
+		cmd2.SetOut(&out2)
+		cmd2.SetErr(&bytes.Buffer{})
+		cmd2.SetArgs([]string{"lint", "--format", "json", "--config", configFile, cacheDir})
+		if err := cmd2.Execute(); err != nil {
+			t.Fatalf("second run error: %v", err)
+		}
+		if exitCode != ExitLintErrors {
+			t.Fatalf("second run: expected exit %d, got %d", ExitLintErrors, exitCode)
+		}
+
+		if out1.String() != out2.String() {
+			t.Errorf("cached run produced different output:\nfirst:  %s\nsecond: %s", out1.String(), out2.String())
+		}
+	})
+
+	t.Run("--no-cache does not create .ralf directory", func(t *testing.T) {
+		noCacheDir := t.TempDir()
+		writeTestFile(t, filepath.Join(noCacheDir, ".ralfrc.json"), configJSON)
+		writeTestFile(t, filepath.Join(noCacheDir, "a.js"), "var x = 1;")
+
+		exitCode = 0
+		configPath = ""
+
+		cmd := newRootCmd()
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs([]string{"lint", "--no-cache", "--config", filepath.Join(noCacheDir, ".ralfrc.json"), noCacheDir})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if exitCode != ExitLintErrors {
+			t.Fatalf("expected exit %d, got %d", ExitLintErrors, exitCode)
+		}
+
+		if _, err := os.Stat(filepath.Join(noCacheDir, ".ralf")); !os.IsNotExist(err) {
+			t.Error("expected .ralf directory to not exist with --no-cache")
+		}
+	})
 }

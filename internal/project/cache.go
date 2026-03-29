@@ -229,6 +229,20 @@ func (c *Cache) Close() error {
 	return c.db.Close()
 }
 
+// IsGraphBackfillDone checks if graph backfill has completed (marker in meta table).
+func (c *Cache) IsGraphBackfillDone(ctx context.Context) bool {
+	var val string
+	err := c.db.QueryRowContext(ctx, "SELECT value FROM meta WHERE key = 'graph_backfill_done'").Scan(&val)
+	return err == nil && val == "1"
+}
+
+// MarkGraphBackfillDone sets a marker indicating graph backfill is complete.
+// Subsequent runs skip the backfill check entirely.
+func (c *Cache) MarkGraphBackfillDone(ctx context.Context) {
+	_, _ = c.db.ExecContext(ctx,
+		"INSERT OR REPLACE INTO meta (key, value) VALUES ('graph_backfill_done', '1')")
+}
+
 // FilesMissingGraphData returns paths from the given set that have cached
 // diagnostics but no entries in the exports or imports tables.
 // Used for one-time migration when graph extraction is added to an existing cache.
@@ -253,6 +267,9 @@ func (c *Cache) FilesMissingGraphData(ctx context.Context, paths []string) ([]st
 		hasGraph[p] = struct{}{}
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate export paths: %w", err)
+	}
 
 	rows, err = c.db.QueryContext(ctx, "SELECT DISTINCT path FROM imports")
 	if err != nil {

@@ -498,7 +498,8 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 	}
 
 	// Backfill graph data for cache-hit files that predate graph extraction.
-	if ctx.Err() == nil {
+	// Short-circuit: skip if backfill has already completed (marker in meta table).
+	if ctx.Err() == nil && !cache.IsGraphBackfillDone(ctx) {
 		linted := make(map[string]struct{}, len(toLint))
 		for _, fs := range toLint {
 			linted[fs.Path] = struct{}{}
@@ -517,6 +518,9 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 				slog.Debug("backfilling graph data", "files", len(missing))
 				var backfillEntries []project.FileGraphEntry
 				for _, filePath := range missing {
+					if ctx.Err() != nil {
+						break
+					}
 					source, err := os.ReadFile(filePath) //nolint:gosec // paths from discoverFiles
 					if err != nil {
 						continue
@@ -531,12 +535,19 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 						Imports: imports,
 					})
 				}
-				if len(backfillEntries) > 0 {
+				if len(backfillEntries) > 0 && ctx.Err() == nil {
 					if err := cache.StoreFileGraphBatch(ctx, backfillEntries); err != nil {
 						slog.Debug("graph backfill store failed", "error", err)
 					}
 				}
 			}
+			// Mark backfill as done if no files are missing (or all were processed).
+			if len(missing) == 0 || ctx.Err() == nil {
+				cache.MarkGraphBackfillDone(ctx)
+			}
+		} else {
+			// No cached paths to check — backfill is trivially done.
+			cache.MarkGraphBackfillDone(ctx)
 		}
 	}
 

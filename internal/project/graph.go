@@ -69,9 +69,11 @@ func NewGraph(exports map[string][]ExportInfo, imports map[string][]ImportInfo) 
 // UpdateFile acquires it before calling).
 func (g *Graph) addImportEdges(fromFile string, fileImports []ImportInfo) {
 	for _, imp := range fileImports {
-		// If source is already an absolute path, use it directly.
-		resolved := imp.Source
-		if !filepath.IsAbs(resolved) {
+		var resolved string
+		if filepath.IsAbs(imp.Source) {
+			// Already resolved (from cache or test data). Use directly.
+			resolved = imp.Source
+		} else {
 			var ok bool
 			resolved, ok = ResolveSpecifier(imp.Source, fromFile)
 			if !ok {
@@ -115,10 +117,22 @@ func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []Im
 	delete(g.edges, file)
 
 	// Remove old symbol importer entries for this file.
-	for key, set := range g.symbolImporters {
-		delete(set, file)
-		if len(set) == 0 {
-			delete(g.symbolImporters, key)
+	// Only iterate keys associated with the file's old imports (not the entire map).
+	for _, imp := range g.imports[file] {
+		resolved := imp.Source
+		if !filepath.IsAbs(resolved) {
+			var ok bool
+			resolved, ok = ResolveSpecifier(imp.Source, file)
+			if !ok {
+				continue
+			}
+		}
+		key := resolved + ":" + imp.Name
+		if set := g.symbolImporters[key]; set != nil {
+			delete(set, file)
+			if len(set) == 0 {
+				delete(g.symbolImporters, key)
+			}
 		}
 	}
 

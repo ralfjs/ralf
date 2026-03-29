@@ -387,3 +387,49 @@ func TestCacheStoreFileGraphBatch(t *testing.T) {
 		t.Errorf("expected 1 import for a.ts, got %d", len(gotImports["/src/a.ts"]))
 	}
 }
+
+func TestCacheFilesMissingGraphData(t *testing.T) {
+	c := openTestCache(t, 1)
+	ctx := context.Background()
+
+	// Store graph data for a.ts but not b.ts.
+	if err := c.StoreFileGraph(ctx, "/src/a.ts",
+		[]ExportInfo{{Name: "a", Kind: "function", Line: 1}}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	missing, err := c.FilesMissingGraphData(ctx, []string{"/src/a.ts", "/src/b.ts"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(missing) != 1 || missing[0] != "/src/b.ts" {
+		t.Errorf("expected [/src/b.ts], got %v", missing)
+	}
+}
+
+func TestCacheCleanupStalePaths(t *testing.T) {
+	c := openTestCache(t, 1)
+	ctx := context.Background()
+
+	// Store graph data for a.ts and b.ts.
+	if err := c.StoreFileGraphBatch(ctx, []FileGraphEntry{
+		{Path: "/src/a.ts", Exports: []ExportInfo{{Name: "a", Kind: "function", Line: 1}}},
+		{Path: "/src/b.ts", Exports: []ExportInfo{{Name: "b", Kind: "function", Line: 1}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Cleanup with only a.ts active — b.ts should be removed.
+	if err := c.CleanupStalePaths(ctx, []string{"/src/a.ts"}); err != nil {
+		t.Fatal(err)
+	}
+
+	exports, _ := c.LoadAllExports(ctx)
+	if _, ok := exports["/src/b.ts"]; ok {
+		t.Error("expected b.ts exports to be cleaned up")
+	}
+	if _, ok := exports["/src/a.ts"]; !ok {
+		t.Error("expected a.ts exports to remain")
+	}
+}

@@ -189,3 +189,51 @@ func TestGraph_DeadModules(t *testing.T) {
 		t.Errorf("expected /src/dead.ts in dead modules, got %v", dead)
 	}
 }
+
+func TestGraph_UpdateFile(t *testing.T) {
+	g := testGraph()
+
+	// Verify initial state: app.ts imports from utils.ts.
+	importers := g.ImportedBy("/src/utils.ts")
+	if len(importers) != 1 || importers[0] != "/src/app.ts" {
+		t.Fatalf("initial ImportedBy(utils.ts) = %v", importers)
+	}
+
+	// Update app.ts to no longer import from utils.ts.
+	g.UpdateFile("/src/app.ts",
+		[]ExportInfo{{Name: "App", Kind: "class", Line: 1}},
+		[]ImportInfo{{Source: "/src/config.ts", Name: "default", Line: 1}}, // only config, no utils
+	)
+
+	// utils.ts should now have zero importers.
+	importers = g.ImportedBy("/src/utils.ts")
+	if len(importers) != 0 {
+		t.Errorf("after update, ImportedBy(utils.ts) = %v, want []", importers)
+	}
+
+	// config.ts should still have app.ts as importer.
+	importers = g.ImportedBy("/src/config.ts")
+	if len(importers) != 1 || importers[0] != "/src/app.ts" {
+		t.Errorf("after update, ImportedBy(config.ts) = %v", importers)
+	}
+}
+
+func TestGraph_UpdateFile_AddNewImport(t *testing.T) {
+	g := testGraph()
+
+	// Update app.ts to also import from dead.ts.
+	g.UpdateFile("/src/app.ts",
+		[]ExportInfo{{Name: "App", Kind: "class", Line: 1}},
+		[]ImportInfo{
+			{Source: "/src/utils.ts", Name: "formatDate", Line: 1},
+			{Source: "/src/config.ts", Name: "default", Line: 2},
+			{Source: "/src/dead.ts", Name: "unused", Line: 3},
+		},
+	)
+
+	// dead.ts should now have an importer.
+	importers := g.ImportedBy("/src/dead.ts")
+	if len(importers) != 1 || importers[0] != "/src/app.ts" {
+		t.Errorf("after update, ImportedBy(dead.ts) = %v", importers)
+	}
+}

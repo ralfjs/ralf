@@ -186,3 +186,24 @@ func TestExtract_ExportAlias(t *testing.T) {
 		t.Errorf("expected exported name 'bar', got %q", exports[0].Name)
 	}
 }
+
+func TestExtractFile(t *testing.T) {
+	source := []byte(`import { foo } from './utils'; export function bar() {}`)
+	imports, exports, err := ExtractFile(context.Background(), "test.js", source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(imports) != 1 {
+		t.Errorf("expected 1 import, got %d", len(imports))
+	}
+	if len(exports) != 1 {
+		t.Errorf("expected 1 export, got %d", len(exports))
+	}
+}
+
+func TestExtractFile_UnsupportedType(t *testing.T) {
+	_, _, err := ExtractFile(context.Background(), "test.txt", []byte("hello"))
+	if err == nil {
+		t.Error("expected error for unsupported file type")
+	}
+}

@@ -58,34 +58,43 @@ func NewGraph(exports map[string][]ExportInfo, imports map[string][]ImportInfo) 
 	}
 
 	for fromFile, fileImports := range imports {
-		for _, imp := range fileImports {
-			resolved, ok := ResolveSpecifier(imp.Source, fromFile)
-			if !ok {
-				continue // bare specifier or unresolvable
-			}
-
-			// Add edge: fromFile → resolved
-			if g.edges[fromFile] == nil {
-				g.edges[fromFile] = make(map[string]struct{})
-			}
-			g.edges[fromFile][resolved] = struct{}{}
-
-			// Add reverse edge: resolved → fromFile
-			if g.importedBy[resolved] == nil {
-				g.importedBy[resolved] = make(map[string]struct{})
-			}
-			g.importedBy[resolved][fromFile] = struct{}{}
-
-			// Add symbol-level index
-			key := resolved + ":" + imp.Name
-			if g.symbolImporters[key] == nil {
-				g.symbolImporters[key] = make(map[string]struct{})
-			}
-			g.symbolImporters[key][fromFile] = struct{}{}
-		}
+		g.addImportEdges(fromFile, fileImports)
 	}
 
 	return g
+}
+
+// addImportEdges resolves import specifiers and adds edges to the graph.
+// Caller must hold the write lock if needed (NewGraph doesn't need it,
+// UpdateFile acquires it before calling).
+func (g *Graph) addImportEdges(fromFile string, fileImports []ImportInfo) {
+	for _, imp := range fileImports {
+		// If source is already an absolute path, use it directly.
+		resolved := imp.Source
+		if !filepath.IsAbs(resolved) {
+			var ok bool
+			resolved, ok = ResolveSpecifier(imp.Source, fromFile)
+			if !ok {
+				continue
+			}
+		}
+
+		if g.edges[fromFile] == nil {
+			g.edges[fromFile] = make(map[string]struct{})
+		}
+		g.edges[fromFile][resolved] = struct{}{}
+
+		if g.importedBy[resolved] == nil {
+			g.importedBy[resolved] = make(map[string]struct{})
+		}
+		g.importedBy[resolved][fromFile] = struct{}{}
+
+		key := resolved + ":" + imp.Name
+		if g.symbolImporters[key] == nil {
+			g.symbolImporters[key] = make(map[string]struct{})
+		}
+		g.symbolImporters[key][fromFile] = struct{}{}
+	}
 }
 
 // UpdateFile replaces exports and imports for a single file in the graph.
@@ -118,34 +127,7 @@ func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []Im
 
 	// Update imports and rebuild edges.
 	g.imports[file] = newImports
-	for _, imp := range newImports {
-		// If source is already an absolute path (from pre-resolved test data
-		// or cached resolved paths), use it directly. Otherwise resolve.
-		resolved := imp.Source
-		if !filepath.IsAbs(resolved) {
-			var ok bool
-			resolved, ok = ResolveSpecifier(imp.Source, file)
-			if !ok {
-				continue
-			}
-		}
-
-		if g.edges[file] == nil {
-			g.edges[file] = make(map[string]struct{})
-		}
-		g.edges[file][resolved] = struct{}{}
-
-		if g.importedBy[resolved] == nil {
-			g.importedBy[resolved] = make(map[string]struct{})
-		}
-		g.importedBy[resolved][file] = struct{}{}
-
-		key := resolved + ":" + imp.Name
-		if g.symbolImporters[key] == nil {
-			g.symbolImporters[key] = make(map[string]struct{})
-		}
-		g.symbolImporters[key][file] = struct{}{}
-	}
+	g.addImportEdges(file, newImports)
 }
 
 // ImportedBy returns files that import from the given file.

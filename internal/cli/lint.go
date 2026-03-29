@@ -499,17 +499,13 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 
 	// Backfill graph data for cache-hit files that predate graph extraction.
 	if ctx.Err() == nil {
+		linted := make(map[string]struct{}, len(toLint))
+		for _, fs := range toLint {
+			linted[fs.Path] = struct{}{}
+		}
 		var cachedPaths []string
 		for _, filePath := range files {
-			// Collect paths that were cache hits (not in toLint or readErrors).
-			found := false
-			for _, fs := range toLint {
-				if fs.Path == filePath {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if _, ok := linted[filePath]; !ok {
 				cachedPaths = append(cachedPaths, filePath)
 			}
 		}

@@ -510,11 +510,18 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 				cachedPaths = append(cachedPaths, filePath)
 			}
 		}
-		if len(cachedPaths) > 0 {
+
+		backfillComplete := false
+		if len(cachedPaths) == 0 {
+			backfillComplete = true
+		} else {
 			missing, err := cache.FilesMissingGraphData(ctx, cachedPaths)
-			if err != nil {
+			switch {
+			case err != nil:
 				slog.Debug("graph migration check failed", "error", err)
-			} else if len(missing) > 0 {
+			case len(missing) == 0:
+				backfillComplete = true
+			default:
 				slog.Debug("backfilling graph data", "files", len(missing))
 				var backfillEntries []project.FileGraphEntry
 				for _, filePath := range missing {
@@ -538,15 +545,14 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 				if len(backfillEntries) > 0 && ctx.Err() == nil {
 					if err := cache.StoreFileGraphBatch(ctx, backfillEntries); err != nil {
 						slog.Debug("graph backfill store failed", "error", err)
+					} else if len(backfillEntries) == len(missing) {
+						backfillComplete = true
 					}
 				}
 			}
-			// Mark backfill as done if no files are missing (or all were processed).
-			if len(missing) == 0 || ctx.Err() == nil {
-				cache.MarkGraphBackfillDone(ctx)
-			}
-		} else {
-			// No cached paths to check — backfill is trivially done.
+		}
+
+		if backfillComplete && ctx.Err() == nil {
 			cache.MarkGraphBackfillDone(ctx)
 		}
 	}

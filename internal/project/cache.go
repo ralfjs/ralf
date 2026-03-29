@@ -243,8 +243,8 @@ func (c *Cache) MarkGraphBackfillDone(ctx context.Context) {
 		"INSERT OR REPLACE INTO meta (key, value) VALUES ('graph_backfill_done', '1')")
 }
 
-// FilesMissingGraphData returns paths from the given set that have cached
-// diagnostics but no entries in the exports or imports tables.
+// FilesMissingGraphData returns paths from the given set that have no entries
+// in the exports or imports tables (i.e. are missing graph data).
 // Used for one-time migration when graph extraction is added to an existing cache.
 func (c *Cache) FilesMissingGraphData(ctx context.Context, paths []string) ([]string, error) {
 	if len(paths) == 0 {
@@ -285,7 +285,7 @@ func (c *Cache) FilesMissingGraphData(ctx context.Context, paths []string) ([]st
 	}
 	_ = rows.Close()
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("iterate import paths: %w", err)
 	}
 
 	var missing []string

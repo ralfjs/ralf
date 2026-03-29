@@ -339,7 +339,7 @@ func (c *Cache) CleanupStalePaths(ctx context.Context, activePaths []string) err
 		var p string
 		if err := rows.Scan(&p); err != nil {
 			_ = rows.Close()
-			return err
+			return fmt.Errorf("scan graph path: %w", err)
 		}
 		if _, ok := active[p]; !ok {
 			stale = append(stale, p)
@@ -347,7 +347,7 @@ func (c *Cache) CleanupStalePaths(ctx context.Context, activePaths []string) err
 	}
 	_ = rows.Close()
 	if err := rows.Err(); err != nil {
-		return err
+		return fmt.Errorf("iterate graph paths: %w", err)
 	}
 
 	if len(stale) == 0 {

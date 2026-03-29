@@ -71,8 +71,19 @@ func (g *Graph) addImportEdges(fromFile string, fileImports []ImportInfo) {
 	for _, imp := range fileImports {
 		var resolved string
 		if filepath.IsAbs(imp.Source) {
-			// Already resolved (from cache or test data). Use directly.
-			resolved = imp.Source
+			// Treat absolute sources as already resolved only if they are
+			// known files in the graph; otherwise fall back to resolution.
+			if _, known := g.exports[imp.Source]; known {
+				resolved = imp.Source
+			} else if _, known := g.imports[imp.Source]; known {
+				resolved = imp.Source
+			} else {
+				r, ok := ResolveSpecifier(imp.Source, fromFile)
+				if !ok {
+					continue
+				}
+				resolved = r
+			}
 		} else {
 			var ok bool
 			resolved, ok = ResolveSpecifier(imp.Source, fromFile)

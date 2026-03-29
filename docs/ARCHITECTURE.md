@@ -799,7 +799,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 |---|---|---|
 | 21 | ✅ SQLite cache layer | `internal/project/cache.go` + `hasher.go`: per-file cache (xxhash content hash, JSON diagnostics blob), config hash invalidation, WAL mode. Prepared exports/imports tables for week 23. Benchmarks: lookup 5.6μs, batch-store 1000 files 2.4ms, xxhash 100KB 4.2μs. |
 | 22 | ✅ Cache integration | Cache wired into `ralf lint`: read-once file hashing, cache lookup, `LintSources` for misses only, batch store. `--no-cache` flag. Cache disabled in `--fix` mode. Single-read pipeline (no double I/O). |
-| 23 | Module graph | `internal/project/graph.go`: build import→export graph from cache. `ImportedBy`, `ExportedBy`, `ExportMap` queries. Cycle detection. |
+| 23 | ✅ Module graph | `extract.go` (import/export extraction from tree-sitter AST), `resolve.go` (specifier → absolute path resolution), `graph.go` (in-memory graph: `ImportedBy`, `ImportedBySymbol`, `ExportedBy`, `ExportMap`, `HasCycle`, `DeadModules`). Cache persistence via `StoreFileGraph`/`LoadAll*`. Benchmarks: extract 12μs/file, build graph 1000 files 2ms, cycle detection 48μs, query 199ns. |
 | 24 | Incremental update | Content hash check → skip unchanged. Re-parse changed files. Update graph edges. |
 | 25 | Cross-file rules | `scope: "cross-file"` in config. Built-in: unused exports, circular deps, missing imports, dead modules, layer violations. |
 | 26 | File watcher | `internal/project/watcher.go`: fsnotify integration. Cascade invalidation: file changed → re-lint dependents. Debounce rapid saves. |

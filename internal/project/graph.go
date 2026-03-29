@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"path/filepath"
 	"sort"
 	"sync"
 
@@ -57,34 +58,76 @@ func NewGraph(exports map[string][]ExportInfo, imports map[string][]ImportInfo) 
 	}
 
 	for fromFile, fileImports := range imports {
-		for _, imp := range fileImports {
-			resolved, ok := ResolveSpecifier(imp.Source, fromFile)
-			if !ok {
-				continue // bare specifier or unresolvable
-			}
-
-			// Add edge: fromFile → resolved
-			if g.edges[fromFile] == nil {
-				g.edges[fromFile] = make(map[string]struct{})
-			}
-			g.edges[fromFile][resolved] = struct{}{}
-
-			// Add reverse edge: resolved → fromFile
-			if g.importedBy[resolved] == nil {
-				g.importedBy[resolved] = make(map[string]struct{})
-			}
-			g.importedBy[resolved][fromFile] = struct{}{}
-
-			// Add symbol-level index
-			key := resolved + ":" + imp.Name
-			if g.symbolImporters[key] == nil {
-				g.symbolImporters[key] = make(map[string]struct{})
-			}
-			g.symbolImporters[key][fromFile] = struct{}{}
-		}
+		g.addImportEdges(fromFile, fileImports)
 	}
 
 	return g
+}
+
+// addImportEdges resolves import specifiers and adds edges to the graph.
+// Caller must hold the write lock if needed (NewGraph doesn't need it,
+// UpdateFile acquires it before calling).
+func (g *Graph) addImportEdges(fromFile string, fileImports []ImportInfo) {
+	for _, imp := range fileImports {
+		// If source is already an absolute path, use it directly.
+		resolved := imp.Source
+		if !filepath.IsAbs(resolved) {
+			var ok bool
+			resolved, ok = ResolveSpecifier(imp.Source, fromFile)
+			if !ok {
+				continue
+			}
+		}
+
+		if g.edges[fromFile] == nil {
+			g.edges[fromFile] = make(map[string]struct{})
+		}
+		g.edges[fromFile][resolved] = struct{}{}
+
+		if g.importedBy[resolved] == nil {
+			g.importedBy[resolved] = make(map[string]struct{})
+		}
+		g.importedBy[resolved][fromFile] = struct{}{}
+
+		key := resolved + ":" + imp.Name
+		if g.symbolImporters[key] == nil {
+			g.symbolImporters[key] = make(map[string]struct{})
+		}
+		g.symbolImporters[key][fromFile] = struct{}{}
+	}
+}
+
+// UpdateFile replaces exports and imports for a single file in the graph.
+// Removes old edges, adds new ones. Used for incremental updates.
+func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []ImportInfo) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	// Remove old edges originating from this file.
+	for target := range g.edges[file] {
+		if set := g.importedBy[target]; set != nil {
+			delete(set, file)
+			if len(set) == 0 {
+				delete(g.importedBy, target)
+			}
+		}
+	}
+	delete(g.edges, file)
+
+	// Remove old symbol importer entries for this file.
+	for key, set := range g.symbolImporters {
+		delete(set, file)
+		if len(set) == 0 {
+			delete(g.symbolImporters, key)
+		}
+	}
+
+	// Update exports.
+	g.exports[file] = newExports
+
+	// Update imports and rebuild edges.
+	g.imports[file] = newImports
+	g.addImportEdges(file, newImports)
 }
 
 // ImportedBy returns files that import from the given file.

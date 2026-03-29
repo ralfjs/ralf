@@ -475,6 +475,78 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 		}
 	}
 
+	// Extract graph data for cache-miss files and store in cache.
+	if len(toLint) > 0 && ctx.Err() == nil {
+		graphEntries := make([]project.FileGraphEntry, 0, len(toLint))
+		for _, fs := range toLint {
+			imports, exports, err := project.ExtractFile(ctx, fs.Path, fs.Source)
+			if err != nil {
+				slog.Debug("extract failed, skipping graph entry", "file", fs.Path, "error", err)
+				continue
+			}
+			graphEntries = append(graphEntries, project.FileGraphEntry{
+				Path:    fs.Path,
+				Exports: exports,
+				Imports: imports,
+			})
+		}
+		if len(graphEntries) > 0 {
+			if err := cache.StoreFileGraphBatch(ctx, graphEntries); err != nil {
+				slog.Debug("graph store failed", "error", err)
+			}
+		}
+	}
+
+	// Backfill graph data for cache-hit files that predate graph extraction.
+	if ctx.Err() == nil {
+		linted := make(map[string]struct{}, len(toLint))
+		for _, fs := range toLint {
+			linted[fs.Path] = struct{}{}
+		}
+		var cachedPaths []string
+		for _, filePath := range files {
+			if _, ok := linted[filePath]; !ok {
+				cachedPaths = append(cachedPaths, filePath)
+			}
+		}
+		if len(cachedPaths) > 0 {
+			missing, err := cache.FilesMissingGraphData(ctx, cachedPaths)
+			if err != nil {
+				slog.Debug("graph migration check failed", "error", err)
+			} else if len(missing) > 0 {
+				slog.Debug("backfilling graph data", "files", len(missing))
+				var backfillEntries []project.FileGraphEntry
+				for _, filePath := range missing {
+					source, err := os.ReadFile(filePath) //nolint:gosec // paths from discoverFiles
+					if err != nil {
+						continue
+					}
+					imports, exports, err := project.ExtractFile(ctx, filePath, source)
+					if err != nil {
+						continue
+					}
+					backfillEntries = append(backfillEntries, project.FileGraphEntry{
+						Path:    filePath,
+						Exports: exports,
+						Imports: imports,
+					})
+				}
+				if len(backfillEntries) > 0 {
+					if err := cache.StoreFileGraphBatch(ctx, backfillEntries); err != nil {
+						slog.Debug("graph backfill store failed", "error", err)
+					}
+				}
+			}
+		}
+	}
+
+	// Clean up graph data for deleted files.
+	if ctx.Err() == nil {
+		if err := cache.CleanupStalePaths(ctx, files); err != nil {
+			slog.Debug("graph cleanup failed", "error", err)
+		}
+	}
+
 	// Merge cached + fresh diagnostics.
 	if len(cachedDiags) > 0 {
 		all := make([]engine.Diagnostic, 0, len(cachedDiags)+len(result.Diagnostics))

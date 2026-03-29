@@ -229,6 +229,115 @@ func (c *Cache) Close() error {
 	return c.db.Close()
 }
 
+// FilesMissingGraphData returns paths from the given set that have cached
+// diagnostics but no entries in the exports or imports tables.
+// Used for one-time migration when graph extraction is added to an existing cache.
+func (c *Cache) FilesMissingGraphData(ctx context.Context, paths []string) ([]string, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+
+	// Build set of paths that have any graph data.
+	hasGraph := make(map[string]struct{})
+
+	rows, err := c.db.QueryContext(ctx, "SELECT DISTINCT path FROM exports")
+	if err != nil {
+		return nil, fmt.Errorf("query export paths: %w", err)
+	}
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		hasGraph[p] = struct{}{}
+	}
+	_ = rows.Close()
+
+	rows, err = c.db.QueryContext(ctx, "SELECT DISTINCT path FROM imports")
+	if err != nil {
+		return nil, fmt.Errorf("query import paths: %w", err)
+	}
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		hasGraph[p] = struct{}{}
+	}
+	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var missing []string
+	for _, p := range paths {
+		if _, ok := hasGraph[p]; !ok {
+			missing = append(missing, p)
+		}
+	}
+	return missing, nil
+}
+
+// CleanupStalePaths removes graph data (exports + imports) for paths that are
+// no longer in the active file set. This handles deleted files.
+func (c *Cache) CleanupStalePaths(ctx context.Context, activePaths []string) error {
+	if len(activePaths) == 0 {
+		return nil
+	}
+
+	// Build a set for fast lookup.
+	active := make(map[string]struct{}, len(activePaths))
+	for _, p := range activePaths {
+		active[p] = struct{}{}
+	}
+
+	// Find paths in exports/imports that aren't in the active set.
+	rows, err := c.db.QueryContext(ctx,
+		"SELECT DISTINCT path FROM exports UNION SELECT DISTINCT path FROM imports")
+	if err != nil {
+		return fmt.Errorf("query graph paths: %w", err)
+	}
+
+	var stale []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if _, ok := active[p]; !ok {
+			stale = append(stale, p)
+		}
+	}
+	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if len(stale) == 0 {
+		return nil
+	}
+
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin cleanup transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is no-op
+
+	for _, p := range stale {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM exports WHERE path = ?", p); err != nil {
+			return fmt.Errorf("cleanup exports %s: %w", p, err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM imports WHERE path = ?", p); err != nil {
+			return fmt.Errorf("cleanup imports %s: %w", p, err)
+		}
+	}
+
+	return tx.Commit()
+}
+
 const upsertFileSQL = `INSERT INTO files (path, content_hash, mod_time_ns, diag_json, updated_at)
 		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT(path) DO UPDATE SET

@@ -237,6 +237,144 @@ const upsertFileSQL = `INSERT INTO files (path, content_hash, mod_time_ns, diag_
 		   diag_json    = excluded.diag_json,
 		   updated_at   = excluded.updated_at`
 
+// FileGraphEntry holds graph data for a single file.
+type FileGraphEntry struct {
+	Path    string
+	Exports []ExportInfo
+	Imports []ImportInfo
+}
+
+// StoreFileGraph replaces all export and import entries for a file in a single transaction.
+func (c *Cache) StoreFileGraph(ctx context.Context, path string, exports []ExportInfo, imports []ImportInfo) error {
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin graph transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is no-op
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM exports WHERE path = ?", path); err != nil {
+		return fmt.Errorf("delete exports for %s: %w", path, err)
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM imports WHERE path = ?", path); err != nil {
+		return fmt.Errorf("delete imports for %s: %w", path, err)
+	}
+
+	for _, e := range exports {
+		if _, err := tx.ExecContext(ctx,
+			"INSERT INTO exports (path, name, kind, line) VALUES (?, ?, ?, ?)",
+			path, e.Name, e.Kind, e.Line); err != nil {
+			return fmt.Errorf("insert export %s:%s: %w", path, e.Name, err)
+		}
+	}
+	for _, imp := range imports {
+		if _, err := tx.ExecContext(ctx,
+			"INSERT OR REPLACE INTO imports (path, source, name, line) VALUES (?, ?, ?, ?)",
+			path, imp.Source, imp.Name, imp.Line); err != nil {
+			return fmt.Errorf("insert import %s:%s: %w", path, imp.Source, err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+// StoreFileGraphBatch stores graph data for multiple files in a single transaction.
+func (c *Cache) StoreFileGraphBatch(ctx context.Context, entries []FileGraphEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin graph batch transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after commit is no-op
+
+	delExp, err := tx.PrepareContext(ctx, "DELETE FROM exports WHERE path = ?")
+	if err != nil {
+		return fmt.Errorf("prepare delete exports: %w", err)
+	}
+	defer func() { _ = delExp.Close() }()
+
+	delImp, err := tx.PrepareContext(ctx, "DELETE FROM imports WHERE path = ?")
+	if err != nil {
+		return fmt.Errorf("prepare delete imports: %w", err)
+	}
+	defer func() { _ = delImp.Close() }()
+
+	insExp, err := tx.PrepareContext(ctx, "INSERT INTO exports (path, name, kind, line) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		return fmt.Errorf("prepare insert export: %w", err)
+	}
+	defer func() { _ = insExp.Close() }()
+
+	insImp, err := tx.PrepareContext(ctx, "INSERT OR REPLACE INTO imports (path, source, name, line) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		return fmt.Errorf("prepare insert import: %w", err)
+	}
+	defer func() { _ = insImp.Close() }()
+
+	for _, entry := range entries {
+		if _, err := delExp.ExecContext(ctx, entry.Path); err != nil {
+			return fmt.Errorf("delete exports for %s: %w", entry.Path, err)
+		}
+		if _, err := delImp.ExecContext(ctx, entry.Path); err != nil {
+			return fmt.Errorf("delete imports for %s: %w", entry.Path, err)
+		}
+		for _, e := range entry.Exports {
+			if _, err := insExp.ExecContext(ctx, entry.Path, e.Name, e.Kind, e.Line); err != nil {
+				return fmt.Errorf("insert export %s:%s: %w", entry.Path, e.Name, err)
+			}
+		}
+		for _, imp := range entry.Imports {
+			if _, err := insImp.ExecContext(ctx, entry.Path, imp.Source, imp.Name, imp.Line); err != nil {
+				return fmt.Errorf("insert import %s:%s: %w", entry.Path, imp.Source, err)
+			}
+		}
+	}
+
+	return tx.Commit()
+}
+
+// LoadAllExports loads all exports from the database, grouped by file path.
+func (c *Cache) LoadAllExports(ctx context.Context) (map[string][]ExportInfo, error) {
+	rows, err := c.db.QueryContext(ctx, "SELECT path, name, kind, line FROM exports")
+	if err != nil {
+		return nil, fmt.Errorf("load exports: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	result := make(map[string][]ExportInfo)
+	for rows.Next() {
+		var path, name, kind string
+		var line int
+		if err := rows.Scan(&path, &name, &kind, &line); err != nil {
+			return nil, fmt.Errorf("scan export row: %w", err)
+		}
+		result[path] = append(result[path], ExportInfo{Name: name, Kind: kind, Line: line})
+	}
+	return result, rows.Err()
+}
+
+// LoadAllImports loads all imports from the database, grouped by file path.
+func (c *Cache) LoadAllImports(ctx context.Context) (map[string][]ImportInfo, error) {
+	rows, err := c.db.QueryContext(ctx, "SELECT path, source, name, line FROM imports")
+	if err != nil {
+		return nil, fmt.Errorf("load imports: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	result := make(map[string][]ImportInfo)
+	for rows.Next() {
+		var path, source, name string
+		var line int
+		if err := rows.Scan(&path, &source, &name, &line); err != nil {
+			return nil, fmt.Errorf("scan import row: %w", err)
+		}
+		result[path] = append(result[path], ImportInfo{Source: source, Name: name, Line: line})
+	}
+	return result, rows.Err()
+}
+
 func marshalDiags(diags []engine.Diagnostic) ([]byte, error) {
 	if len(diags) == 0 {
 		return nil, nil

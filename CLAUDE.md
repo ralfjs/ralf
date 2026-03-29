@@ -57,12 +57,13 @@ internal/
     dprint_wasm.go           # dprint WASM plugin bridge via Wazero
 
   project/                   # Project-level analysis
-    graph.go                 # Module graph: imports, exports, ImportedBy, ExportedBy
     cache.go                 # SQLite cache: per-file content hash, diagnostics (JSON blob), config hash invalidation
     hasher.go                # xxhash content hashing (HashFile, HashConfig)
+    extract.go               # Import/export extraction from tree-sitter AST (ESM + CJS)
+    resolve.go               # Import specifier resolution (relative → absolute, extension probing)
+    graph.go                 # Module graph: ImportedBy, ImportedBySymbol, ExportedBy, ExportMap, HasCycle, DeadModules
     watcher.go               # fsnotify + cascade invalidation
     scanner.go               # Initial project scan (parallel file processing)
-    hasher.go                # xxhash content hashing
 
   lsp/                       # Language Server Protocol
     server.go                # JSON-RPC handler over stdio

@@ -238,9 +238,13 @@ func (c *Cache) IsGraphBackfillDone(ctx context.Context) bool {
 
 // MarkGraphBackfillDone sets a marker indicating graph backfill is complete.
 // Subsequent runs skip the backfill check entirely.
-func (c *Cache) MarkGraphBackfillDone(ctx context.Context) {
-	_, _ = c.db.ExecContext(ctx,
+func (c *Cache) MarkGraphBackfillDone(ctx context.Context) error {
+	_, err := c.db.ExecContext(ctx,
 		"INSERT OR REPLACE INTO meta (key, value) VALUES ('graph_backfill_done', '1')")
+	if err != nil {
+		return fmt.Errorf("mark graph backfill done: %w", err)
+	}
+	return nil
 }
 
 // FilesMissingGraphData returns paths from the given set that have no entries
@@ -298,10 +302,23 @@ func (c *Cache) FilesMissingGraphData(ctx context.Context, paths []string) ([]st
 }
 
 // CleanupStalePaths removes graph data (exports + imports) for paths that are
-// no longer in the active file set. This handles deleted files.
+// no longer in the active file set. If activePaths is empty, all graph data
+// is removed (no lintable files means all cached graph data is stale).
 func (c *Cache) CleanupStalePaths(ctx context.Context, activePaths []string) error {
 	if len(activePaths) == 0 {
-		return nil
+		// No active files — clear all graph data.
+		tx, err := c.db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("begin cleanup transaction: %w", err)
+		}
+		defer tx.Rollback() //nolint:errcheck // rollback after commit is no-op
+		if _, err := tx.ExecContext(ctx, "DELETE FROM exports"); err != nil {
+			return fmt.Errorf("cleanup all exports: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM imports"); err != nil {
+			return fmt.Errorf("cleanup all imports: %w", err)
+		}
+		return tx.Commit()
 	}
 
 	// Build a set for fast lookup.

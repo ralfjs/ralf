@@ -479,9 +479,14 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 	if len(toLint) > 0 && ctx.Err() == nil {
 		graphEntries := make([]project.FileGraphEntry, 0, len(toLint))
 		for _, fs := range toLint {
+			if ctx.Err() != nil {
+				break
+			}
 			imports, exports, err := project.ExtractFile(ctx, fs.Path, fs.Source)
 			if err != nil {
-				slog.Debug("extract failed, skipping graph entry", "file", fs.Path, "error", err)
+				// Store empty graph entry to clear stale data for this path.
+				slog.Debug("extract failed, storing empty graph entry", "file", fs.Path, "error", err)
+				graphEntries = append(graphEntries, project.FileGraphEntry{Path: fs.Path})
 				continue
 			}
 			graphEntries = append(graphEntries, project.FileGraphEntry{
@@ -490,7 +495,7 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 				Imports: imports,
 			})
 		}
-		if len(graphEntries) > 0 {
+		if len(graphEntries) > 0 && ctx.Err() == nil {
 			if err := cache.StoreFileGraphBatch(ctx, graphEntries); err != nil {
 				slog.Debug("graph store failed", "error", err)
 			}
@@ -553,7 +558,9 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 		}
 
 		if backfillComplete && ctx.Err() == nil {
-			cache.MarkGraphBackfillDone(ctx)
+			if err := cache.MarkGraphBackfillDone(ctx); err != nil {
+				slog.Debug("failed to mark graph backfill done", "error", err)
+			}
 		}
 	}
 

@@ -289,24 +289,44 @@ func (c *Cache) StoreFileGraphBatch(ctx context.Context, entries []FileGraphEntr
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback after commit is no-op
 
+	delExp, err := tx.PrepareContext(ctx, "DELETE FROM exports WHERE path = ?")
+	if err != nil {
+		return fmt.Errorf("prepare delete exports: %w", err)
+	}
+	defer func() { _ = delExp.Close() }()
+
+	delImp, err := tx.PrepareContext(ctx, "DELETE FROM imports WHERE path = ?")
+	if err != nil {
+		return fmt.Errorf("prepare delete imports: %w", err)
+	}
+	defer func() { _ = delImp.Close() }()
+
+	insExp, err := tx.PrepareContext(ctx, "INSERT INTO exports (path, name, kind, line) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		return fmt.Errorf("prepare insert export: %w", err)
+	}
+	defer func() { _ = insExp.Close() }()
+
+	insImp, err := tx.PrepareContext(ctx, "INSERT OR REPLACE INTO imports (path, source, name, line) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		return fmt.Errorf("prepare insert import: %w", err)
+	}
+	defer func() { _ = insImp.Close() }()
+
 	for _, entry := range entries {
-		if _, err := tx.ExecContext(ctx, "DELETE FROM exports WHERE path = ?", entry.Path); err != nil {
+		if _, err := delExp.ExecContext(ctx, entry.Path); err != nil {
 			return fmt.Errorf("delete exports for %s: %w", entry.Path, err)
 		}
-		if _, err := tx.ExecContext(ctx, "DELETE FROM imports WHERE path = ?", entry.Path); err != nil {
+		if _, err := delImp.ExecContext(ctx, entry.Path); err != nil {
 			return fmt.Errorf("delete imports for %s: %w", entry.Path, err)
 		}
 		for _, e := range entry.Exports {
-			if _, err := tx.ExecContext(ctx,
-				"INSERT INTO exports (path, name, kind, line) VALUES (?, ?, ?, ?)",
-				entry.Path, e.Name, e.Kind, e.Line); err != nil {
+			if _, err := insExp.ExecContext(ctx, entry.Path, e.Name, e.Kind, e.Line); err != nil {
 				return fmt.Errorf("insert export %s:%s: %w", entry.Path, e.Name, err)
 			}
 		}
 		for _, imp := range entry.Imports {
-			if _, err := tx.ExecContext(ctx,
-				"INSERT OR REPLACE INTO imports (path, source, name, line) VALUES (?, ?, ?, ?)",
-				entry.Path, imp.Source, imp.Name, imp.Line); err != nil {
+			if _, err := insImp.ExecContext(ctx, entry.Path, imp.Source, imp.Name, imp.Line); err != nil {
 				return fmt.Errorf("insert import %s:%s: %w", entry.Path, imp.Source, err)
 			}
 		}

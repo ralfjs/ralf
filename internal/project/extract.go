@@ -384,7 +384,7 @@ func stripQuotes(s string) string {
 	return s
 }
 
-// offsetToLine converts a byte offset to a 1-based line and 0-based column.
+// offsetToLine converts a byte offset to a 1-based line number.
 // Duplicated from engine/lineindex.go to avoid engine dependency.
 func offsetToLine(lineStarts []int, offset int) int {
 	lo, hi := 0, len(lineStarts)

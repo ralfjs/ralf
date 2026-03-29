@@ -290,3 +290,100 @@ func TestCacheDiagnosticRoundTrip(t *testing.T) {
 		t.Errorf("fix fields mismatch: %+v", d.Fix)
 	}
 }
+
+func TestCacheStoreFileGraph_RoundTrip(t *testing.T) {
+	c := openTestCache(t, 1)
+	ctx := context.Background()
+
+	exports := []ExportInfo{
+		{Name: "foo", Kind: "function", Line: 1},
+		{Name: "Bar", Kind: "class", Line: 5},
+	}
+	imports := []ImportInfo{
+		{Source: "./utils", Name: "formatDate", Line: 1},
+		{Source: "react", Name: "useState", Line: 2},
+	}
+
+	if err := c.StoreFileGraph(ctx, "/src/app.ts", exports, imports); err != nil {
+		t.Fatal(err)
+	}
+
+	gotExports, err := c.LoadAllExports(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gotExports["/src/app.ts"]) != 2 {
+		t.Errorf("expected 2 exports, got %d", len(gotExports["/src/app.ts"]))
+	}
+
+	gotImports, err := c.LoadAllImports(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gotImports["/src/app.ts"]) != 2 {
+		t.Errorf("expected 2 imports, got %d", len(gotImports["/src/app.ts"]))
+	}
+}
+
+func TestCacheStoreFileGraph_OverwritesPrevious(t *testing.T) {
+	c := openTestCache(t, 1)
+	ctx := context.Background()
+
+	// Store first version.
+	if err := c.StoreFileGraph(ctx, "/src/a.ts",
+		[]ExportInfo{{Name: "old", Kind: "function", Line: 1}},
+		[]ImportInfo{{Source: "./old", Name: "*", Line: 1}},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	// Overwrite with new version.
+	if err := c.StoreFileGraph(ctx, "/src/a.ts",
+		[]ExportInfo{{Name: "new", Kind: "class", Line: 2}},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	gotExports, _ := c.LoadAllExports(ctx)
+	exps := gotExports["/src/a.ts"]
+	if len(exps) != 1 || exps[0].Name != "new" {
+		t.Errorf("expected overwritten export 'new', got %v", exps)
+	}
+
+	gotImports, _ := c.LoadAllImports(ctx)
+	if len(gotImports["/src/a.ts"]) != 0 {
+		t.Errorf("expected 0 imports after overwrite, got %d", len(gotImports["/src/a.ts"]))
+	}
+}
+
+func TestCacheStoreFileGraphBatch(t *testing.T) {
+	c := openTestCache(t, 1)
+	ctx := context.Background()
+
+	entries := []FileGraphEntry{
+		{
+			Path:    "/src/a.ts",
+			Exports: []ExportInfo{{Name: "a", Kind: "function", Line: 1}},
+			Imports: []ImportInfo{{Source: "./b", Name: "b", Line: 1}},
+		},
+		{
+			Path:    "/src/b.ts",
+			Exports: []ExportInfo{{Name: "b", Kind: "variable", Line: 1}},
+		},
+	}
+
+	if err := c.StoreFileGraphBatch(ctx, entries); err != nil {
+		t.Fatal(err)
+	}
+
+	gotExports, _ := c.LoadAllExports(ctx)
+	if len(gotExports) != 2 {
+		t.Errorf("expected 2 files with exports, got %d", len(gotExports))
+	}
+
+	gotImports, _ := c.LoadAllImports(ctx)
+	if len(gotImports["/src/a.ts"]) != 1 {
+		t.Errorf("expected 1 import for a.ts, got %d", len(gotImports["/src/a.ts"]))
+	}
+}

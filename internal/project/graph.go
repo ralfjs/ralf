@@ -4,6 +4,8 @@ import (
 	"context"
 	"sort"
 	"sync"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 // ExportInfo describes a single exported symbol from a file.
@@ -99,11 +101,17 @@ func (g *Graph) ImportedBySymbol(file, symbol string) []string {
 	return setToSorted(g.symbolImporters[file+":"+symbol])
 }
 
-// ExportedBy returns the exports of a given file.
+// ExportedBy returns a copy of the exports of a given file.
 func (g *Graph) ExportedBy(file string) []ExportInfo {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
-	return g.exports[file]
+	exps := g.exports[file]
+	if len(exps) == 0 {
+		return nil
+	}
+	out := make([]ExportInfo, len(exps))
+	copy(out, exps)
+	return out
 }
 
 // ExportMap returns a map of symbol name → ExportInfo for a file.
@@ -230,14 +238,8 @@ func setToSorted(s map[string]struct{}) []string {
 	return result
 }
 
-// matchGlob performs a simple suffix/contains match for entry point detection.
-// For full glob support, this would use doublestar, but for MVP a suffix match
-// on common patterns like "**/index.*" or "**/*.test.*" is sufficient.
+// matchGlob matches a path against a doublestar glob pattern.
 func matchGlob(pattern, path string) bool {
-	// Simple: check if path ends with the non-** part of the pattern.
-	if len(pattern) > 3 && pattern[:3] == "**/" {
-		suffix := pattern[3:]
-		return len(path) >= len(suffix) && path[len(path)-len(suffix):] == suffix
-	}
-	return path == pattern
+	ok, _ := doublestar.Match(pattern, path)
+	return ok
 }

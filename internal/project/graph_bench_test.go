@@ -77,6 +77,16 @@ func BenchmarkGraph_ImportedBy(b *testing.B) {
 	}
 }
 
+func BenchmarkGraph_CyclicFiles_1000Files(b *testing.B) {
+	exports, imports := buildTestData(1000, 10)
+	g := NewGraphFromResolved(exports, imports)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		g.CyclicFiles()
+	}
+}
+
 func BenchmarkResolveSpecifier(b *testing.B) {
 	// Bare specifier (fast reject path).
 	b.Run("bare", func(b *testing.B) {

@@ -61,7 +61,7 @@ make build                   # builds ralf binary
 ## Quick Start
 
 ```bash
-# Lint your project (zero config — all 61 rules enabled)
+# Lint your project (zero config — all 64 rules enabled)
 ralf lint
 
 # Generate a config file to customize rules
@@ -111,7 +111,7 @@ src/utils.ts
 
 ## Rules
 
-61 built-in rules covering ESLint recommended and Biome stable equivalents:
+64 built-in rules covering ESLint recommended, Biome stable equivalents, and cross-file analysis:
 
 **Error prevention:** `no-dupe-keys`, `no-dupe-args`, `no-dupe-class-members`, `no-duplicate-case`, `no-self-assign`, `no-self-compare`, `valid-typeof`, `use-isnan`, `for-direction`, `getter-return`, `no-setter-return`, `no-unsafe-finally`, `no-unsafe-negation`, `no-unsafe-optional-chaining`, `no-constant-condition`, `no-loss-of-precision`, `no-fallthrough`, `no-inner-declarations`, `no-constructor-return`, `no-empty-character-class`, `no-sparse-arrays`, `no-cond-assign`, `no-compare-neg-zero`
 
@@ -121,11 +121,13 @@ src/utils.ts
 
 **Style:** `no-console`, `no-debugger`, `no-alert`
 
+**Cross-file (module graph):** `no-unused-exports`, `no-circular-deps`, `no-dead-modules`
+
 Full rule gap analysis vs ESLint/Biome: [#24](https://github.com/ralfjs/ralf/issues/24)
 
 ## Configuration
 
-Zero config works out of the box — all 61 rules enabled with sensible defaults.
+Zero config works out of the box — all 64 rules enabled with sensible defaults.
 
 To customize, run `ralf init` and edit the generated config:
 
@@ -164,7 +166,7 @@ See the **[Configuration Guide](docs/CONFIGURATION.md)** for full syntax: rule t
 
 | Milestone | Key Deliverable |
 |---|---|
-| **v0.1** (current) | Linter MVP — 61 rules, CLI, config, SARIF, migration |
+| **v0.1** | Linter MVP — 61 per-file rules, CLI, config, SARIF, migration |
 | **v0.2** | Project-aware — SQLite cache, module graph, LSP, VS Code |
 | **v0.3** | Formatter — dprint WASM, import sorting |
 | **v0.4** | WASM plugins — Go/Rust/AS SDKs |

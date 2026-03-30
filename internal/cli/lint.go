@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ralfjs/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/crossfile"
 	"github.com/ralfjs/ralf/internal/engine"
 	"github.com/ralfjs/ralf/internal/project"
 	"github.com/spf13/cobra"
@@ -573,14 +574,27 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 		}
 	}
 
-	// Merge cached + fresh diagnostics.
+	// Build module graph and run cross-file rules.
+	if ctx.Err() == nil {
+		graph, err := project.BuildGraph(ctx, cache)
+		if err != nil {
+			slog.Debug("graph build failed, skipping cross-file rules", "error", err)
+		} else {
+			crossDiags := crossfile.Run(graph, cfg)
+			if len(crossDiags) > 0 {
+				result.Diagnostics = append(result.Diagnostics, crossDiags...)
+			}
+		}
+	}
+
+	// Merge cached + fresh + cross-file diagnostics.
 	if len(cachedDiags) > 0 {
 		all := make([]engine.Diagnostic, 0, len(cachedDiags)+len(result.Diagnostics))
 		all = append(all, cachedDiags...)
 		all = append(all, result.Diagnostics...)
 		result.Diagnostics = all
-		engine.SortDiagChunksByFile(result.Diagnostics)
 	}
+	engine.SortDiagChunksByFile(result.Diagnostics)
 
 	if ctx.Err() != nil {
 		slog.Debug("lint cache summary (partial)",

@@ -6,7 +6,7 @@
 [![npm](https://img.shields.io/npm/v/@ralfjs/cli)](https://www.npmjs.com/package/@ralfjs/cli)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ralfjs/ralf)](https://goreportcard.com/report/github.com/ralfjs/ralf)
 
-Fast, project-aware JS/TS linter with 61 built-in rules. ESLint/Biome compatible. Zero config required.
+Fast, project-aware JS/TS linter with 64 built-in rules (61 per-file + 3 cross-file). ESLint/Biome compatible. Zero config required.
 
 Written in Go. Regex engine powered by Rust's `regex` crate via [rure-go](https://github.com/BurntSushi/rure-go). AST parsing via [tree-sitter](https://tree-sitter.github.io/tree-sitter/). Supports JavaScript, TypeScript, JSX, and TSX.
 

@@ -110,7 +110,10 @@ func TestFixtures(t *testing.T) {
 	}
 
 	// Fail if any builtin rule is missing fixture tests.
-	for name := range builtins {
+	for name, rule := range builtins {
+		if rule.Scope == "cross-file" {
+			continue // cross-file rules are tested in internal/crossfile, not per-file fixtures
+		}
 		if !tested[name] {
 			t.Errorf("builtin rule %q has no fixture directory at testdata/rules/%s/", name, name)
 		}

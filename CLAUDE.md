@@ -44,7 +44,7 @@ internal/
     builtin_registry.go      # Custom Go builtin rules: types, registry, kind-indexed single-walk dispatch
     builtin_*.go             # 33 per-rule checker files (no-empty, valid-typeof, no-dupe-keys, eqeqeq, etc.)
     complexity.go            # Cyclomatic complexity
-    crossfile.go             # Cross-file rule evaluation (uses project.Graph)
+    crossfile.go             # Cross-file rule evaluation — MOVED to internal/crossfile/ package
     fix.go                   # Auto-fix: Fix/Conflict types, ApplyFixes (single-pass), expandToStatement
     lineindex.go             # Line/col resolution (binary search on line starts)
 
@@ -55,6 +55,12 @@ internal/
   formatter/                 # Code formatting
     printer.go               # CST → formatted output (Phase 3+)
     dprint_wasm.go           # dprint WASM plugin bridge via Wazero
+
+  crossfile/                 # Cross-file lint rules (depends on project.Graph + engine types)
+    crossfile.go             # Rule registry, Run function
+    unused_exports.go        # no-unused-exports: exports not imported by any file
+    circular_deps.go         # no-circular-deps: files in import cycles (Tarjan's SCC)
+    dead_modules.go          # no-dead-modules: files with zero importers
 
   project/                   # Project-level analysis
     cache.go                 # SQLite cache: per-file content hash, diagnostics (JSON blob), config hash invalidation

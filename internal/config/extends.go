@@ -128,8 +128,8 @@ func isFilePath(ext string) bool {
 // mergeInto merges src into dst. Rules from src override existing rules in dst.
 // Ignores and Overrides are concatenated.
 func mergeInto(dst, src *Config) {
-	for name, rule := range src.Rules {
-		dst.Rules[name] = rule
+	for name := range src.Rules {
+		dst.Rules[name] = src.Rules[name]
 	}
 	dst.Ignores = append(dst.Ignores, src.Ignores...)
 	dst.Overrides = append(dst.Overrides, src.Overrides...)

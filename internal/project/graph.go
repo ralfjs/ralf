@@ -64,6 +64,24 @@ func NewGraph(exports map[string][]ExportInfo, imports map[string][]ImportInfo) 
 	return g
 }
 
+// NewGraphFromResolved constructs a graph from pre-resolved imports (sources
+// are already absolute paths). Used by tests and cross-file rules.
+func NewGraphFromResolved(exports map[string][]ExportInfo, imports map[string][]ImportInfo) *Graph {
+	g := &Graph{
+		exports:         exports,
+		imports:         imports,
+		importedBy:      make(map[string]map[string]struct{}),
+		edges:           make(map[string]map[string]struct{}),
+		symbolImporters: make(map[string]map[string]struct{}),
+	}
+
+	for fromFile, fileImports := range imports {
+		g.addImportEdges(fromFile, fileImports)
+	}
+
+	return g
+}
+
 // addImportEdges resolves import specifiers and adds edges to the graph.
 // Caller must hold the write lock if needed (NewGraph doesn't need it,
 // UpdateFile acquires it before calling).
@@ -131,6 +149,20 @@ func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []Im
 	// Update imports and rebuild edges.
 	g.imports[file] = newImports
 	g.addImportEdges(file, newImports)
+}
+
+// AllFiles returns all files known to the graph (files with exports or imports).
+func (g *Graph) AllFiles() []string {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	seen := make(map[string]struct{})
+	for f := range g.exports {
+		seen[f] = struct{}{}
+	}
+	for f := range g.imports {
+		seen[f] = struct{}{}
+	}
+	return setToSorted(seen)
 }
 
 // ImportedBy returns files that import from the given file.
@@ -233,6 +265,72 @@ func (g *Graph) HasCycle() []string {
 		}
 	}
 	return nil
+}
+
+// CyclicFiles returns all files that participate in at least one import cycle,
+// grouped into strongly connected components using Tarjan's algorithm.
+// Each inner slice is one SCC of size >= 2.
+func (g *Graph) CyclicFiles() [][]string {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	type nodeState struct {
+		index   int
+		lowlink int
+		onStack bool
+	}
+
+	state := make(map[string]*nodeState, len(g.edges))
+	var stack []string
+	index := 0
+	var sccs [][]string
+
+	var strongconnect func(v string)
+	strongconnect = func(v string) {
+		s := &nodeState{index: index, lowlink: index, onStack: true}
+		state[v] = s
+		index++
+		stack = append(stack, v)
+
+		for w := range g.edges[v] {
+			ws, visited := state[w]
+			if !visited {
+				strongconnect(w)
+				if state[w].lowlink < s.lowlink {
+					s.lowlink = state[w].lowlink
+				}
+			} else if ws.onStack {
+				if ws.index < s.lowlink {
+					s.lowlink = ws.index
+				}
+			}
+		}
+
+		if s.lowlink == s.index {
+			var scc []string
+			for {
+				w := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				state[w].onStack = false
+				scc = append(scc, w)
+				if w == v {
+					break
+				}
+			}
+			if len(scc) >= 2 {
+				sort.Strings(scc)
+				sccs = append(sccs, scc)
+			}
+		}
+	}
+
+	for v := range g.edges {
+		if _, visited := state[v]; !visited {
+			strongconnect(v)
+		}
+	}
+
+	return sccs
 }
 
 // DeadModules returns files that are not imported by any other file.

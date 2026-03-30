@@ -27,8 +27,8 @@ func TestInit_DefaultConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated config not loadable: %v", err)
 	}
-	if len(cfg.Rules) != 61 {
-		t.Errorf("expected 61 rules, got %d", len(cfg.Rules))
+	if len(cfg.Rules) != 64 {
+		t.Errorf("expected 64 rules, got %d", len(cfg.Rules))
 	}
 }
 
@@ -51,8 +51,8 @@ func TestInit_FormatYAML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated YAML config not loadable: %v", err)
 	}
-	if len(cfg.Rules) != 61 {
-		t.Errorf("expected 61 rules, got %d", len(cfg.Rules))
+	if len(cfg.Rules) != 64 {
+		t.Errorf("expected 64 rules, got %d", len(cfg.Rules))
 	}
 }
 
@@ -75,8 +75,8 @@ func TestInit_FormatTOML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated TOML config not loadable: %v", err)
 	}
-	if len(cfg.Rules) != 61 {
-		t.Errorf("expected 61 rules, got %d", len(cfg.Rules))
+	if len(cfg.Rules) != 64 {
+		t.Errorf("expected 64 rules, got %d", len(cfg.Rules))
 	}
 }
 
@@ -114,8 +114,8 @@ func TestInit_Force(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config not loadable after force: %v", err)
 	}
-	if len(cfg.Rules) != 61 {
-		t.Errorf("expected 61 rules, got %d", len(cfg.Rules))
+	if len(cfg.Rules) != 64 {
+		t.Errorf("expected 64 rules, got %d", len(cfg.Rules))
 	}
 }
 

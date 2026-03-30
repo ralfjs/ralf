@@ -17,7 +17,7 @@ const noLabelsNotDefault = `(?:` +
 	`|defaul[a-su-zA-Z0-9_]` +
 	`)`
 
-// BuiltinRules returns the 61 built-in rules. A fresh map is returned
+// BuiltinRules returns the 64 built-in rules (61 per-file + 3 cross-file). A fresh map is returned
 // on every call so callers may mutate it freely.
 //
 // Each rule is modeled after its ESLint equivalent where one exists.
@@ -424,6 +424,30 @@ func BuiltinRules() map[string]RuleConfig {
 			Severity: SeverityError,
 			Builtin:  true,
 			Message:  "Expected a break, return, throw, or continue statement.",
+		},
+
+		// ── Cross-file rules (3) ─────────────────────────────────────────
+
+		// Exported symbol not imported by any file in the project.
+		"no-unused-exports": {
+			Severity: SeverityWarn,
+			Builtin:  true,
+			Scope:    "cross-file",
+			Message:  "Exported symbol is not imported by any file in the project.",
+		},
+		// File is part of a circular dependency chain.
+		"no-circular-deps": {
+			Severity: SeverityWarn,
+			Builtin:  true,
+			Scope:    "cross-file",
+			Message:  "File is part of a circular dependency.",
+		},
+		// File is not imported by any other module.
+		"no-dead-modules": {
+			Severity: SeverityWarn,
+			Builtin:  true,
+			Scope:    "cross-file",
+			Message:  "File is not imported by any other module.",
 		},
 	}
 }

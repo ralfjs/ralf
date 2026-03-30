@@ -19,24 +19,6 @@ func testGraph() *Graph {
 	return NewGraphFromResolved(exports, imports)
 }
 
-// NewGraphFromResolved constructs a graph from pre-resolved imports (sources are already absolute paths).
-// Used in tests to skip filesystem resolution. Delegates to addImportEdges which handles absolute paths.
-func NewGraphFromResolved(exports map[string][]ExportInfo, imports map[string][]ImportInfo) *Graph {
-	g := &Graph{
-		exports:         exports,
-		imports:         imports,
-		importedBy:      make(map[string]map[string]struct{}),
-		edges:           make(map[string]map[string]struct{}),
-		symbolImporters: make(map[string]map[string]struct{}),
-	}
-
-	for fromFile, fileImports := range imports {
-		g.addImportEdges(fromFile, fileImports)
-	}
-
-	return g
-}
-
 func TestGraph_ImportedBy(t *testing.T) {
 	g := testGraph()
 

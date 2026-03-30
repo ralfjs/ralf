@@ -36,8 +36,8 @@ func TestMigrateBiome_BasicJSON(t *testing.T) {
 	if cfg.Rules["eqeqeq"].Severity != config.SeverityWarn {
 		t.Errorf("expected eqeqeq warn, got %s", cfg.Rules["eqeqeq"].Severity)
 	}
-	if len(cfg.Rules) != 61 {
-		t.Errorf("expected 61 rules, got %d", len(cfg.Rules))
+	if len(cfg.Rules) != 64 {
+		t.Errorf("expected 64 rules, got %d", len(cfg.Rules))
 	}
 }
 

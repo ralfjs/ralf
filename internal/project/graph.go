@@ -69,27 +69,9 @@ func NewGraph(exports map[string][]ExportInfo, imports map[string][]ImportInfo) 
 // UpdateFile acquires it before calling).
 func (g *Graph) addImportEdges(fromFile string, fileImports []ImportInfo) {
 	for _, imp := range fileImports {
-		var resolved string
-		if filepath.IsAbs(imp.Source) {
-			// Treat absolute sources as already resolved only if they are
-			// known files in the graph; otherwise fall back to resolution.
-			if _, known := g.exports[imp.Source]; known {
-				resolved = imp.Source
-			} else if _, known := g.imports[imp.Source]; known {
-				resolved = imp.Source
-			} else {
-				r, ok := ResolveSpecifier(imp.Source, fromFile)
-				if !ok {
-					continue
-				}
-				resolved = r
-			}
-		} else {
-			var ok bool
-			resolved, ok = ResolveSpecifier(imp.Source, fromFile)
-			if !ok {
-				continue
-			}
+		resolved, ok := g.resolveImport(imp.Source, fromFile)
+		if !ok {
+			continue
 		}
 
 		if g.edges[fromFile] == nil {
@@ -130,13 +112,9 @@ func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []Im
 	// Remove old symbol importer entries for this file.
 	// Only iterate keys associated with the file's old imports (not the entire map).
 	for _, imp := range g.imports[file] {
-		resolved := imp.Source
-		if !filepath.IsAbs(resolved) {
-			var ok bool
-			resolved, ok = ResolveSpecifier(imp.Source, file)
-			if !ok {
-				continue
-			}
+		resolved, ok := g.resolveImport(imp.Source, file)
+		if !ok {
+			continue
 		}
 		key := resolved + ":" + imp.Name
 		if set := g.symbolImporters[key]; set != nil {
@@ -292,6 +270,23 @@ func (g *Graph) DeadModules(entryPatterns []string) []string {
 	}
 	sort.Strings(dead)
 	return dead
+}
+
+// resolveImport resolves an import source to a canonical target path.
+// Absolute paths are accepted as-is if they're known files in the graph;
+// otherwise falls through to ResolveSpecifier for validation.
+// Must be called with at least RLock held (or during construction).
+func (g *Graph) resolveImport(source, fromFile string) (string, bool) {
+	if filepath.IsAbs(source) {
+		if _, known := g.exports[source]; known {
+			return source, true
+		}
+		if _, known := g.imports[source]; known {
+			return source, true
+		}
+		return ResolveSpecifier(source, fromFile)
+	}
+	return ResolveSpecifier(source, fromFile)
 }
 
 func setToSorted(s map[string]struct{}) []string {

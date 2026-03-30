@@ -565,7 +565,9 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 	}
 
 	// Clean up graph data for deleted files.
-	if ctx.Err() == nil {
+	// Skip on pure warm runs (zero cache misses) as an optimization — deletions
+	// without other changes are rare and will be caught on the next cold/incremental run.
+	if ctx.Err() == nil && (len(toLint) > 0 || len(readErrors) > 0) {
 		if err := cache.CleanupStalePaths(ctx, files); err != nil {
 			slog.Debug("graph cleanup failed", "error", err)
 		}

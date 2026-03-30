@@ -80,6 +80,17 @@ func validateRule(name string, rule *RuleConfig, errs *[]FieldError) {
 		*errs = append(*errs, FieldError{Rule: name, Field: "severity", Message: fmt.Sprintf("invalid value %q (must be error, warn, or off)", rule.Severity)})
 	}
 
+	// Cross-file rules must use builtin matcher only.
+	if rule.Scope == "cross-file" {
+		if !rule.Builtin {
+			*errs = append(*errs, FieldError{Rule: name, Field: "scope", Message: "scope \"cross-file\" requires builtin: true"})
+		}
+		if rule.Regex != "" || rule.Pattern != "" || rule.AST != nil || rule.Imports != nil {
+			*errs = append(*errs, FieldError{Rule: name, Field: "scope", Message: "scope \"cross-file\" cannot have regex, pattern, ast, or imports matchers"})
+		}
+		return // skip normal matcher validation for cross-file rules
+	}
+
 	matcherCount := countMatchers(rule)
 	if matcherCount == 0 {
 		*errs = append(*errs, FieldError{Rule: name, Field: "matcher", Message: "rule must have exactly one matcher (regex, pattern, ast, imports, or builtin)"})

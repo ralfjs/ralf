@@ -575,6 +575,7 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 	}
 
 	// Build module graph and run cross-file rules.
+	hasCrossFileDiags := false
 	if ctx.Err() == nil {
 		graph, err := project.BuildGraph(ctx, cache)
 		if err != nil {
@@ -583,6 +584,7 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 			crossDiags := crossfile.Run(graph, cfg)
 			if len(crossDiags) > 0 {
 				result.Diagnostics = append(result.Diagnostics, crossDiags...)
+				hasCrossFileDiags = true
 			}
 		}
 	}
@@ -594,22 +596,26 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 		all = append(all, result.Diagnostics...)
 		result.Diagnostics = all
 	}
-	// Full sort required: cross-file diagnostics can interleave with per-file
-	// diagnostics for the same file, breaking the contiguous-chunk precondition
-	// of SortDiagChunksByFile.
-	sort.SliceStable(result.Diagnostics, func(i, j int) bool {
-		di, dj := result.Diagnostics[i], result.Diagnostics[j]
-		if di.File != dj.File {
-			return di.File < dj.File
-		}
-		if di.Line != dj.Line {
-			return di.Line < dj.Line
-		}
-		if di.Col != dj.Col {
-			return di.Col < dj.Col
-		}
-		return di.Rule < dj.Rule
-	})
+	if hasCrossFileDiags {
+		// Full sort: cross-file diagnostics can interleave with per-file
+		// diagnostics for the same file, breaking contiguous-chunk precondition.
+		sort.SliceStable(result.Diagnostics, func(i, j int) bool {
+			di, dj := result.Diagnostics[i], result.Diagnostics[j]
+			if di.File != dj.File {
+				return di.File < dj.File
+			}
+			if di.Line != dj.Line {
+				return di.Line < dj.Line
+			}
+			if di.Col != dj.Col {
+				return di.Col < dj.Col
+			}
+			return di.Rule < dj.Rule
+		})
+	} else {
+		// No cross-file diagnostics — chunks are contiguous, use fast chunked sort.
+		engine.SortDiagChunksByFile(result.Diagnostics)
+	}
 
 	if ctx.Err() != nil {
 		slog.Debug("lint cache summary (partial)",

@@ -594,7 +594,22 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 		all = append(all, result.Diagnostics...)
 		result.Diagnostics = all
 	}
-	engine.SortDiagChunksByFile(result.Diagnostics)
+	// Full sort required: cross-file diagnostics can interleave with per-file
+	// diagnostics for the same file, breaking the contiguous-chunk precondition
+	// of SortDiagChunksByFile.
+	sort.SliceStable(result.Diagnostics, func(i, j int) bool {
+		di, dj := result.Diagnostics[i], result.Diagnostics[j]
+		if di.File != dj.File {
+			return di.File < dj.File
+		}
+		if di.Line != dj.Line {
+			return di.Line < dj.Line
+		}
+		if di.Col != dj.Col {
+			return di.Col < dj.Col
+		}
+		return di.Rule < dj.Rule
+	})
 
 	if ctx.Err() != nil {
 		slog.Debug("lint cache summary (partial)",

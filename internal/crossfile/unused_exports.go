@@ -26,12 +26,13 @@ func checkUnusedExports(g *project.Graph, cfg *config.Config) []engine.Diagnosti
 			continue
 		}
 
+		// Compute wildcard importers once per file to avoid repeated work per export.
+		hasWildcardImporters := len(g.ImportedBySymbol(file, "*")) > 0
+
 		for _, exp := range exports {
 			importers := g.ImportedBySymbol(file, exp.Name)
 			if len(importers) == 0 {
-				// Also check wildcard imports (* imports everything).
-				wildcardImporters := g.ImportedBySymbol(file, "*")
-				if len(wildcardImporters) > 0 {
+				if hasWildcardImporters {
 					continue
 				}
 				diags = append(diags, engine.Diagnostic{

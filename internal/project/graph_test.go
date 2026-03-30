@@ -137,6 +137,20 @@ func TestGraph_HasCycle_Diamond(t *testing.T) {
 	}
 }
 
+func TestGraph_CyclicFiles_SelfImport(t *testing.T) {
+	exports := map[string][]ExportInfo{"/a.ts": {{Name: "a", Kind: "value", Line: 1}}}
+	imports := map[string][]ImportInfo{"/a.ts": {{Source: "/a.ts", Name: "a", Line: 1}}}
+	g := NewGraphFromResolved(exports, imports)
+
+	sccs := g.CyclicFiles()
+	if len(sccs) != 1 {
+		t.Fatalf("expected 1 SCC for self-import, got %d", len(sccs))
+	}
+	if sccs[0][0] != "/a.ts" {
+		t.Errorf("expected /a.ts in self-cycle, got %v", sccs[0])
+	}
+}
+
 func TestGraph_DeadModules(t *testing.T) {
 	g := testGraph()
 

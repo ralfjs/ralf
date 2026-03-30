@@ -317,7 +317,14 @@ func (g *Graph) CyclicFiles() [][]string {
 					break
 				}
 			}
-			if len(scc) >= 2 {
+			// Include multi-node SCCs and single-node SCCs with self-edges.
+			include := len(scc) >= 2
+			if !include && len(scc) == 1 {
+				if neighbors, ok := g.edges[scc[0]]; ok {
+					_, include = neighbors[scc[0]]
+				}
+			}
+			if include {
 				sort.Strings(scc)
 				sccs = append(sccs, scc)
 			}

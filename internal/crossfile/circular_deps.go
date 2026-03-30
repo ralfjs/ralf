@@ -19,7 +19,7 @@ func checkCircularDeps(g *project.Graph, _ *config.Config) []engine.Diagnostic {
 
 	var diags []engine.Diagnostic
 	for _, scc := range sccs {
-		cycle := strings.Join(scc, " → ")
+		members := strings.Join(scc, ", ")
 		for _, file := range scc {
 			diags = append(diags, engine.Diagnostic{
 				File:    file,
@@ -27,7 +27,7 @@ func checkCircularDeps(g *project.Graph, _ *config.Config) []engine.Diagnostic {
 				Col:     0,
 				EndLine: 1,
 				EndCol:  0,
-				Message: fmt.Sprintf("Circular dependency: %s", cycle),
+				Message: fmt.Sprintf("Circular dependency among: %s", members),
 			})
 		}
 	}

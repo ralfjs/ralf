@@ -133,4 +133,7 @@ func mergeInto(dst, src *Config) {
 	}
 	dst.Ignores = append(dst.Ignores, src.Ignores...)
 	dst.Overrides = append(dst.Overrides, src.Overrides...)
+	if len(src.EntryPoints) > 0 {
+		dst.EntryPoints = src.EntryPoints
+	}
 }

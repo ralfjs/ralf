@@ -269,7 +269,8 @@ func (g *Graph) HasCycle() []string {
 
 // CyclicFiles returns all files that participate in at least one import cycle,
 // grouped into strongly connected components using Tarjan's algorithm.
-// Each inner slice is one SCC of size >= 2.
+// Each inner slice is one SCC. Components normally have size >= 2, but
+// single-node components are included when the file has a self-import.
 func (g *Graph) CyclicFiles() [][]string {
 	g.mu.RLock()
 	defer g.mu.RUnlock()

@@ -80,6 +80,11 @@ func validateRule(name string, rule *RuleConfig, errs *[]FieldError) {
 		*errs = append(*errs, FieldError{Rule: name, Field: "severity", Message: fmt.Sprintf("invalid value %q (must be error, warn, or off)", rule.Severity)})
 	}
 
+	// Validate scope field.
+	if rule.Scope != "" && rule.Scope != "cross-file" {
+		*errs = append(*errs, FieldError{Rule: name, Field: "scope", Message: fmt.Sprintf("invalid scope %q (must be empty or \"cross-file\")", rule.Scope)})
+	}
+
 	// Cross-file rules must use builtin matcher only.
 	if rule.Scope == "cross-file" {
 		if !rule.Builtin {

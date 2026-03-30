@@ -12,14 +12,9 @@ import (
 // file in the project. Entry point files' exports are excluded since they
 // serve as the public API.
 func checkUnusedExports(g *project.Graph, cfg *config.Config) []engine.Diagnostic {
-	entryPatterns := cfg.EntryPoints
-	if len(entryPatterns) == 0 {
-		entryPatterns = defaultEntryPatterns
-	}
-
+	entryPatterns := resolveEntryPatterns(cfg)
 	var diags []engine.Diagnostic
 
-	// Iterate all files that have exports.
 	for _, file := range g.AllFiles() {
 		exports := g.ExportedBy(file)
 		if len(exports) == 0 {

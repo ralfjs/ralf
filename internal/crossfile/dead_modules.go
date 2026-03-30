@@ -21,12 +21,7 @@ var defaultEntryPatterns = []string{
 // checkDeadModules flags files that are not imported by any other module.
 // Entry point files are excluded.
 func checkDeadModules(g *project.Graph, cfg *config.Config) []engine.Diagnostic {
-	entryPatterns := cfg.EntryPoints
-	if len(entryPatterns) == 0 {
-		entryPatterns = defaultEntryPatterns
-	}
-
-	dead := g.DeadModules(entryPatterns)
+	dead := g.DeadModules(resolveEntryPatterns(cfg))
 	if len(dead) == 0 {
 		return nil
 	}
@@ -42,6 +37,14 @@ func checkDeadModules(g *project.Graph, cfg *config.Config) []engine.Diagnostic 
 		}
 	}
 	return diags
+}
+
+// resolveEntryPatterns returns configured entry patterns or defaults.
+func resolveEntryPatterns(cfg *config.Config) []string {
+	if len(cfg.EntryPoints) > 0 {
+		return cfg.EntryPoints
+	}
+	return defaultEntryPatterns
 }
 
 // matchAnyPattern returns true if path matches any of the glob patterns.

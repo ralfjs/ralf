@@ -10,12 +10,12 @@ import (
 // defaultEntryPatterns are file patterns excluded from no-dead-modules and
 // no-unused-exports checks. These files are expected entry points.
 var defaultEntryPatterns = []string{
-	"**/index.{js,ts,jsx,tsx}",
-	"**/*.test.{js,ts,jsx,tsx}",
-	"**/*.spec.{js,ts,jsx,tsx}",
-	"**/*.config.{js,ts,jsx,tsx}",
-	"**/main.{js,ts,jsx,tsx}",
-	"**/app.{js,ts,jsx,tsx}",
+	"**/index.js", "**/index.ts", "**/index.jsx", "**/index.tsx",
+	"**/*.test.js", "**/*.test.ts", "**/*.test.jsx", "**/*.test.tsx",
+	"**/*.spec.js", "**/*.spec.ts", "**/*.spec.jsx", "**/*.spec.tsx",
+	"**/*.config.js", "**/*.config.ts", "**/*.config.jsx", "**/*.config.tsx",
+	"**/main.js", "**/main.ts", "**/main.jsx", "**/main.tsx",
+	"**/app.js", "**/app.ts", "**/app.jsx", "**/app.tsx",
 }
 
 // checkDeadModules flags files that are not imported by any other module.

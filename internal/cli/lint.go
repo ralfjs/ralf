@@ -575,8 +575,9 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 	}
 
 	// Build module graph and run cross-file rules.
+	// Skip graph build entirely when no cross-file rules are active.
 	hasCrossFileDiags := false
-	if ctx.Err() == nil {
+	if ctx.Err() == nil && crossfile.HasActiveRules(cfg) {
 		graph, err := project.BuildGraph(ctx, cache)
 		if err != nil {
 			slog.Debug("graph build failed, skipping cross-file rules", "error", err)

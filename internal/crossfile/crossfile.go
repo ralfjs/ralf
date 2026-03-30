@@ -21,8 +21,24 @@ var registry = map[string]checkFunc{
 	"no-dead-modules":   checkDeadModules,
 }
 
+// HasActiveRules returns true if any cross-file rule is enabled in the config.
+// Used to skip graph construction when no cross-file rules are active.
+func HasActiveRules(cfg *config.Config) bool {
+	for name := range cfg.Rules {
+		rule := cfg.Rules[name]
+		if rule.Scope == "cross-file" && rule.Severity != config.SeverityOff {
+			if _, ok := registry[name]; ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Run evaluates all active cross-file rules against the module graph.
 // Only rules with scope "cross-file" and severity != "off" are run.
+// Note: overrides and where predicates are not applied to cross-file rules
+// (they are project-scoped, not file-scoped). Use severity: "off" to disable.
 func Run(g *project.Graph, cfg *config.Config) []engine.Diagnostic {
 	if g == nil {
 		return nil

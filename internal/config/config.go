@@ -4,10 +4,11 @@ package config
 // Config is the top-level configuration structure.
 // NOTE: when adding fields, update mergeInto in extends.go.
 type Config struct {
-	Rules     map[string]RuleConfig `json:"rules" yaml:"rules" toml:"rules"`
-	Ignores   []string              `json:"ignores,omitempty" yaml:"ignores,omitempty" toml:"ignores,omitempty"`
-	Extends   []string              `json:"extends,omitempty" yaml:"extends,omitempty" toml:"extends,omitempty"`
-	Overrides []Override            `json:"overrides,omitempty" yaml:"overrides,omitempty" toml:"overrides,omitempty"`
+	Rules       map[string]RuleConfig `json:"rules" yaml:"rules" toml:"rules"`
+	Ignores     []string              `json:"ignores,omitempty" yaml:"ignores,omitempty" toml:"ignores,omitempty"`
+	Extends     []string              `json:"extends,omitempty" yaml:"extends,omitempty" toml:"extends,omitempty"`
+	Overrides   []Override            `json:"overrides,omitempty" yaml:"overrides,omitempty" toml:"overrides,omitempty"`
+	EntryPoints []string              `json:"entryPoints,omitempty" yaml:"entryPoints,omitempty" toml:"entryPoints,omitempty"`
 }
 
 // RuleConfig defines a single lint rule. Exactly one matcher field (Regex,
@@ -23,6 +24,7 @@ type RuleConfig struct {
 	Naming   *NamingMatcher  `json:"naming,omitempty" yaml:"naming,omitempty" toml:"naming,omitempty"`
 	Where    *WherePredicate `json:"where,omitempty" yaml:"where,omitempty" toml:"where,omitempty"`
 	Fix      string          `json:"fix,omitempty" yaml:"fix,omitempty" toml:"fix,omitempty"`
+	Scope    string          `json:"scope,omitempty" yaml:"scope,omitempty" toml:"scope,omitempty"` // "" (per-file) or "cross-file"
 }
 
 // Severity controls diagnostic output level.

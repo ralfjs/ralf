@@ -19,24 +19,6 @@ func testGraph() *Graph {
 	return NewGraphFromResolved(exports, imports)
 }
 
-// NewGraphFromResolved constructs a graph from pre-resolved imports (sources are already absolute paths).
-// Used in tests to skip filesystem resolution. Delegates to addImportEdges which handles absolute paths.
-func NewGraphFromResolved(exports map[string][]ExportInfo, imports map[string][]ImportInfo) *Graph {
-	g := &Graph{
-		exports:         exports,
-		imports:         imports,
-		importedBy:      make(map[string]map[string]struct{}),
-		edges:           make(map[string]map[string]struct{}),
-		symbolImporters: make(map[string]map[string]struct{}),
-	}
-
-	for fromFile, fileImports := range imports {
-		g.addImportEdges(fromFile, fileImports)
-	}
-
-	return g
-}
-
 func TestGraph_ImportedBy(t *testing.T) {
 	g := testGraph()
 
@@ -152,6 +134,20 @@ func TestGraph_HasCycle_Diamond(t *testing.T) {
 	cycle := g.HasCycle()
 	if cycle != nil {
 		t.Errorf("expected no cycle in diamond, got %v", cycle)
+	}
+}
+
+func TestGraph_CyclicFiles_SelfImport(t *testing.T) {
+	exports := map[string][]ExportInfo{"/a.ts": {{Name: "a", Kind: "value", Line: 1}}}
+	imports := map[string][]ImportInfo{"/a.ts": {{Source: "/a.ts", Name: "a", Line: 1}}}
+	g := NewGraphFromResolved(exports, imports)
+
+	sccs := g.CyclicFiles()
+	if len(sccs) != 1 {
+		t.Fatalf("expected 1 SCC for self-import, got %d", len(sccs))
+	}
+	if sccs[0][0] != "/a.ts" {
+		t.Errorf("expected /a.ts in self-cycle, got %v", sccs[0])
 	}
 }
 

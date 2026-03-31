@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ralfjs/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/crossfile"
 	"github.com/ralfjs/ralf/internal/engine"
 	"github.com/ralfjs/ralf/internal/project"
 	"github.com/spf13/cobra"
@@ -573,12 +574,47 @@ func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, f
 		}
 	}
 
-	// Merge cached + fresh diagnostics.
+	// Build module graph and run cross-file rules.
+	// Skip graph build entirely when no cross-file rules are active.
+	hasCrossFileDiags := false
+	if ctx.Err() == nil && crossfile.HasActiveRules(cfg) {
+		graph, err := project.BuildGraph(ctx, cache)
+		if err != nil {
+			slog.Debug("graph build failed, skipping cross-file rules", "error", err)
+		} else {
+			crossDiags := crossfile.Run(graph, cfg)
+			if len(crossDiags) > 0 {
+				result.Diagnostics = append(result.Diagnostics, crossDiags...)
+				hasCrossFileDiags = true
+			}
+		}
+	}
+
+	// Merge cached + fresh + cross-file diagnostics.
 	if len(cachedDiags) > 0 {
 		all := make([]engine.Diagnostic, 0, len(cachedDiags)+len(result.Diagnostics))
 		all = append(all, cachedDiags...)
 		all = append(all, result.Diagnostics...)
 		result.Diagnostics = all
+	}
+	if hasCrossFileDiags {
+		// Full sort: cross-file diagnostics can interleave with per-file
+		// diagnostics for the same file, breaking contiguous-chunk precondition.
+		sort.SliceStable(result.Diagnostics, func(i, j int) bool {
+			di, dj := result.Diagnostics[i], result.Diagnostics[j]
+			if di.File != dj.File {
+				return di.File < dj.File
+			}
+			if di.Line != dj.Line {
+				return di.Line < dj.Line
+			}
+			if di.Col != dj.Col {
+				return di.Col < dj.Col
+			}
+			return di.Rule < dj.Rule
+		})
+	} else {
+		// No cross-file diagnostics — chunks are contiguous, use fast chunked sort.
 		engine.SortDiagChunksByFile(result.Diagnostics)
 	}
 

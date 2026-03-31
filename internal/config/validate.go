@@ -73,7 +73,11 @@ func Validate(cfg *Config) error {
 			errs = append(errs, FieldError{Rule: "config", Field: fmt.Sprintf("entryPoints[%d]", i), Message: "entry point glob must not be empty"})
 			continue
 		}
-		if _, err := doublestar.Match(ep, ""); err != nil {
+		if ep != trimmed {
+			errs = append(errs, FieldError{Rule: "config", Field: fmt.Sprintf("entryPoints[%d]", i), Message: "entry point glob must not have leading or trailing whitespace"})
+			continue
+		}
+		if _, err := doublestar.Match(trimmed, ""); err != nil {
 			errs = append(errs, FieldError{Rule: "config", Field: fmt.Sprintf("entryPoints[%d]", i), Message: fmt.Sprintf("invalid glob syntax: %v", err)})
 		}
 	}
@@ -108,6 +112,16 @@ func validateRule(name string, rule *RuleConfig, errs *[]FieldError) {
 
 	// Cross-file rules must use builtin matcher only and must be in the allowlist.
 	if rule.Scope == "cross-file" {
+		// Cross-file scope is not allowed under overrides.
+		isOverride := strings.HasPrefix(name, "overrides[")
+		if isOverride {
+			baseName := name
+			if idx := strings.LastIndex(name, "."); idx != -1 && idx+1 < len(name) {
+				baseName = name[idx+1:]
+			}
+			*errs = append(*errs, FieldError{Rule: name, Field: "scope", Message: fmt.Sprintf("scope \"cross-file\" is not supported under overrides; move rule %q to top-level rules", baseName)})
+			return
+		}
 		if !rule.Builtin {
 			*errs = append(*errs, FieldError{Rule: name, Field: "scope", Message: "scope \"cross-file\" requires builtin: true"})
 		}

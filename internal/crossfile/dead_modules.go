@@ -1,6 +1,8 @@
 package crossfile
 
 import (
+	"log/slog"
+
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/ralfjs/ralf/internal/config"
 	"github.com/ralfjs/ralf/internal/engine"
@@ -50,7 +52,11 @@ func resolveEntryPatterns(cfg *config.Config) []string {
 // matchAnyPattern returns true if path matches any of the glob patterns.
 func matchAnyPattern(patterns []string, path string) bool {
 	for _, p := range patterns {
-		ok, _ := doublestar.Match(p, path)
+		ok, err := doublestar.Match(p, path)
+		if err != nil {
+			slog.Debug("invalid entry point glob pattern", "pattern", p, "error", err)
+			continue
+		}
 		if ok {
 			return true
 		}

@@ -151,6 +151,43 @@ func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []Im
 	g.addImportEdges(file, newImports)
 }
 
+// RemoveFile completely removes a file from the graph, including its exports,
+// imports, and all edges. Unlike UpdateFile with nil slices (which leaves empty
+// keys), this ensures the file no longer appears in AllFiles or DeadModules.
+func (g *Graph) RemoveFile(file string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	// Remove edges originating from this file.
+	for target := range g.edges[file] {
+		if set := g.importedBy[target]; set != nil {
+			delete(set, file)
+			if len(set) == 0 {
+				delete(g.importedBy, target)
+			}
+		}
+	}
+	delete(g.edges, file)
+
+	// Remove symbol importer entries for this file.
+	for _, imp := range g.imports[file] {
+		resolved, ok := g.resolveImport(imp.Source, file)
+		if !ok {
+			continue
+		}
+		key := resolved + ":" + imp.Name
+		if set := g.symbolImporters[key]; set != nil {
+			delete(set, file)
+			if len(set) == 0 {
+				delete(g.symbolImporters, key)
+			}
+		}
+	}
+
+	delete(g.exports, file)
+	delete(g.imports, file)
+}
+
 // AllFiles returns all files known to the graph (files with exports or imports).
 func (g *Graph) AllFiles() []string {
 	g.mu.RLock()

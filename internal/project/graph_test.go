@@ -215,3 +215,34 @@ func TestGraph_UpdateFile_AddNewImport(t *testing.T) {
 		t.Errorf("after update, ImportedBy(dead.ts) = %v", importers)
 	}
 }
+
+func TestGraph_RemoveFile(t *testing.T) {
+	g := testGraph()
+
+	// Verify app.ts exists in graph before removal.
+	if exports := g.ExportedBy("/src/app.ts"); len(exports) == 0 {
+		t.Fatal("expected exports for app.ts before removal")
+	}
+
+	g.RemoveFile("/src/app.ts")
+
+	// Should no longer appear in exports or AllFiles.
+	if exports := g.ExportedBy("/src/app.ts"); len(exports) != 0 {
+		t.Errorf("expected no exports after removal, got %v", exports)
+	}
+
+	allFiles := g.AllFiles()
+	for _, f := range allFiles {
+		if f == "/src/app.ts" {
+			t.Error("removed file should not appear in AllFiles")
+		}
+	}
+
+	// utils.ts should no longer have app.ts as an importer.
+	importers := g.ImportedBy("/src/utils.ts")
+	for _, imp := range importers {
+		if imp == "/src/app.ts" {
+			t.Error("removed file should not appear in ImportedBy")
+		}
+	}
+}

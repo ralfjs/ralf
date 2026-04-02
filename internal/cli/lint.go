@@ -187,7 +187,7 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 	}
 
 	// Watch mode: set up watcher and re-lint on changes.
-	return runWatch(cmd, eng, cfg, formatter)
+	return runWatch(cmd, eng, cfg, formatter, noCache)
 }
 
 // fixID uniquely identifies a fix by file, byte range, and replacement text.
@@ -711,27 +711,43 @@ func countBySeverity(diags []engine.Diagnostic) (errCount, warnCount int) {
 }
 
 // runWatch enters watch mode: monitors files for changes and re-lints incrementally.
-func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, formatter Formatter) error {
+func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, formatter Formatter, noCache bool) error {
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
 	defer cancel()
 
 	w := cmd.ErrOrStderr()
 	out := cmd.OutOrStdout()
 
-	root := projectRootDir()
-
-	configHash, err := project.HashConfig(cfg)
+	root, err := filepath.Abs(projectRootDir())
 	if err != nil {
-		_, _ = fmt.Fprintln(w, "Error hashing config:", err)
+		_, _ = fmt.Fprintln(w, "Error resolving project root:", err)
 		exitCode = ExitInternal
 		return nil
 	}
 
-	cache, err := project.Open(ctx, root, configHash)
-	if err != nil {
-		_, _ = fmt.Fprintln(w, "Error opening cache:", err)
-		exitCode = ExitInternal
-		return nil
+	var cache *project.Cache
+	if !noCache {
+		configHash, hashErr := project.HashConfig(cfg)
+		if hashErr != nil {
+			slog.Debug("watch cache disabled: config hash failed", "error", hashErr)
+		} else {
+			c, openErr := project.Open(ctx, root, configHash)
+			if openErr != nil {
+				slog.Debug("watch cache disabled: open failed", "error", openErr)
+			} else {
+				cache = c
+			}
+		}
+	}
+	if cache == nil {
+		// Open a temporary in-memory-like cache so the watcher still works.
+		c, openErr := project.Open(ctx, root, 0)
+		if openErr != nil {
+			_, _ = fmt.Fprintln(w, "Error opening cache:", openErr)
+			exitCode = ExitInternal
+			return nil
+		}
+		cache = c
 	}
 	defer func() { _ = cache.Close() }()
 

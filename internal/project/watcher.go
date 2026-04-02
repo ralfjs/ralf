@@ -106,9 +106,21 @@ func (w *Watcher) Run(ctx context.Context) error {
 			if ev.Has(fsnotify.Create) {
 				w.maybeWatchDir(ev.Name)
 			}
+			// Watch newly created directories but don't enqueue them for linting.
+			if ev.Has(fsnotify.Create) {
+				if info, err := os.Stat(ev.Name); err == nil && info.IsDir() {
+					continue
+				}
+			}
 			w.mu.Lock()
 			w.pending[ev.Name] = struct{}{}
 			w.mu.Unlock()
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 			timer.Reset(w.cfg.Debounce)
 
 		case err, ok := <-w.fsw.Errors:
@@ -187,20 +199,26 @@ func (w *Watcher) isIgnored(path string) bool {
 	if err != nil {
 		return false
 	}
+	base := filepath.Base(rel)
 	for _, pattern := range w.cfg.IgnorePatterns {
 		if ok, _ := doublestar.Match(pattern, rel); ok {
+			return true
+		}
+		if ok, _ := doublestar.Match(pattern, base); ok {
 			return true
 		}
 	}
 	return false
 }
 
-// isRelevant returns true if the fsnotify event is for a JS/TS file we care about.
+// isRelevant returns true if the fsnotify event is for a path we care about.
 func (w *Watcher) isRelevant(ev fsnotify.Event) bool {
-	// Always process Create events (might be a new directory).
+	if !ev.Has(fsnotify.Write) && !ev.Has(fsnotify.Create) && !ev.Has(fsnotify.Remove) && !ev.Has(fsnotify.Rename) {
+		return false
+	}
+	// Create events for directories are relevant (handled separately in Run loop).
 	if ev.Has(fsnotify.Create) {
-		info, err := os.Stat(ev.Name)
-		if err == nil && info.IsDir() {
+		if info, err := os.Stat(ev.Name); err == nil && info.IsDir() {
 			return true
 		}
 	}
@@ -209,10 +227,7 @@ func (w *Watcher) isRelevant(ev fsnotify.Event) bool {
 	if !ok {
 		return false
 	}
-	if w.isIgnored(ev.Name) {
-		return false
-	}
-	return ev.Has(fsnotify.Write) || ev.Has(fsnotify.Create) || ev.Has(fsnotify.Remove) || ev.Has(fsnotify.Rename)
+	return !w.isIgnored(ev.Name)
 }
 
 // processBatch handles a debounced batch of file change events.
@@ -262,15 +277,33 @@ func (w *Watcher) processFile(ctx context.Context, path string) (exportsChanged 
 		return false, nil
 	}
 
+	// Capture previous exports to detect changes.
+	oldExports := w.graph.ExportedBy(path)
+
 	// Extract new imports/exports.
 	newImports, newExports, err := ExtractFile(ctx, path, source)
 	if err != nil {
 		slog.Error("extract file", "path", path, "error", err)
-		return false, nil
+
+		// Clear stale graph data and lint anyway (regex-only rules still apply).
+		exportsChanged = len(oldExports) > 0
+		w.graph.UpdateFile(path, nil, nil)
+		if storeErr := w.cache.StoreFileGraph(ctx, path, nil, nil); storeErr != nil {
+			slog.Error("store file graph (on extract error)", "path", path, "error", storeErr)
+		}
+		result := w.eng.LintSources(ctx, []engine.FileSource{{Path: path, Source: source}}, 1)
+		w.emit(WatchEvent{Path: path, Diags: result.Diagnostics, GraphChanged: exportsChanged})
+		if storeErr := w.cache.Store(ctx, CacheEntry{
+			Path:        path,
+			ContentHash: hash,
+			ModTimeNS:   time.Now().UnixNano(),
+			Diagnostics: result.Diagnostics,
+		}); storeErr != nil {
+			slog.Error("cache store", "path", path, "error", storeErr)
+		}
+		return exportsChanged, nil
 	}
 
-	// Check if exports changed before updating graph.
-	oldExports := w.graph.ExportedBy(path)
 	exportsChanged = exportsDiffer(oldExports, newExports)
 
 	// Update graph and cache.
@@ -281,7 +314,9 @@ func (w *Watcher) processFile(ctx context.Context, path string) (exportsChanged 
 
 	// Lint the file.
 	result := w.eng.LintSources(ctx, []engine.FileSource{{Path: path, Source: source}}, 1)
-	w.emit(WatchEvent{Path: path, Diags: result.Diagnostics, GraphChanged: exportsChanged})
+	// Always signal graph change — import changes affect cross-file rules
+	// (circular deps, dead modules) even when exports are unchanged.
+	w.emit(WatchEvent{Path: path, Diags: result.Diagnostics, GraphChanged: true})
 
 	// Cache the result.
 	if err := w.cache.Store(ctx, CacheEntry{
@@ -301,7 +336,7 @@ func (w *Watcher) processFile(ctx context.Context, path string) (exportsChanged 
 
 // handleDeletedFile cleans up cache and graph state for a removed file.
 func (w *Watcher) handleDeletedFile(ctx context.Context, path string) {
-	w.graph.UpdateFile(path, nil, nil)
+	w.graph.RemoveFile(path)
 	if err := w.cache.Remove(ctx, path); err != nil {
 		slog.Error("cache remove", "path", path, "error", err)
 	}

@@ -304,3 +304,66 @@ func TestExportsDiffer(t *testing.T) {
 		})
 	}
 }
+
+func TestWatcher_IgnoreBasename(t *testing.T) {
+	w, root := newTestWatcher(t)
+
+	// Reconfigure with a basename-only ignore pattern.
+	w.cfg.IgnorePatterns = []string{"*.generated.*"}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() { _ = w.Run(ctx) }()
+
+	// Write a file matching the basename pattern in a subdirectory.
+	subdir := filepath.Join(root, "src")
+	if err := os.Mkdir(subdir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	file := filepath.Join(subdir, "foo.generated.js")
+	if err := os.WriteFile(file, []byte("var x = 1;\n"), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	events := receiveEvents(t, w.Events(), 500*time.Millisecond)
+	for _, ev := range events {
+		if ev.Path == file {
+			t.Error("expected no event for file matching basename ignore pattern")
+		}
+	}
+}
+
+func TestWatcher_NewDirectory(t *testing.T) {
+	w, root := newTestWatcher(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() { _ = w.Run(ctx) }()
+
+	// Create a new subdirectory, then write a file in it.
+	subdir := filepath.Join(root, "newpkg")
+	if err := os.Mkdir(subdir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	file := filepath.Join(subdir, "index.js")
+	if err := os.WriteFile(file, []byte("var y = 2;\n"), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	events := receiveEvents(t, w.Events(), 2*time.Second)
+	found := false
+	for _, ev := range events {
+		if ev.Path == file {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected event for file in newly created directory")
+	}
+}

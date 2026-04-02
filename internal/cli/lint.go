@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -24,6 +25,7 @@ func lintCmd() *cobra.Command {
 		fix         bool
 		fixDryRun   bool
 		noCache     bool
+		watch       bool
 	)
 
 	cmd := &cobra.Command{
@@ -37,7 +39,7 @@ func lintCmd() *cobra.Command {
   ralf lint --fix src/
   ralf lint --max-warnings 0 src/`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLint(cmd, args, format, threads, maxWarnings, fix, fixDryRun, noCache)
+			return runLint(cmd, args, format, threads, maxWarnings, fix, fixDryRun, noCache, watch)
 		},
 	}
 
@@ -47,15 +49,22 @@ func lintCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&fix, "fix", false, "apply auto-fixes and write files back")
 	cmd.Flags().BoolVar(&fixDryRun, "fix-dry-run", false, "show unified diffs without writing")
 	cmd.Flags().BoolVar(&noCache, "no-cache", false, "disable result caching")
+	cmd.Flags().BoolVar(&watch, "watch", false, "watch for changes and re-lint")
 
 	return cmd
 }
 
-func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarnings int, fix, fixDryRun, noCache bool) error {
+func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarnings int, fix, fixDryRun, noCache, watch bool) error {
 	w := cmd.ErrOrStderr()
 
 	if fix && fixDryRun {
 		_, _ = fmt.Fprintln(w, "Error: --fix and --fix-dry-run are mutually exclusive")
+		exitCode = ExitUsageError
+		return nil
+	}
+
+	if watch && (fix || fixDryRun) {
+		_, _ = fmt.Fprintln(w, "Error: --watch cannot be combined with --fix or --fix-dry-run")
 		exitCode = ExitUsageError
 		return nil
 	}
@@ -163,19 +172,22 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 
 	errCount, warnCount := countBySeverity(result.Diagnostics)
 
-	if errCount > 0 {
-		exitCode = ExitLintErrors
+	if !watch {
+		if errCount > 0 {
+			exitCode = ExitLintErrors
+			return nil
+		}
+		if maxWarnings >= 0 && warnCount > maxWarnings {
+			_, _ = fmt.Fprintf(w, "Too many warnings (%d), max allowed is %d\n",
+				warnCount, maxWarnings)
+			exitCode = ExitLintErrors
+			return nil
+		}
 		return nil
 	}
 
-	if maxWarnings >= 0 && warnCount > maxWarnings {
-		_, _ = fmt.Fprintf(w, "Too many warnings (%d), max allowed is %d\n",
-			warnCount, maxWarnings)
-		exitCode = ExitLintErrors
-		return nil
-	}
-
-	return nil
+	// Watch mode: set up watcher and re-lint on changes.
+	return runWatch(cmd, eng, cfg, formatter)
 }
 
 // fixID uniquely identifies a fix by file, byte range, and replacement text.
@@ -696,4 +708,73 @@ func countBySeverity(diags []engine.Diagnostic) (errCount, warnCount int) {
 		}
 	}
 	return errCount, warnCount
+}
+
+// runWatch enters watch mode: monitors files for changes and re-lints incrementally.
+func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, formatter Formatter) error {
+	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
+	defer cancel()
+
+	w := cmd.ErrOrStderr()
+	out := cmd.OutOrStdout()
+
+	root := projectRootDir()
+
+	configHash, err := project.HashConfig(cfg)
+	if err != nil {
+		_, _ = fmt.Fprintln(w, "Error hashing config:", err)
+		exitCode = ExitInternal
+		return nil
+	}
+
+	cache, err := project.Open(ctx, root, configHash)
+	if err != nil {
+		_, _ = fmt.Fprintln(w, "Error opening cache:", err)
+		exitCode = ExitInternal
+		return nil
+	}
+	defer func() { _ = cache.Close() }()
+
+	graph, err := project.BuildGraph(ctx, cache)
+	if err != nil {
+		slog.Debug("graph build failed, starting with empty graph", "error", err)
+		graph = project.NewGraph(
+			make(map[string][]project.ExportInfo),
+			make(map[string][]project.ImportInfo),
+		)
+	}
+
+	watcher, err := project.NewWatcher(project.WatcherConfig{
+		Root:           root,
+		IgnorePatterns: cfg.Ignores,
+	}, cache, graph, eng)
+	if err != nil {
+		_, _ = fmt.Fprintln(w, "Error starting watcher:", err)
+		exitCode = ExitInternal
+		return nil
+	}
+	defer func() { _ = watcher.Close() }()
+
+	_, _ = fmt.Fprintln(w, "Watching for changes... (press Ctrl+C to stop)")
+
+	go func() { _ = watcher.Run(ctx) }()
+
+	for ev := range watcher.Events() {
+		if len(ev.Diags) > 0 {
+			if err := formatter.Format(out, ev.Diags); err != nil {
+				slog.Error("format watch output", "error", err)
+			}
+		}
+		if ev.GraphChanged && crossfile.HasActiveRules(cfg) {
+			crossDiags := crossfile.Run(graph, cfg)
+			if len(crossDiags) > 0 {
+				if err := formatter.Format(out, crossDiags); err != nil {
+					slog.Error("format cross-file output", "error", err)
+				}
+			}
+		}
+	}
+
+	_, _ = fmt.Fprintln(w, "Watcher stopped.")
+	return nil
 }

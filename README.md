@@ -79,6 +79,9 @@ ralf lint --fix
 # Preview fixes without writing
 ralf lint --fix-dry-run
 
+# Watch for changes and re-lint
+ralf lint --watch
+
 # SARIF output for GitHub Code Scanning
 ralf lint --format sarif > results.sarif
 ```

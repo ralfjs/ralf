@@ -802,7 +802,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 23 | ✅ Module graph | `extract.go` (import/export extraction from tree-sitter AST), `resolve.go` (specifier → absolute path resolution), `graph.go` (in-memory graph: `ImportedBy`, `ImportedBySymbol`, `ExportedBy`, `ExportMap`, `HasCycle`, `DeadModules`). Cache persistence via `StoreFileGraph`/`LoadAll*`. Benchmarks: extract 12μs/file, build graph 1000 files 2ms, cycle detection 48μs, query 199ns. |
 | 24 | ✅ Incremental update | Graph extraction wired into lint pipeline: cache-miss files extracted + stored, cache-hit files backfilled on first run, stale paths cleaned. `Graph.UpdateFile` for in-memory incremental updates. `ExtractFile` convenience function. `FilesMissingGraphData` + `CleanupStalePaths` cache methods. |
 | 25 | ✅ Cross-file rules | New `internal/crossfile` package. `Scope: "cross-file"` on RuleConfig. 3 built-in rules: `no-unused-exports` (symbol query), `no-circular-deps` (Tarjan's SCC), `no-dead-modules` (entry point exclusion). Configurable `entryPoints`. |
-| 26 | File watcher | `internal/project/watcher.go`: fsnotify integration. Cascade invalidation: file changed → re-lint dependents. Debounce rapid saves. |
+| 26 | ✅ File watcher | `internal/project/watcher.go`: fsnotify integration, debounced batching (100ms default), content hash dedup (skip unchanged files), cascade invalidation (export change → re-lint dependents via `Graph.ImportedBy`). CLI: `ralf lint --watch`. Cross-file rules re-evaluated on graph changes. |
 
 **Month 7-8 — LSP + VS Code**
 

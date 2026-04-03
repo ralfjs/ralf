@@ -312,6 +312,8 @@ func (w *Watcher) processFile(ctx context.Context, path string) []string {
 	}
 
 	exportsChanged := exportsDiffer(oldExports, newExports)
+	oldImports := w.graph.ImportsOf(path)
+	graphChanged := exportsChanged || importsDiffer(oldImports, newImports)
 
 	// Update graph and cache.
 	w.graph.UpdateFile(path, newExports, newImports)
@@ -321,9 +323,7 @@ func (w *Watcher) processFile(ctx context.Context, path string) []string {
 
 	// Lint the file.
 	result := w.eng.LintSources(ctx, []engine.FileSource{{Path: path, Source: source}}, 1)
-	// Always signal graph change — import changes affect cross-file rules
-	// (circular deps, dead modules) even when exports are unchanged.
-	w.emit(WatchEvent{Path: path, Diags: result.Diagnostics, GraphChanged: true})
+	w.emit(WatchEvent{Path: path, Diags: result.Diagnostics, GraphChanged: graphChanged})
 
 	// Cache the result.
 	if err := w.cache.Store(ctx, CacheEntry{
@@ -381,6 +381,24 @@ func (w *Watcher) emit(ev WatchEvent) {
 	default:
 		slog.Warn("watch event channel full, dropping event", "path", ev.Path)
 	}
+}
+
+// importsDiffer returns true if two import lists have different source+name pairs.
+func importsDiffer(old, cur []ImportInfo) bool {
+	if len(old) != len(cur) {
+		return true
+	}
+	type key struct{ source, name string }
+	set := make(map[key]struct{}, len(old))
+	for _, imp := range old {
+		set[key{imp.Source, imp.Name}] = struct{}{}
+	}
+	for _, imp := range cur {
+		if _, ok := set[key{imp.Source, imp.Name}]; !ok {
+			return true
+		}
+	}
+	return false
 }
 
 // exportsDiffer returns true if two export lists have different symbol names.

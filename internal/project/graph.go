@@ -248,6 +248,19 @@ func (g *Graph) ExportedBy(file string) []ExportInfo {
 	return out
 }
 
+// ImportsOf returns a copy of the imports of a given file.
+func (g *Graph) ImportsOf(file string) []ImportInfo {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	imps := g.imports[file]
+	if len(imps) == 0 {
+		return nil
+	}
+	out := make([]ImportInfo, len(imps))
+	copy(out, imps)
+	return out
+}
+
 // ExportMap returns a map of symbol name → ExportInfo for a file.
 func (g *Graph) ExportMap(file string) map[string]ExportInfo {
 	g.mu.RLock()

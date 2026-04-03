@@ -50,7 +50,7 @@ func lintCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&fix, "fix", false, "apply auto-fixes and write files back")
 	cmd.Flags().BoolVar(&fixDryRun, "fix-dry-run", false, "show unified diffs without writing")
 	cmd.Flags().BoolVar(&noCache, "no-cache", false, "disable result caching")
-	cmd.Flags().BoolVar(&watch, "watch", false, "watch for changes and re-lint")
+	cmd.Flags().BoolVar(&watch, "watch", false, "watch project root for changes and re-lint (path args set initial scope, watching covers full project)")
 
 	return cmd
 }

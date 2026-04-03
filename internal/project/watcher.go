@@ -150,7 +150,10 @@ func (w *Watcher) Close() error {
 func (w *Watcher) addWatchDirs() error {
 	return filepath.WalkDir(w.cfg.Root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil // skip unreadable dirs
+			if path == w.cfg.Root {
+				return err
+			}
+			return nil // skip unreadable subdirectories
 		}
 		if !d.IsDir() {
 			return nil
@@ -166,9 +169,10 @@ func (w *Watcher) addWatchDirs() error {
 }
 
 // maybeWatchDir adds a newly created directory to the watcher if it should be watched.
+// Uses Lstat to avoid following symlinks outside the project root.
 func (w *Watcher) maybeWatchDir(path string) {
-	info, err := os.Stat(path)
-	if err != nil || !info.IsDir() {
+	info, err := os.Lstat(path)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return
 	}
 	if w.shouldSkipDir(filepath.Base(path)) || w.isIgnored(path) {
@@ -286,6 +290,9 @@ func (w *Watcher) processFile(ctx context.Context, path string) (exportsChanged 
 	if err != nil {
 		slog.Error("extract file", "path", path, "error", err)
 
+		// Capture dependents before clearing graph (same as deletion case).
+		dependents = w.graph.ImportedBy(path)
+
 		// Clear stale graph data and lint anyway (regex-only rules still apply).
 		w.graph.UpdateFile(path, nil, nil)
 		if storeErr := w.cache.StoreFileGraph(ctx, path, nil, nil); storeErr != nil {
@@ -301,7 +308,7 @@ func (w *Watcher) processFile(ctx context.Context, path string) (exportsChanged 
 		}); storeErr != nil {
 			slog.Error("cache store", "path", path, "error", storeErr)
 		}
-		return exportsChanged, nil
+		return len(oldExports) > 0, dependents
 	}
 
 	exportsChanged = exportsDiffer(oldExports, newExports)
@@ -369,11 +376,7 @@ func (w *Watcher) relintFile(ctx context.Context, path string) {
 }
 
 func (w *Watcher) emit(ev WatchEvent) {
-	select {
-	case w.events <- ev:
-	default:
-		slog.Debug("watch event channel full, dropping", "path", ev.Path)
-	}
+	w.events <- ev
 }
 
 // exportsDiffer returns true if two export lists have different symbol names.

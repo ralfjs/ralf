@@ -195,6 +195,14 @@ func (g *Graph) RemoveFile(file string) {
 	}
 	delete(g.importedBy, file)
 
+	// Remove symbolImporters entries where this file is the target.
+	prefix := file + ":"
+	for key := range g.symbolImporters {
+		if len(key) > len(prefix) && key[:len(prefix)] == prefix {
+			delete(g.symbolImporters, key)
+		}
+	}
+
 	delete(g.exports, file)
 	delete(g.imports, file)
 }

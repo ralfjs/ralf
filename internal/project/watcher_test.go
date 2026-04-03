@@ -306,22 +306,47 @@ func TestExportsDiffer(t *testing.T) {
 }
 
 func TestWatcher_IgnoreBasename(t *testing.T) {
-	w, root := newTestWatcher(t)
+	root := t.TempDir()
 
-	// Reconfigure with a basename-only ignore pattern.
-	w.cfg.IgnorePatterns = []string{"*.generated.*"}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go func() { _ = w.Run(ctx) }()
-
-	// Write a file matching the basename pattern in a subdirectory.
+	// Create subdirectory before watcher starts so it's watched from the beginning.
 	subdir := filepath.Join(root, "src")
 	if err := os.Mkdir(subdir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	time.Sleep(50 * time.Millisecond)
+
+	ctx := context.Background()
+	cache, err := Open(ctx, root, 0)
+	if err != nil {
+		t.Fatalf("open cache: %v", err)
+	}
+	t.Cleanup(func() { _ = cache.Close() })
+
+	graph := NewGraph(make(map[string][]ExportInfo), make(map[string][]ImportInfo))
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleConfig{
+			"no-var": {Severity: config.SeverityError, Regex: `\bvar\b`, Message: "Use let or const"},
+		},
+	}
+	eng, errs := engine.New(cfg)
+	if len(errs) > 0 {
+		t.Fatalf("engine init: %v", errs)
+	}
+
+	w, err := NewWatcher(WatcherConfig{
+		Root:           root,
+		Debounce:       50 * time.Millisecond,
+		IgnorePatterns: []string{"*.generated.*"},
+	}, cache, graph, eng)
+	if err != nil {
+		t.Fatalf("new watcher: %v", err)
+	}
+	t.Cleanup(func() { _ = w.Close() })
+
+	ctx2, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() { _ = w.Run(ctx2) }()
 
 	file := filepath.Join(subdir, "foo.generated.js")
 	if err := os.WriteFile(file, []byte("var x = 1;\n"), 0o600); err != nil {
@@ -344,23 +369,25 @@ func TestWatcher_NewDirectory(t *testing.T) {
 
 	go func() { _ = w.Run(ctx) }()
 
-	// Create a new subdirectory, then write a file in it.
+	// Create a new subdirectory and immediately write a file in it.
+	// Retry writing until we get an event — avoids flaky sleeps waiting
+	// for fsnotify to register the new directory.
 	subdir := filepath.Join(root, "newpkg")
 	if err := os.Mkdir(subdir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	time.Sleep(200 * time.Millisecond)
 
 	file := filepath.Join(subdir, "index.js")
-	if err := os.WriteFile(file, []byte("var y = 2;\n"), 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-
-	events := receiveEvents(t, w.Events(), 2*time.Second)
-	found := false
-	for _, ev := range events {
-		if ev.Path == file {
-			found = true
+	var found bool
+	for attempt := 0; attempt < 5 && !found; attempt++ {
+		if err := os.WriteFile(file, []byte("var y = 2;\n"), 0o600); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+		events := receiveEvents(t, w.Events(), 500*time.Millisecond)
+		for _, ev := range events {
+			if ev.Path == file {
+				found = true
+			}
 		}
 	}
 	if !found {

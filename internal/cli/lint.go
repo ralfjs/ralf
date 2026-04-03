@@ -740,7 +740,7 @@ func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, format
 		}
 	}
 	if cache == nil {
-		// Open a temporary in-memory-like cache so the watcher still works.
+		// Fall back to opening the regular cache with configHash=0 so the watcher still works.
 		c, openErr := project.Open(ctx, root, 0)
 		if openErr != nil {
 			_, _ = fmt.Fprintln(w, "Error opening cache:", openErr)

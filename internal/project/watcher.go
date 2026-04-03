@@ -263,8 +263,9 @@ func (w *Watcher) processFile(ctx context.Context, path string) (exportsChanged 
 		// File was deleted or is unreadable.
 		if os.IsNotExist(err) {
 			slog.Debug("file deleted", "path", path)
+			dependents = w.graph.ImportedBy(path)
 			w.handleDeletedFile(ctx, path)
-			return true, nil
+			return true, dependents
 		}
 		slog.Error("read file for watch", "path", path, "error", err)
 		return false, nil

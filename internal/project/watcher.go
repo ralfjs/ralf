@@ -286,13 +286,12 @@ func (w *Watcher) processFile(ctx context.Context, path string) (exportsChanged 
 		slog.Error("extract file", "path", path, "error", err)
 
 		// Clear stale graph data and lint anyway (regex-only rules still apply).
-		exportsChanged = len(oldExports) > 0
 		w.graph.UpdateFile(path, nil, nil)
 		if storeErr := w.cache.StoreFileGraph(ctx, path, nil, nil); storeErr != nil {
 			slog.Error("store file graph (on extract error)", "path", path, "error", storeErr)
 		}
 		result := w.eng.LintSources(ctx, []engine.FileSource{{Path: path, Source: source}}, 1)
-		w.emit(WatchEvent{Path: path, Diags: result.Diagnostics, GraphChanged: exportsChanged})
+		w.emit(WatchEvent{Path: path, Diags: result.Diagnostics, GraphChanged: true})
 		if storeErr := w.cache.Store(ctx, CacheEntry{
 			Path:        path,
 			ContentHash: hash,

@@ -184,6 +184,17 @@ func (g *Graph) RemoveFile(file string) {
 		}
 	}
 
+	// Remove incoming edges (other files importing this file).
+	for source := range g.importedBy[file] {
+		if set := g.edges[source]; set != nil {
+			delete(set, file)
+			if len(set) == 0 {
+				delete(g.edges, source)
+			}
+		}
+	}
+	delete(g.importedBy, file)
+
 	delete(g.exports, file)
 	delete(g.imports, file)
 }

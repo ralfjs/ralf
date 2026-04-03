@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/ralfjs/ralf/internal/config"
 	"github.com/ralfjs/ralf/internal/crossfile"
@@ -712,7 +713,7 @@ func countBySeverity(diags []engine.Diagnostic) (errCount, warnCount int) {
 
 // runWatch enters watch mode: monitors files for changes and re-lints incrementally.
 func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, formatter Formatter, noCache bool) error {
-	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt)
+	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	w := cmd.ErrOrStderr()

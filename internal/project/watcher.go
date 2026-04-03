@@ -239,7 +239,7 @@ func (w *Watcher) processBatch(ctx context.Context, batch map[string]struct{}) {
 	var dependents map[string]struct{}
 
 	for path := range batch {
-		_, deps := w.processFile(ctx, path)
+		deps := w.processFile(ctx, path)
 		if len(deps) > 0 {
 			if dependents == nil {
 				dependents = make(map[string]struct{})
@@ -259,27 +259,27 @@ func (w *Watcher) processBatch(ctx context.Context, batch map[string]struct{}) {
 	}
 }
 
-// processFile handles a single file change. Returns whether exports changed
-// and the list of dependent files that need re-linting.
-func (w *Watcher) processFile(ctx context.Context, path string) (exportsChanged bool, dependents []string) {
+// processFile handles a single file change. Returns the list of dependent
+// files that need re-linting (non-nil when exports or imports changed).
+func (w *Watcher) processFile(ctx context.Context, path string) []string {
 	source, err := os.ReadFile(path) //nolint:gosec // path comes from fsnotify, scoped to project root
 	if err != nil {
 		// File was deleted or is unreadable.
 		if os.IsNotExist(err) {
 			slog.Debug("file deleted", "path", path)
-			dependents = w.graph.ImportedBy(path)
+			deps := w.graph.ImportedBy(path)
 			w.handleDeletedFile(ctx, path)
-			return true, dependents
+			return deps
 		}
 		slog.Error("read file for watch", "path", path, "error", err)
-		return false, nil
+		return nil
 	}
 
 	// Check if content actually changed via hash.
 	hash := HashFile(source)
 	if _, hit, err := w.cache.Lookup(ctx, path, hash); err == nil && hit {
 		slog.Debug("file unchanged (cache hit)", "path", path)
-		return false, nil
+		return nil
 	}
 
 	// Capture previous exports to detect changes.
@@ -291,7 +291,7 @@ func (w *Watcher) processFile(ctx context.Context, path string) (exportsChanged 
 		slog.Error("extract file", "path", path, "error", err)
 
 		// Capture dependents before clearing graph (same as deletion case).
-		dependents = w.graph.ImportedBy(path)
+		deps := w.graph.ImportedBy(path)
 
 		// Clear stale graph data and lint anyway (regex-only rules still apply).
 		w.graph.UpdateFile(path, nil, nil)
@@ -308,10 +308,10 @@ func (w *Watcher) processFile(ctx context.Context, path string) (exportsChanged 
 		}); storeErr != nil {
 			slog.Error("cache store", "path", path, "error", storeErr)
 		}
-		return len(oldExports) > 0, dependents
+		return deps
 	}
 
-	exportsChanged = exportsDiffer(oldExports, newExports)
+	exportsChanged := exportsDiffer(oldExports, newExports)
 
 	// Update graph and cache.
 	w.graph.UpdateFile(path, newExports, newImports)
@@ -336,9 +336,9 @@ func (w *Watcher) processFile(ctx context.Context, path string) (exportsChanged 
 	}
 
 	if exportsChanged {
-		dependents = w.graph.ImportedBy(path)
+		return w.graph.ImportedBy(path)
 	}
-	return exportsChanged, dependents
+	return nil
 }
 
 // handleDeletedFile cleans up cache and graph state for a removed file.
@@ -376,7 +376,11 @@ func (w *Watcher) relintFile(ctx context.Context, path string) {
 }
 
 func (w *Watcher) emit(ev WatchEvent) {
-	w.events <- ev
+	select {
+	case w.events <- ev:
+	default:
+		slog.Warn("watch event channel full, dropping event", "path", ev.Path)
+	}
 }
 
 // exportsDiffer returns true if two export lists have different symbol names.

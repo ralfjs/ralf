@@ -173,6 +173,60 @@ func TestWatcher_DeletedFile(t *testing.T) {
 	}
 }
 
+func TestWatcher_DependencyRecreated(t *testing.T) {
+	w, root := newTestWatcher(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	importer := filepath.Join(root, "a.js")
+	dep := filepath.Join(root, "b.js")
+
+	if err := os.WriteFile(importer, []byte("import { b } from './b.js';\nexport const a = b;\n"), 0o600); err != nil {
+		t.Fatalf("write importer: %v", err)
+	}
+	if err := os.WriteFile(dep, []byte("export const b = 1;\n"), 0o600); err != nil {
+		t.Fatalf("write dependency: %v", err)
+	}
+
+	go func() { _ = w.Run(ctx) }()
+
+	// Drain initial indexing events.
+	receiveEvents(t, w.Events(), 1*time.Second)
+
+	// Delete the dependency.
+	if err := os.Remove(dep); err != nil {
+		t.Fatalf("remove dependency: %v", err)
+	}
+
+	deleteEvents := receiveEvents(t, w.Events(), 2*time.Second)
+	depDeleteSeen := false
+	for _, ev := range deleteEvents {
+		if ev.Path == dep && ev.Diags == nil && ev.GraphChanged {
+			depDeleteSeen = true
+		}
+	}
+	if !depDeleteSeen {
+		t.Fatal("expected graph-changing deletion event for dependency")
+	}
+
+	// Recreate the dependency.
+	if err := os.WriteFile(dep, []byte("export const b = 1;\n"), 0o600); err != nil {
+		t.Fatalf("rewrite dependency: %v", err)
+	}
+
+	recreateEvents := receiveEvents(t, w.Events(), 2*time.Second)
+	depRecreateSeen := false
+	for _, ev := range recreateEvents {
+		if ev.Path == dep && ev.GraphChanged {
+			depRecreateSeen = true
+		}
+	}
+	if !depRecreateSeen {
+		t.Error("expected graph-changing event for recreated dependency")
+	}
+}
+
 func TestWatcher_IgnoredPaths(t *testing.T) {
 	w, root := newTestWatcher(t)
 

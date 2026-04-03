@@ -347,7 +347,9 @@ func (w *Watcher) handleDeletedFile(ctx context.Context, path string) {
 	w.emit(WatchEvent{Path: path, Diags: nil, GraphChanged: true})
 }
 
-// relintFile re-reads, re-lints, and caches results for a dependent file.
+// relintFile re-reads, re-extracts, re-lints, and caches results for a
+// dependent file. Also updates the graph so that resolved edges reflect
+// any changes (e.g. a deleted dependency no longer resolves).
 func (w *Watcher) relintFile(ctx context.Context, path string) {
 	source, err := os.ReadFile(path) //nolint:gosec // path comes from graph, scoped to project root
 	if err != nil {
@@ -356,8 +358,22 @@ func (w *Watcher) relintFile(ctx context.Context, path string) {
 	}
 
 	hash := HashFile(source)
+
+	// Re-extract and update graph for the dependent so resolved edges
+	// reflect the current filesystem state (e.g. after a target deletion).
+	newImports, newExports, extractErr := ExtractFile(ctx, path, source)
+	graphChanged := false
+	if extractErr != nil {
+		slog.Debug("extract failed for dependent", "path", path, "error", extractErr)
+	} else {
+		graphChanged = w.graph.UpdateFile(path, newExports, newImports)
+		if storeErr := w.cache.StoreFileGraph(ctx, path, newExports, newImports); storeErr != nil {
+			slog.Error("store file graph for dependent", "path", path, "error", storeErr)
+		}
+	}
+
 	result := w.eng.LintSources(ctx, []engine.FileSource{{Path: path, Source: source}}, 1)
-	w.emit(WatchEvent{Path: path, Diags: result.Diagnostics})
+	w.emit(WatchEvent{Path: path, Diags: result.Diagnostics, GraphChanged: graphChanged})
 
 	if err := w.cache.Store(ctx, CacheEntry{
 		Path:        path,

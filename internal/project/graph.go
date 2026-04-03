@@ -182,9 +182,11 @@ func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []Im
 	return false
 }
 
-// RemoveFile completely removes a file from the graph, including its exports,
-// imports, and all edges. Unlike UpdateFile with nil slices (which leaves empty
-// keys), this ensures the file no longer appears in AllFiles or DeadModules.
+// RemoveFile removes a file's exports, imports, and active edge relationships
+// from the graph. Unlike UpdateFile with nil slices (which leaves empty keys),
+// this ensures the file no longer appears in AllFiles or DeadModules. It
+// intentionally retains importedBy[file] so that if the file is recreated,
+// dependents can still be found via ImportedBy for cascade re-linting.
 func (g *Graph) RemoveFile(file string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()

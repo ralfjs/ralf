@@ -282,9 +282,6 @@ func (w *Watcher) processFile(ctx context.Context, path string) []string {
 		return nil
 	}
 
-	// Capture previous exports to detect changes.
-	oldExports := w.graph.ExportedBy(path)
-
 	// Extract new imports/exports.
 	newImports, newExports, err := ExtractFile(ctx, path, source)
 	if err != nil {
@@ -311,12 +308,9 @@ func (w *Watcher) processFile(ctx context.Context, path string) []string {
 		return deps
 	}
 
-	exportsChanged := exportsDiffer(oldExports, newExports)
-	oldImports := w.graph.ImportsOf(path)
-	graphChanged := exportsChanged || importsDiffer(oldImports, newImports)
-
-	// Update graph and cache.
-	w.graph.UpdateFile(path, newExports, newImports)
+	// Update graph and cache. UpdateFile returns whether resolved edges or
+	// exported symbols changed (handles specifier resolution internally).
+	graphChanged := w.graph.UpdateFile(path, newExports, newImports)
 	if err := w.cache.StoreFileGraph(ctx, path, newExports, newImports); err != nil {
 		slog.Error("store file graph", "path", path, "error", err)
 	}
@@ -335,7 +329,7 @@ func (w *Watcher) processFile(ctx context.Context, path string) []string {
 		slog.Error("cache store", "path", path, "error", err)
 	}
 
-	if exportsChanged {
+	if graphChanged {
 		return w.graph.ImportedBy(path)
 	}
 	return nil
@@ -381,24 +375,6 @@ func (w *Watcher) emit(ev WatchEvent) {
 	default:
 		slog.Warn("watch event channel full, dropping event", "path", ev.Path)
 	}
-}
-
-// importsDiffer returns true if two import lists have different source+name pairs.
-func importsDiffer(old, cur []ImportInfo) bool {
-	if len(old) != len(cur) {
-		return true
-	}
-	type key struct{ source, name string }
-	set := make(map[key]struct{}, len(old))
-	for _, imp := range old {
-		set[key{imp.Source, imp.Name}] = struct{}{}
-	}
-	for _, imp := range cur {
-		if _, ok := set[key{imp.Source, imp.Name}]; !ok {
-			return true
-		}
-	}
-	return false
 }
 
 // exportsDiffer returns true if two export lists have different symbol names.

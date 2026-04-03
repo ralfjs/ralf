@@ -112,12 +112,18 @@ func (g *Graph) addImportEdges(fromFile string, fileImports []ImportInfo) {
 
 // UpdateFile replaces exports and imports for a single file in the graph.
 // Removes old edges, adds new ones. Used for incremental updates.
-func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []ImportInfo) {
+// UpdateFile replaces a file's exports and imports in the graph, rebuilding
+// all edges. Returns true if the graph structure changed (different resolved
+// edges or exported symbols).
+func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []ImportInfo) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
+	// Snapshot old edges for change detection.
+	oldEdges := g.edges[file]
+
 	// Remove old edges originating from this file.
-	for target := range g.edges[file] {
+	for target := range oldEdges {
 		if set := g.importedBy[target]; set != nil {
 			delete(set, file)
 			if len(set) == 0 {
@@ -128,7 +134,6 @@ func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []Im
 	delete(g.edges, file)
 
 	// Remove old symbol importer entries for this file.
-	// Only iterate keys associated with the file's old imports (not the entire map).
 	for _, imp := range g.imports[file] {
 		resolved, ok := g.resolveImport(imp.Source, file)
 		if !ok {
@@ -143,12 +148,38 @@ func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []Im
 		}
 	}
 
+	// Snapshot old export names for change detection.
+	oldExportNames := make(map[string]struct{}, len(g.exports[file]))
+	for _, e := range g.exports[file] {
+		oldExportNames[e.Name] = struct{}{}
+	}
+
 	// Update exports.
 	g.exports[file] = newExports
 
 	// Update imports and rebuild edges.
 	g.imports[file] = newImports
 	g.addImportEdges(file, newImports)
+
+	// Detect whether graph structure changed.
+	newEdges := g.edges[file]
+	if len(oldEdges) != len(newEdges) {
+		return true
+	}
+	for target := range newEdges {
+		if _, ok := oldEdges[target]; !ok {
+			return true
+		}
+	}
+	if len(oldExportNames) != len(newExports) {
+		return true
+	}
+	for _, e := range newExports {
+		if _, ok := oldExportNames[e.Name]; !ok {
+			return true
+		}
+	}
+	return false
 }
 
 // RemoveFile completely removes a file from the graph, including its exports,
@@ -184,7 +215,9 @@ func (g *Graph) RemoveFile(file string) {
 		}
 	}
 
-	// Remove incoming edges (other files importing this file).
+	// Remove incoming edges from other files' edge sets, but retain
+	// importedBy[file] so that if the file is recreated, the watcher can
+	// still find dependents via ImportedBy for cascade re-linting.
 	for source := range g.importedBy[file] {
 		if set := g.edges[source]; set != nil {
 			delete(set, file)
@@ -193,7 +226,6 @@ func (g *Graph) RemoveFile(file string) {
 			}
 		}
 	}
-	delete(g.importedBy, file)
 
 	// Remove symbolImporters entries where this file is the target.
 	prefix := file + ":"
@@ -245,19 +277,6 @@ func (g *Graph) ExportedBy(file string) []ExportInfo {
 	}
 	out := make([]ExportInfo, len(exps))
 	copy(out, exps)
-	return out
-}
-
-// ImportsOf returns a copy of the imports of a given file.
-func (g *Graph) ImportsOf(file string) []ImportInfo {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-	imps := g.imports[file]
-	if len(imps) == 0 {
-		return nil
-	}
-	out := make([]ImportInfo, len(imps))
-	copy(out, imps)
 	return out
 }
 

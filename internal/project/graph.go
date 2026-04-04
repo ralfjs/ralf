@@ -110,17 +110,16 @@ func (g *Graph) addImportEdges(fromFile string, fileImports []ImportInfo) {
 	}
 }
 
-// UpdateFile replaces exports and imports for a single file in the graph.
-// Removes old edges, adds new ones. Used for incremental updates.
 // UpdateFile replaces a file's exports and imports in the graph, rebuilding
 // all edges. Returns true if the graph structure changed (different resolved
-// edges or exported symbols).
+// edges, exported symbols, or imported symbol names).
 func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []ImportInfo) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	// Snapshot old edges for change detection.
+	// Snapshot old state for change detection.
 	oldEdges := g.edges[file]
+	oldSymbolKeys := g.symbolKeysForFile(file)
 
 	// Remove old edges originating from this file.
 	for target := range oldEdges {
@@ -179,7 +178,30 @@ func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []Im
 			return true
 		}
 	}
+	// Check if imported symbol names changed (affects ImportedBySymbol queries).
+	newSymbolKeys := g.symbolKeysForFile(file)
+	if len(oldSymbolKeys) != len(newSymbolKeys) {
+		return true
+	}
+	for key := range newSymbolKeys {
+		if _, ok := oldSymbolKeys[key]; !ok {
+			return true
+		}
+	}
 	return false
+}
+
+// symbolKeysForFile returns the set of "resolved:symbol" keys for a file's imports.
+func (g *Graph) symbolKeysForFile(file string) map[string]struct{} {
+	keys := make(map[string]struct{})
+	for _, imp := range g.imports[file] {
+		resolved, ok := g.resolveImport(imp.Source, file)
+		if !ok {
+			continue
+		}
+		keys[resolved+":"+imp.Name] = struct{}{}
+	}
+	return keys
 }
 
 // RemoveFile removes a file's exports, imports, and active edge relationships

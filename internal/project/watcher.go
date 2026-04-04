@@ -211,6 +211,10 @@ func (w *Watcher) isIgnored(path string) bool {
 		if ok, _ := doublestar.Match(pattern, base); ok {
 			return true
 		}
+		// Match "dir/**" patterns against directories themselves (rel="dir").
+		if ok, _ := doublestar.Match(pattern, rel+"/"); ok {
+			return true
+		}
 	}
 	return false
 }
@@ -351,6 +355,16 @@ func (w *Watcher) handleDeletedFile(ctx context.Context, path string) {
 // dependent file. Also updates the graph so that resolved edges reflect
 // any changes (e.g. a deleted dependency no longer resolves).
 func (w *Watcher) relintFile(ctx context.Context, path string) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		slog.Debug("cannot stat dependent", "path", path, "error", err)
+		return
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		slog.Debug("skipping symlinked dependent", "path", path)
+		return
+	}
+
 	source, err := os.ReadFile(path) //nolint:gosec // path comes from graph, scoped to project root
 	if err != nil {
 		slog.Debug("cannot re-lint dependent", "path", path, "error", err)

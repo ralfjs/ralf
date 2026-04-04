@@ -187,7 +187,12 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 		return nil
 	}
 
-	// Watch mode: set up watcher and re-lint on changes.
+	// Watch mode: set exit code from initial lint, then enter watch loop.
+	// On shutdown, the process exits with the code from the last state.
+	if errCount > 0 {
+		exitCode = ExitLintErrors
+	}
+
 	return runWatch(cmd, eng, cfg, formatter, noCache)
 }
 

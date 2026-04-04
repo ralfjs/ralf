@@ -782,8 +782,9 @@ func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, format
 
 	go func() { _ = watcher.Run(ctx) }()
 
-	// Track per-file diagnostics to recompute exit code on each event.
+	// Track diagnostics to recompute exit code on each event.
 	fileDiags := make(map[string][]engine.Diagnostic)
+	var latestCrossDiags []engine.Diagnostic
 
 	for ev := range watcher.Events() {
 		if len(ev.Diags) > 0 {
@@ -796,9 +797,9 @@ func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, format
 			delete(fileDiags, ev.Path)
 		}
 		if ev.GraphChanged && crossfile.HasActiveRules(cfg) {
-			crossDiags := crossfile.Run(graph, cfg)
-			if len(crossDiags) > 0 {
-				if err := formatter.Format(out, crossDiags); err != nil {
+			latestCrossDiags = crossfile.Run(graph, cfg)
+			if len(latestCrossDiags) > 0 {
+				if err := formatter.Format(out, latestCrossDiags); err != nil {
 					slog.Error("format cross-file output", "error", err)
 				}
 			}
@@ -811,6 +812,9 @@ func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, format
 			errs += e
 			warns += wa
 		}
+		ce, cw := countBySeverity(latestCrossDiags)
+		errs += ce
+		warns += cw
 		if errs > 0 || (maxWarnings >= 0 && warns > maxWarnings) {
 			exitCode = ExitLintErrors
 		} else {

@@ -188,12 +188,11 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 	}
 
 	// Watch mode: set exit code from initial lint, then enter watch loop.
-	// On shutdown, the process exits with the code from the last state.
-	if errCount > 0 {
+	if errCount > 0 || (maxWarnings >= 0 && warnCount > maxWarnings) {
 		exitCode = ExitLintErrors
 	}
 
-	return runWatch(cmd, eng, cfg, formatter, noCache)
+	return runWatch(cmd, eng, cfg, formatter, noCache, maxWarnings)
 }
 
 // fixID uniquely identifies a fix by file, byte range, and replacement text.
@@ -717,7 +716,7 @@ func countBySeverity(diags []engine.Diagnostic) (errCount, warnCount int) {
 }
 
 // runWatch enters watch mode: monitors files for changes and re-lints incrementally.
-func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, formatter Formatter, noCache bool) error {
+func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, formatter Formatter, noCache bool, maxWarnings int) error {
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -746,7 +745,9 @@ func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, format
 		}
 	}
 	if cache == nil {
-		// Fall back to opening the regular cache with configHash=0 so the watcher still works.
+		// Watch mode always needs a cache for incremental hash dedup and graph
+		// persistence. When --no-cache is set, the initial lint skips caching but
+		// the watcher still uses it for change detection. Open with configHash=0.
 		c, openErr := project.Open(ctx, root, 0)
 		if openErr != nil {
 			_, _ = fmt.Fprintln(w, "Error opening cache:", openErr)
@@ -781,13 +782,18 @@ func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, format
 
 	go func() { _ = watcher.Run(ctx) }()
 
+	// Track per-file diagnostics to recompute exit code on each event.
+	fileDiags := make(map[string][]engine.Diagnostic)
+
 	for ev := range watcher.Events() {
 		if len(ev.Diags) > 0 {
 			if err := formatter.Format(out, ev.Diags); err != nil {
 				slog.Error("format watch output", "error", err)
 			}
+			fileDiags[ev.Path] = ev.Diags
 		} else if ev.Path != "" {
 			_, _ = fmt.Fprintf(w, "%s: no issues\n", ev.Path)
+			delete(fileDiags, ev.Path)
 		}
 		if ev.GraphChanged && crossfile.HasActiveRules(cfg) {
 			crossDiags := crossfile.Run(graph, cfg)
@@ -796,6 +802,19 @@ func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, format
 					slog.Error("format cross-file output", "error", err)
 				}
 			}
+		}
+
+		// Recompute exit code from current diagnostic state.
+		var errs, warns int
+		for _, diags := range fileDiags {
+			e, wa := countBySeverity(diags)
+			errs += e
+			warns += wa
+		}
+		if errs > 0 || (maxWarnings >= 0 && warns > maxWarnings) {
+			exitCode = ExitLintErrors
+		} else {
+			exitCode = 0
 		}
 	}
 

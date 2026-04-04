@@ -325,16 +325,15 @@ func (w *Watcher) processFile(ctx context.Context, path string) []string {
 		return deps
 	}
 
-	// Update graph and cache. UpdateFile returns whether resolved edges or
-	// exported symbols changed (handles specifier resolution internally).
-	graphChanged := w.graph.UpdateFile(path, newExports, newImports)
+	// Update graph and cache.
+	update := w.graph.UpdateFile(path, newExports, newImports)
 	if err := w.cache.StoreFileGraph(ctx, path, newExports, newImports); err != nil {
 		slog.Error("store file graph", "path", path, "error", err)
 	}
 
 	// Lint the file.
 	result := w.eng.LintSources(ctx, []engine.FileSource{{Path: path, Source: source}}, 1)
-	w.emit(WatchEvent{Path: path, Diags: result.Diagnostics, GraphChanged: graphChanged})
+	w.emit(WatchEvent{Path: path, Diags: result.Diagnostics, GraphChanged: update.GraphChanged})
 
 	// Cache the result.
 	if err := w.cache.Store(ctx, CacheEntry{
@@ -346,7 +345,9 @@ func (w *Watcher) processFile(ctx context.Context, path string) []string {
 		slog.Error("cache store", "path", path, "error", err)
 	}
 
-	if graphChanged {
+	// Only cascade re-lint to dependents when exports changed — import-only
+	// changes don't affect files that import from this module.
+	if update.ExportsChanged {
 		return w.graph.ImportedBy(path)
 	}
 	return nil
@@ -389,11 +390,12 @@ func (w *Watcher) relintFile(ctx context.Context, path string) {
 	// Re-extract and update graph for the dependent so resolved edges
 	// reflect the current filesystem state (e.g. after a target deletion).
 	newImports, newExports, extractErr := ExtractFile(ctx, path, source)
-	graphChanged := false
+	var graphChanged bool
 	if extractErr != nil {
 		slog.Debug("extract failed for dependent", "path", path, "error", extractErr)
 	} else {
-		graphChanged = w.graph.UpdateFile(path, newExports, newImports)
+		update := w.graph.UpdateFile(path, newExports, newImports)
+		graphChanged = update.GraphChanged
 		if storeErr := w.cache.StoreFileGraph(ctx, path, newExports, newImports); storeErr != nil {
 			slog.Error("store file graph for dependent", "path", path, "error", storeErr)
 		}

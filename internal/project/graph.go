@@ -110,10 +110,15 @@ func (g *Graph) addImportEdges(fromFile string, fileImports []ImportInfo) {
 	}
 }
 
+// GraphUpdate holds the result of an UpdateFile operation.
+type GraphUpdate struct {
+	ExportsChanged bool // exported symbols changed — dependents should be re-linted
+	GraphChanged   bool // any graph structure changed (edges, exports, or symbols) — cross-file rules should re-run
+}
+
 // UpdateFile replaces a file's exports and imports in the graph, rebuilding
-// all edges. Returns true if the graph structure changed (different resolved
-// edges, exported symbols, or imported symbol names).
-func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []ImportInfo) bool {
+// all edges. Returns a GraphUpdate indicating what changed.
+func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []ImportInfo) GraphUpdate {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -160,35 +165,51 @@ func (g *Graph) UpdateFile(file string, newExports []ExportInfo, newImports []Im
 	g.imports[file] = newImports
 	g.addImportEdges(file, newImports)
 
-	// Detect whether graph structure changed.
+	// Detect what changed.
+	var result GraphUpdate
+
+	// Check exports.
+	if len(oldExportNames) != len(newExports) {
+		result.ExportsChanged = true
+	} else {
+		for _, e := range newExports {
+			if _, ok := oldExportNames[e.Name]; !ok {
+				result.ExportsChanged = true
+				break
+			}
+		}
+	}
+
+	// Check resolved edges.
+	edgesChanged := false
 	newEdges := g.edges[file]
 	if len(oldEdges) != len(newEdges) {
-		return true
-	}
-	for target := range newEdges {
-		if _, ok := oldEdges[target]; !ok {
-			return true
+		edgesChanged = true
+	} else {
+		for target := range newEdges {
+			if _, ok := oldEdges[target]; !ok {
+				edgesChanged = true
+				break
+			}
 		}
 	}
-	if len(oldExportNames) != len(newExports) {
-		return true
-	}
-	for _, e := range newExports {
-		if _, ok := oldExportNames[e.Name]; !ok {
-			return true
-		}
-	}
-	// Check if imported symbol names changed (affects ImportedBySymbol queries).
+
+	// Check imported symbol names.
+	symbolsChanged := false
 	newSymbolKeys := g.symbolKeysForFile(file)
 	if len(oldSymbolKeys) != len(newSymbolKeys) {
-		return true
-	}
-	for key := range newSymbolKeys {
-		if _, ok := oldSymbolKeys[key]; !ok {
-			return true
+		symbolsChanged = true
+	} else {
+		for key := range newSymbolKeys {
+			if _, ok := oldSymbolKeys[key]; !ok {
+				symbolsChanged = true
+				break
+			}
 		}
 	}
-	return false
+
+	result.GraphChanged = result.ExportsChanged || edgesChanged || symbolsChanged
+	return result
 }
 
 // symbolKeysForFile returns the set of "resolved:symbol" keys for a file's imports.

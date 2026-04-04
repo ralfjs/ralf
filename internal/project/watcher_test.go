@@ -12,7 +12,7 @@ import (
 )
 
 // newTestWatcher sets up a watcher with a temp directory, cache, graph, and engine.
-// Returns the watcher, the temp project root, and a cleanup function.
+// Returns the watcher and the temp project root; cleanup is registered via t.Cleanup.
 func newTestWatcher(t *testing.T) (w *Watcher, root string) {
 	t.Helper()
 

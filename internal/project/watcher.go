@@ -201,19 +201,32 @@ func (w *Watcher) shouldSkipDir(name string) bool {
 func (w *Watcher) isIgnored(path string) bool {
 	rel, err := filepath.Rel(w.cfg.Root, path)
 	if err != nil {
-		return false
+		rel = ""
 	}
-	base := filepath.Base(rel)
+	base := filepath.Base(path)
 	for _, pattern := range w.cfg.IgnorePatterns {
-		if ok, _ := doublestar.Match(pattern, rel); ok {
+		// Match against absolute path (consistent with cli/discover.go).
+		if ok, _ := doublestar.Match(pattern, path); ok {
 			return true
 		}
+		// Match against relative path.
+		if rel != "" {
+			if ok, _ := doublestar.Match(pattern, rel); ok {
+				return true
+			}
+		}
+		// Match against basename for simple patterns like "*.generated.*".
 		if ok, _ := doublestar.Match(pattern, base); ok {
 			return true
 		}
-		// Match "dir/**" patterns against directories themselves (rel="dir").
-		if ok, _ := doublestar.Match(pattern, rel+"/"); ok {
+		// Match "dir/**" patterns against directories themselves.
+		if ok, _ := doublestar.Match(pattern, path+"/"); ok {
 			return true
+		}
+		if rel != "" {
+			if ok, _ := doublestar.Match(pattern, rel+"/"); ok {
+				return true
+			}
 		}
 	}
 	return false

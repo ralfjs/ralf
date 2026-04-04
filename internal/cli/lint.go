@@ -786,6 +786,8 @@ func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, format
 			if err := formatter.Format(out, ev.Diags); err != nil {
 				slog.Error("format watch output", "error", err)
 			}
+		} else if ev.Path != "" {
+			_, _ = fmt.Fprintf(w, "%s: no issues\n", ev.Path)
 		}
 		if ev.GraphChanged && crossfile.HasActiveRules(cfg) {
 			crossDiags := crossfile.Run(graph, cfg)

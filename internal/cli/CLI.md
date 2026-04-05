@@ -16,7 +16,8 @@ cmd/ralf/main.go
             │    ├─ --max-warnings (int)
             │    ├─ --fix
             │    ├─ --fix-dry-run
-            │    └─ --no-cache
+            │    ├─ --no-cache
+            │    └─ --watch
             └─ init
                  ├─ --from-eslint
                  ├─ --from-biome
@@ -84,6 +85,9 @@ ralf lint --format github src/
 
 # Fail on any warnings
 ralf lint --max-warnings 0 src/
+
+# Watch for changes and re-lint
+ralf lint --watch
 
 # Generate default config
 ralf init

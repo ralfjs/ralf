@@ -78,11 +78,11 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 
 | Feature | Status | Description |
 |---|---|---|
-| SQLite project cache | Planned | Per-file cache with content hashing |
-| Module graph | Planned | Import/export dependency tracking |
-| Cross-file rules | Planned | Unused exports, circular deps, layer violations, dead modules |
-| File watcher | Planned | fsnotify + cascade invalidation |
-| Incremental re-analysis | Planned | Only changed files + their dependents |
+| SQLite project cache | ✅ Implemented | Per-file cache with xxhash content hashing, WAL mode |
+| Module graph | ✅ Implemented | Import/export extraction, specifier resolution, incremental updates |
+| Cross-file rules | ✅ Implemented | no-unused-exports, no-circular-deps, no-dead-modules |
+| File watcher | ✅ Implemented | fsnotify + debounced cascade invalidation, `ralf lint --watch` |
+| Incremental re-analysis | ✅ Implemented | Content hash dedup, export-change cascade to dependents |
 
 ### LSP + Editor Integration
 

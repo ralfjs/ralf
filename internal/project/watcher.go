@@ -279,6 +279,12 @@ func (w *Watcher) processBatch(ctx context.Context, batch map[string]struct{}) {
 // processFile handles a single file change. Returns the list of dependent
 // files that need re-linting (non-nil when exports or imports changed).
 func (w *Watcher) processFile(ctx context.Context, path string) []string {
+	info, err := os.Lstat(path)
+	if err == nil && info.Mode()&os.ModeSymlink != 0 {
+		slog.Debug("skipping symlinked file", "path", path)
+		return nil
+	}
+
 	source, err := os.ReadFile(path) //nolint:gosec // path comes from fsnotify, scoped to project root
 	if err != nil {
 		// File was deleted or is unreadable.

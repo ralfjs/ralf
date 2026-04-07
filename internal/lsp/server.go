@@ -63,6 +63,16 @@ func (s *Server) Run(ctx context.Context, r io.Reader, w io.Writer) error {
 
 // dispatch handles a single request. Returns true if the server should exit.
 func (s *Server) dispatch(req *Request) bool {
+	// After shutdown, only exit is allowed per LSP spec.
+	if s.shutdown {
+		if req.Method == "exit" {
+			s.handleExit()
+			return true
+		}
+		s.sendError(req, CodeInvalidRequest, "server is shutting down")
+		return false
+	}
+
 	switch req.Method {
 	case "initialize":
 		s.handleInitialize(req)
@@ -74,10 +84,6 @@ func (s *Server) dispatch(req *Request) bool {
 		s.handleExit()
 		return true
 	default:
-		if s.shutdown {
-			s.sendError(req, CodeInvalidRequest, "server is shutting down")
-			return false
-		}
 		if !s.initialized {
 			s.sendError(req, CodeServerNotInit, "server not initialized")
 			return false
@@ -103,7 +109,12 @@ func (s *Server) handleInitialize(req *Request) {
 		}
 	}
 
-	slog.Debug("initialize", "rootURI", params.RootURI, "processID", params.ProcessID)
+	var rootURI string
+	if params.RootURI != nil {
+		rootURI = *params.RootURI
+	}
+
+	slog.Debug("initialize", "rootURI", rootURI, "processID", params.ProcessID)
 
 	result := InitializeResult{
 		Capabilities: ServerCapabilities{
@@ -154,6 +165,10 @@ func (s *Server) ExitCode() int {
 }
 
 func (s *Server) sendResult(req *Request, result any) {
+	if req.IsNotification() {
+		return
+	}
+
 	resp := &Response{
 		JSONRPC: "2.0",
 		ID:      req.ID,

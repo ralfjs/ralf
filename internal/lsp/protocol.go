@@ -41,9 +41,10 @@ const (
 )
 
 // InitializeParams is sent by the client in the initialize request.
+// ProcessID and RootURI are pointers because the LSP spec allows null values.
 type InitializeParams struct {
-	ProcessID int    `json:"processId"`
-	RootURI   string `json:"rootUri"`
+	ProcessID *int    `json:"processId"`
+	RootURI   *string `json:"rootUri"`
 }
 
 // InitializeResult is the server's response to initialize.

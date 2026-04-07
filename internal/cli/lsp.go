@@ -27,7 +27,7 @@ func lspCmd() *cobra.Command {
 func runLSP(cmd *cobra.Command) error {
 	// Send slog output to stderr — stdout is the JSON-RPC transport.
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+		Level: slog.LevelWarn,
 	})))
 
 	w := cmd.ErrOrStderr()

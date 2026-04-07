@@ -10,6 +10,10 @@ import (
 	"sync"
 )
 
+// maxMessageSize is the maximum allowed Content-Length (10 MB).
+// Protects against OOM from malformed or malicious clients.
+const maxMessageSize = 10 * 1024 * 1024
+
 // Transport handles JSON-RPC 2.0 message framing over an io.ReadWriter.
 // Messages use Content-Length headers as defined by the LSP specification.
 type Transport struct {
@@ -60,6 +64,9 @@ func (t *Transport) Read() (*Request, error) {
 
 	if contentLen < 0 {
 		return nil, fmt.Errorf("missing Content-Length header")
+	}
+	if contentLen > maxMessageSize {
+		return nil, fmt.Errorf("Content-Length %d exceeds maximum %d", contentLen, maxMessageSize)
 	}
 
 	body := make([]byte, contentLen)

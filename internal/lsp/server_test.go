@@ -1,9 +1,11 @@
 package lsp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/ralfjs/ralf/internal/config"
@@ -155,13 +157,16 @@ func (h *testHarness) readResp(t *testing.T) *Response {
 	return &resp
 }
 
+func intPtr(n int) *int       { return &n }
+func strPtr(s string) *string { return &s }
+
 // initialize performs the initialize/initialized handshake.
 func (h *testHarness) initialize(t *testing.T) {
 	t.Helper()
 
 	resp := h.request(t, 1, "initialize", InitializeParams{
-		ProcessID: 1,
-		RootURI:   "file:///tmp/project",
+		ProcessID: intPtr(1),
+		RootURI:   strPtr("file:///tmp/project"),
 	})
 	if resp.Error != nil {
 		t.Fatalf("initialize error: %s", resp.Error.Message)
@@ -199,8 +204,8 @@ func TestServer_InitializeShutdownExit(t *testing.T) {
 
 	// Initialize.
 	resp := h.request(t, 1, "initialize", InitializeParams{
-		ProcessID: 42,
-		RootURI:   "file:///tmp/project",
+		ProcessID: intPtr(42),
+		RootURI:   strPtr("file:///tmp/project"),
 	})
 	if resp.Error != nil {
 		t.Fatalf("initialize error: %s", resp.Error.Message)
@@ -256,6 +261,20 @@ func TestServer_InitializeShutdownExit(t *testing.T) {
 	if h.srv.ExitCode() != 0 {
 		t.Fatalf("expected exit code 0, got %d", h.srv.ExitCode())
 	}
+}
+
+func TestServer_InitializeWithNullFields(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+
+	// Initialize with null processId and rootUri (spec allows this).
+	resp := h.request(t, 1, "initialize", InitializeParams{})
+	if resp.Error != nil {
+		t.Fatalf("initialize error: %s", resp.Error.Message)
+	}
+
+	h.notify(t, "exit")
+	h.wait(t)
 }
 
 func TestServer_ExitWithoutShutdown(t *testing.T) {
@@ -329,6 +348,12 @@ func TestServer_RejectsAfterShutdown(t *testing.T) {
 		t.Fatalf("expected code %d, got %d", CodeInvalidRequest, resp.Error.Code)
 	}
 
+	// Even initialize should be rejected after shutdown.
+	resp = h.request(t, 4, "initialize", nil)
+	if resp.Error == nil {
+		t.Fatal("expected error for initialize after shutdown")
+	}
+
 	h.notify(t, "exit")
 	h.wait(t)
 }
@@ -341,7 +366,7 @@ func TestServer_DoubleInitialize(t *testing.T) {
 
 	// Second initialize should fail.
 	resp := h.request(t, 2, "initialize", InitializeParams{
-		RootURI: "file:///tmp/project",
+		RootURI: strPtr("file:///tmp/project"),
 	})
 	if resp.Error == nil {
 		t.Fatal("expected error for double initialize")
@@ -352,4 +377,159 @@ func TestServer_DoubleInitialize(t *testing.T) {
 
 	h.notify(t, "exit")
 	h.wait(t)
+}
+
+func TestServer_NotificationBeforeInit(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+
+	// Unknown notification before init — should be silently ignored (no response).
+	h.notify(t, "textDocument/didOpen")
+
+	// Server should still work — send a real request to verify.
+	resp := h.request(t, 1, "textDocument/hover", nil)
+	if resp.Error == nil || resp.Error.Code != CodeServerNotInit {
+		t.Fatal("expected ServerNotInit error")
+	}
+
+	h.notify(t, "exit")
+	h.wait(t)
+}
+
+func TestTransport_Read_MissingContentLength(t *testing.T) {
+	t.Parallel()
+
+	input := "Bad-Header: foo\r\n\r\n"
+	tr := NewTransport(strings.NewReader(input), io.Discard)
+
+	_, err := tr.Read()
+	if err == nil || !strings.Contains(err.Error(), "missing Content-Length") {
+		t.Fatalf("expected missing Content-Length error, got: %v", err)
+	}
+}
+
+func TestTransport_Read_InvalidContentLength(t *testing.T) {
+	t.Parallel()
+
+	input := "Content-Length: abc\r\n\r\n"
+	tr := NewTransport(strings.NewReader(input), io.Discard)
+
+	_, err := tr.Read()
+	if err == nil || !strings.Contains(err.Error(), "parse Content-Length") {
+		t.Fatalf("expected parse error, got: %v", err)
+	}
+}
+
+func TestTransport_Read_OversizedContentLength(t *testing.T) {
+	t.Parallel()
+
+	input := "Content-Length: 999999999\r\n\r\n"
+	tr := NewTransport(strings.NewReader(input), io.Discard)
+
+	_, err := tr.Read()
+	if err == nil || !strings.Contains(err.Error(), "exceeds maximum") {
+		t.Fatalf("expected oversized error, got: %v", err)
+	}
+}
+
+func TestTransport_Read_TruncatedBody(t *testing.T) {
+	t.Parallel()
+
+	input := "Content-Length: 100\r\n\r\nshort"
+	tr := NewTransport(strings.NewReader(input), io.Discard)
+
+	_, err := tr.Read()
+	if err == nil || !strings.Contains(err.Error(), "read body") {
+		t.Fatalf("expected read body error, got: %v", err)
+	}
+}
+
+func TestTransport_Read_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	body := "not json"
+	input := "Content-Length: 8\r\n\r\nnot json"
+	_ = body
+	tr := NewTransport(strings.NewReader(input), io.Discard)
+
+	_, err := tr.Read()
+	if err == nil || !strings.Contains(err.Error(), "decode request") {
+		t.Fatalf("expected decode error, got: %v", err)
+	}
+}
+
+func TestTransport_Read_HeaderEOF(t *testing.T) {
+	t.Parallel()
+
+	// EOF in the middle of headers.
+	tr := NewTransport(strings.NewReader("Content-Le"), io.Discard)
+
+	_, err := tr.Read()
+	if err == nil || !strings.Contains(err.Error(), "read header") {
+		t.Fatalf("expected header read error, got: %v", err)
+	}
+}
+
+func TestTransport_WriteResponse_WriterError(t *testing.T) {
+	t.Parallel()
+
+	tr := NewTransport(bytes.NewReader(nil), &failWriter{})
+
+	err := tr.WriteResponse(&Response{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage("1"),
+		Result:  "ok",
+	})
+	if err == nil {
+		t.Fatal("expected write error")
+	}
+}
+
+type failWriter struct{}
+
+func (w *failWriter) Write([]byte) (int, error) {
+	return 0, io.ErrClosedPipe
+}
+
+func TestURIToPath_Basic(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		uri  string
+		want string
+	}{
+		{"file:///tmp/project", "/tmp/project"},
+		{"file:///path/with%20spaces/file.ts", "/path/with spaces/file.ts"},
+		{"file:///a/b/c.js", "/a/b/c.js"},
+		{"/fallback/path", "/fallback/path"},
+	}
+
+	for _, tt := range tests {
+		got := URIToPath(tt.uri)
+		if got != tt.want {
+			t.Errorf("URIToPath(%q) = %q, want %q", tt.uri, got, tt.want)
+		}
+	}
+}
+
+func TestRequest_IsNotification(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		id   json.RawMessage
+		want bool
+	}{
+		{"nil id", nil, true},
+		{"null id", json.RawMessage("null"), true},
+		{"number id", json.RawMessage("1"), false},
+		{"string id", json.RawMessage(`"abc"`), false},
+	}
+
+	for _, tt := range tests {
+		r := &Request{ID: tt.id}
+		if got := r.IsNotification(); got != tt.want {
+			t.Errorf("IsNotification(%s) = %v, want %v", tt.name, got, tt.want)
+		}
+	}
 }

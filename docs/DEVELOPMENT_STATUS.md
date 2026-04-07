@@ -88,7 +88,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 
 | Feature | Status | Description |
 |---|---|---|
-| LSP server | Planned | JSON-RPC over stdio |
+| LSP server skeleton | ✅ Implemented | JSON-RPC over stdio, initialize/shutdown/exit lifecycle |
 | Push diagnostics | Planned | Real-time lint errors in editor |
 | Quick fixes | Planned | Code actions for auto-fixable rules |
 | Format on save | Planned | Integrated formatter |
@@ -112,7 +112,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 | `ralf format` | Planned | Format files |
 | `ralf check` | Planned | Lint + format check (for CI) |
 | `ralf init` | ✅ Implemented | Generate config, migrate from ESLint/Biome |
-| `ralf lsp` | Planned | Start LSP server |
+| `ralf lsp` | ✅ Implemented | Start LSP server (stdio) |
 | `ralf debug` | Planned | Inspect rules, AST, module graph |
 | Output formats | ✅ Implemented | Stylish, JSON, compact, GitHub Actions, SARIF |
 

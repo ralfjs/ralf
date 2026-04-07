@@ -59,11 +59,12 @@ func BenchmarkTransport_WriteResponse(b *testing.B) {
 
 func BenchmarkTransport_Roundtrip(b *testing.B) {
 	// Simulate a full request/response cycle over pipes.
+	// A single long-lived server goroutine reads requests and responds.
 	srvR, clientW := io.Pipe()
 	clientR, srvW := io.Pipe()
 	defer func() {
-		_ = srvR.Close()
 		_ = clientW.Close()
+		_ = srvR.Close()
 		_ = clientR.Close()
 		_ = srvW.Close()
 	}()
@@ -77,20 +78,25 @@ func BenchmarkTransport_Roundtrip(b *testing.B) {
 		Result:  map[string]string{"status": "ok"},
 	}
 
-	b.ResetTimer()
-
-	for range b.N {
-		// Client sends request, server reads and responds, client reads response.
-		go func() {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
 			req, err := server.Read()
 			if err != nil {
 				return
 			}
 			r := *resp
 			r.ID = req.ID
-			_ = server.WriteResponse(&r)
-		}()
+			if err := server.WriteResponse(&r); err != nil {
+				return
+			}
+		}
+	}()
 
+	b.ResetTimer()
+
+	for range b.N {
 		_ = client.writeJSON(Request{
 			JSONRPC: "2.0",
 			ID:      json.RawMessage("1"),
@@ -121,4 +127,8 @@ func BenchmarkTransport_Roundtrip(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+
+	b.StopTimer()
+	_ = clientW.Close() // unblocks server goroutine
+	<-done
 }

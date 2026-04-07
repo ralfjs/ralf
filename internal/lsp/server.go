@@ -13,16 +13,23 @@ import (
 	"github.com/ralfjs/ralf/internal/version"
 )
 
+// Server lifecycle states.
+const (
+	stateEmpty        = 0 // before initialize
+	stateInitializing = 1 // after initialize response, before initialized
+	stateReady        = 2 // after initialized notification
+	stateShutdown     = 3 // after shutdown request
+)
+
 // Server is the ralf LSP server. It owns the lint engine and project state,
 // and communicates with the editor over a JSON-RPC 2.0 transport.
 type Server struct {
 	eng *engine.Engine
 	cfg *config.Config
 
-	transport   *Transport
-	initialized bool
-	shutdown    bool
-	exit        int // -1 while running; 0 or 1 once exit received
+	transport *Transport
+	state     int // stateEmpty → stateInitialized → stateShutdown
+	exit      int // -1 while running; 0 or 1 once exit received
 }
 
 // NewServer creates an LSP server with the given engine and config.
@@ -64,7 +71,7 @@ func (s *Server) Run(ctx context.Context, r io.Reader, w io.Writer) error {
 // dispatch handles a single request. Returns true if the server should exit.
 func (s *Server) dispatch(req *Request) bool {
 	// After shutdown, only exit is allowed per LSP spec.
-	if s.shutdown {
+	if s.state == stateShutdown {
 		if req.Method == "exit" {
 			s.handleExit()
 			return true
@@ -77,14 +84,27 @@ func (s *Server) dispatch(req *Request) bool {
 	case "initialize":
 		s.handleInitialize(req)
 	case "initialized":
+		// Ignore if we haven't completed initialize.
+		if s.state != stateInitializing {
+			return false
+		}
 		s.handleInitialized()
 	case "shutdown":
+		// Shutdown requires prior initialization.
+		if s.state == stateEmpty {
+			s.sendError(req, CodeServerNotInit, "server not initialized")
+			return false
+		}
 		s.handleShutdown(req)
 	case "exit":
 		s.handleExit()
 		return true
 	default:
-		if !s.initialized {
+		if s.state != stateReady {
+			// Silently ignore notifications before ready.
+			if req.IsNotification() {
+				return false
+			}
 			s.sendError(req, CodeServerNotInit, "server not initialized")
 			return false
 		}
@@ -96,7 +116,7 @@ func (s *Server) dispatch(req *Request) bool {
 }
 
 func (s *Server) handleInitialize(req *Request) {
-	if s.initialized {
+	if s.state != stateEmpty {
 		s.sendError(req, CodeInvalidRequest, "server already initialized")
 		return
 	}
@@ -134,22 +154,23 @@ func (s *Server) handleInitialize(req *Request) {
 		},
 	}
 
+	s.state = stateInitializing
 	s.sendResult(req, result)
 }
 
 func (s *Server) handleInitialized() {
-	s.initialized = true
+	s.state = stateReady
 	slog.Debug("initialized")
 }
 
 func (s *Server) handleShutdown(req *Request) {
 	slog.Debug("shutdown")
-	s.shutdown = true
+	s.state = stateShutdown
 	s.sendResult(req, nil)
 }
 
 func (s *Server) handleExit() {
-	if s.shutdown {
+	if s.state == stateShutdown {
 		s.exit = 0
 	} else {
 		s.exit = 1
@@ -181,7 +202,6 @@ func (s *Server) sendResult(req *Request, result any) {
 
 func (s *Server) sendError(req *Request, code int, message string) {
 	if req.IsNotification() {
-		slog.Warn("error on notification", "method", req.Method, "message", message)
 		return
 	}
 

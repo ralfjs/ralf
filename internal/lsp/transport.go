@@ -57,6 +57,9 @@ func (t *Transport) Read() (*Request, error) {
 			if err != nil {
 				return nil, fmt.Errorf("parse Content-Length %q: %w", val, err)
 			}
+			if n <= 0 {
+				return nil, fmt.Errorf("invalid Content-Length: %d", n)
+			}
 			contentLen = n
 		}
 		// Content-Type and other headers are ignored per spec.

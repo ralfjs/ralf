@@ -396,6 +396,67 @@ func TestServer_NotificationBeforeInit(t *testing.T) {
 	h.wait(t)
 }
 
+func TestServer_ShutdownBeforeInit(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+
+	// Shutdown without initialize should be rejected.
+	resp := h.request(t, 1, "shutdown", nil)
+	if resp.Error == nil {
+		t.Fatal("expected error for shutdown before init")
+	}
+	if resp.Error.Code != CodeServerNotInit {
+		t.Fatalf("expected code %d, got %d", CodeServerNotInit, resp.Error.Code)
+	}
+
+	h.notify(t, "exit")
+	h.wait(t)
+}
+
+func TestServer_InitializedBeforeInit(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+
+	// Sending initialized before initialize should be silently ignored.
+	h.notify(t, "initialized")
+
+	// Server should still accept initialize normally.
+	resp := h.request(t, 1, "initialize", InitializeParams{
+		ProcessID: intPtr(1),
+		RootURI:   strPtr("file:///tmp/project"),
+	})
+	if resp.Error != nil {
+		t.Fatalf("initialize after spurious initialized should work: %s", resp.Error.Message)
+	}
+
+	h.notify(t, "exit")
+	h.wait(t)
+}
+
+func TestTransport_Read_NegativeContentLength(t *testing.T) {
+	t.Parallel()
+
+	input := "Content-Length: -5\r\n\r\n"
+	tr := NewTransport(strings.NewReader(input), io.Discard)
+
+	_, err := tr.Read()
+	if err == nil || !strings.Contains(err.Error(), "invalid Content-Length") {
+		t.Fatalf("expected invalid Content-Length error, got: %v", err)
+	}
+}
+
+func TestTransport_Read_ZeroContentLength(t *testing.T) {
+	t.Parallel()
+
+	input := "Content-Length: 0\r\n\r\n"
+	tr := NewTransport(strings.NewReader(input), io.Discard)
+
+	_, err := tr.Read()
+	if err == nil || !strings.Contains(err.Error(), "invalid Content-Length") {
+		t.Fatalf("expected invalid Content-Length error, got: %v", err)
+	}
+}
+
 func TestTransport_Read_MissingContentLength(t *testing.T) {
 	t.Parallel()
 
@@ -447,9 +508,7 @@ func TestTransport_Read_TruncatedBody(t *testing.T) {
 func TestTransport_Read_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
-	body := "not json"
 	input := "Content-Length: 8\r\n\r\nnot json"
-	_ = body
 	tr := NewTransport(strings.NewReader(input), io.Discard)
 
 	_, err := tr.Read()

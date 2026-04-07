@@ -64,8 +64,10 @@ func runLSP(cmd *cobra.Command) error {
 		return nil
 	}
 
-	if code := srv.ExitCode(); code >= 0 {
-		exitCode = code
+	// Map LSP exit codes to CLI exit codes:
+	// 0 (clean shutdown) → ExitOK, 1 (exit without shutdown) → ExitInternal.
+	if code := srv.ExitCode(); code > 0 {
+		exitCode = ExitInternal
 	}
 
 	return nil

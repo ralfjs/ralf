@@ -16,3 +16,8 @@ func URIToPath(uri string) string {
 	// url.Parse already decodes percent-encoding in Path.
 	return u.Path
 }
+
+// PathToURI converts an absolute filesystem path to a file:// URI.
+func PathToURI(path string) string {
+	return "file://" + path
+}

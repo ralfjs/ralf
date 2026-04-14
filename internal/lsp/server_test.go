@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ralfjs/ralf/internal/config"
 	"github.com/ralfjs/ralf/internal/engine"
@@ -48,7 +49,7 @@ func newHarness(t *testing.T) *testHarness {
 		_ = srvW.Close()
 	})
 
-	srv := NewServer(eng, cfg)
+	srv := NewServer(eng, cfg, nil)
 	h := &testHarness{
 		srv:    srv,
 		client: NewTransport(clientR, clientW),
@@ -115,6 +116,84 @@ func (h *testHarness) notify(t *testing.T, method string) {
 	if err := h.client.writeJSON(msg); err != nil {
 		t.Fatalf("send notification %q: %v", method, err)
 	}
+}
+
+// notifyWithParams sends a JSON-RPC notification with params.
+func (h *testHarness) notifyWithParams(t *testing.T, method string, params any) {
+	t.Helper()
+
+	var rawParams json.RawMessage
+	if params != nil {
+		b, err := json.Marshal(params)
+		if err != nil {
+			t.Fatalf("marshal params: %v", err)
+		}
+		rawParams = b
+	}
+
+	msg := struct {
+		JSONRPC string          `json:"jsonrpc"`
+		Method  string          `json:"method"`
+		Params  json.RawMessage `json:"params,omitempty"`
+	}{
+		JSONRPC: "2.0",
+		Method:  method,
+		Params:  rawParams,
+	}
+
+	if err := h.client.writeJSON(msg); err != nil {
+		t.Fatalf("send notification %q: %v", method, err)
+	}
+}
+
+// message is a generic JSON-RPC message (response or notification).
+type message struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Method  string          `json:"method,omitempty"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   *ResponseError  `json:"error,omitempty"`
+	Params  json.RawMessage `json:"params,omitempty"`
+}
+
+// readMessage reads the next JSON-RPC message (response or notification).
+func (h *testHarness) readMessage(t *testing.T) message {
+	t.Helper()
+
+	contentLen := -1
+	for {
+		line, err := h.client.r.ReadString('\n')
+		if err != nil {
+			t.Fatalf("read message header: %v", err)
+		}
+		line = stripCRLF(line)
+		if line == "" {
+			break
+		}
+		if key, val, ok := cutHeader(line); ok && key == "Content-Length" {
+			n := 0
+			for _, c := range val {
+				n = n*10 + int(c-'0')
+			}
+			contentLen = n
+		}
+	}
+
+	if contentLen < 0 {
+		t.Fatal("missing Content-Length in message")
+	}
+
+	body := make([]byte, contentLen)
+	if _, err := io.ReadFull(h.client.r, body); err != nil {
+		t.Fatalf("read message body: %v", err)
+	}
+
+	var msg message
+	if err := json.Unmarshal(body, &msg); err != nil {
+		t.Fatalf("decode message: %v (body: %s)", err, body)
+	}
+
+	return msg
 }
 
 // readResp reads a JSON-RPC response from the client side.
@@ -529,6 +608,47 @@ func TestTransport_Read_HeaderEOF(t *testing.T) {
 	}
 }
 
+func TestTransport_WriteNotification(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	tr := NewTransport(bytes.NewReader(nil), &buf)
+
+	err := tr.WriteNotification(&Notification{
+		JSONRPC: "2.0",
+		Method:  "textDocument/publishDiagnostics",
+		Params: PublishDiagnosticsParams{
+			URI:         "file:///tmp/test.js",
+			Diagnostics: []LDiagnostic{},
+		},
+	})
+	if err != nil {
+		t.Fatalf("WriteNotification: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "Content-Length:") {
+		t.Fatal("expected Content-Length header in notification")
+	}
+	if !strings.Contains(out, "publishDiagnostics") {
+		t.Fatal("expected publishDiagnostics method in notification body")
+	}
+}
+
+func TestTransport_WriteNotification_WriterError(t *testing.T) {
+	t.Parallel()
+
+	tr := NewTransport(bytes.NewReader(nil), &failWriter{})
+
+	err := tr.WriteNotification(&Notification{
+		JSONRPC: "2.0",
+		Method:  "test",
+	})
+	if err == nil {
+		t.Fatal("expected write error")
+	}
+}
+
 func TestTransport_WriteResponse_WriterError(t *testing.T) {
 	t.Parallel()
 
@@ -589,6 +709,356 @@ func TestRequest_IsNotification(t *testing.T) {
 		r := &Request{ID: tt.id}
 		if got := r.IsNotification(); got != tt.want {
 			t.Errorf("IsNotification(%s) = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestServer_DidOpen_PublishesDiagnostics(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.initialize(t)
+
+	h.notifyWithParams(t, "textDocument/didOpen", DidOpenTextDocumentParams{
+		TextDocument: TextDocumentItem{
+			URI:        "file:///tmp/test.js",
+			LanguageID: "javascript",
+			Version:    1,
+			Text:       "var x = 1;\n",
+		},
+	})
+
+	msg := h.readMessage(t)
+	if msg.Method != "textDocument/publishDiagnostics" {
+		t.Fatalf("expected publishDiagnostics, got method %q", msg.Method)
+	}
+
+	var params PublishDiagnosticsParams
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		t.Fatalf("unmarshal params: %v", err)
+	}
+
+	if params.URI != "file:///tmp/test.js" {
+		t.Fatalf("expected URI file:///tmp/test.js, got %s", params.URI)
+	}
+	if len(params.Diagnostics) == 0 {
+		t.Fatal("expected at least one diagnostic for var usage")
+	}
+
+	found := false
+	for _, d := range params.Diagnostics {
+		if d.Code == "no-var" {
+			found = true
+			if d.Range.Start.Line != 0 {
+				t.Fatalf("expected line 0, got %d", d.Range.Start.Line)
+			}
+			if d.Severity != SeverityError {
+				t.Fatalf("expected severity error (1), got %d", d.Severity)
+			}
+			if d.Source != "ralf" {
+				t.Fatalf("expected source 'ralf', got %q", d.Source)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no-var diagnostic not found")
+	}
+
+	h.notify(t, "exit")
+	h.wait(t)
+}
+
+func TestServer_DidOpen_CleanFile(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.initialize(t)
+
+	h.notifyWithParams(t, "textDocument/didOpen", DidOpenTextDocumentParams{
+		TextDocument: TextDocumentItem{
+			URI:        "file:///tmp/clean.js",
+			LanguageID: "javascript",
+			Version:    1,
+			Text:       "const x = 1;\n",
+		},
+	})
+
+	msg := h.readMessage(t)
+	if msg.Method != "textDocument/publishDiagnostics" {
+		t.Fatalf("expected publishDiagnostics, got method %q", msg.Method)
+	}
+
+	var params PublishDiagnosticsParams
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		t.Fatalf("unmarshal params: %v", err)
+	}
+
+	if len(params.Diagnostics) != 0 {
+		t.Fatalf("expected 0 diagnostics for clean file, got %d", len(params.Diagnostics))
+	}
+
+	h.notify(t, "exit")
+	h.wait(t)
+}
+
+func TestServer_DidClose_ClearsDiagnostics(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.initialize(t)
+
+	// Open a file with an error.
+	h.notifyWithParams(t, "textDocument/didOpen", DidOpenTextDocumentParams{
+		TextDocument: TextDocumentItem{
+			URI:        "file:///tmp/close.js",
+			LanguageID: "javascript",
+			Version:    1,
+			Text:       "var x = 1;\n",
+		},
+	})
+
+	// Read the diagnostics from open.
+	msg := h.readMessage(t)
+	if msg.Method != "textDocument/publishDiagnostics" {
+		t.Fatalf("expected publishDiagnostics on open, got %q", msg.Method)
+	}
+
+	// Close the file.
+	h.notifyWithParams(t, "textDocument/didClose", DidCloseTextDocumentParams{
+		TextDocument: TextDocumentIdentifier{
+			URI: "file:///tmp/close.js",
+		},
+	})
+
+	// Should get empty diagnostics.
+	msg = h.readMessage(t)
+	if msg.Method != "textDocument/publishDiagnostics" {
+		t.Fatalf("expected publishDiagnostics on close, got %q", msg.Method)
+	}
+
+	var params PublishDiagnosticsParams
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		t.Fatalf("unmarshal params: %v", err)
+	}
+
+	if len(params.Diagnostics) != 0 {
+		t.Fatalf("expected 0 diagnostics after close, got %d", len(params.Diagnostics))
+	}
+
+	h.notify(t, "exit")
+	h.wait(t)
+}
+
+func TestServer_DidChange_Debounced(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.initialize(t)
+
+	// Open a clean file first.
+	h.notifyWithParams(t, "textDocument/didOpen", DidOpenTextDocumentParams{
+		TextDocument: TextDocumentItem{
+			URI:        "file:///tmp/debounce.js",
+			LanguageID: "javascript",
+			Version:    1,
+			Text:       "const x = 1;\n",
+		},
+	})
+
+	// Read diagnostics from open.
+	msg := h.readMessage(t)
+	if msg.Method != "textDocument/publishDiagnostics" {
+		t.Fatalf("expected publishDiagnostics on open, got %q", msg.Method)
+	}
+
+	// Send multiple rapid changes.
+	for i := range 5 {
+		h.notifyWithParams(t, "textDocument/didChange", DidChangeTextDocumentParams{
+			TextDocument: VersionedTextDocumentIdentifier{
+				URI:     "file:///tmp/debounce.js",
+				Version: i + 2,
+			},
+			ContentChanges: []TextDocumentContentChangeEvent{
+				{Text: "var x = " + string(rune('1'+i)) + ";\n"},
+			},
+		})
+	}
+
+	// Wait for debounce to fire.
+	time.Sleep(200 * time.Millisecond)
+
+	// Should get at least one publish with diagnostics (from the final var content).
+	msg = h.readMessage(t)
+	if msg.Method != "textDocument/publishDiagnostics" {
+		t.Fatalf("expected publishDiagnostics after debounce, got %q", msg.Method)
+	}
+
+	var params PublishDiagnosticsParams
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		t.Fatalf("unmarshal params: %v", err)
+	}
+
+	if len(params.Diagnostics) == 0 {
+		t.Fatal("expected diagnostics for var usage after debounced change")
+	}
+
+	h.notify(t, "exit")
+	h.wait(t)
+}
+
+func TestServer_DidSave_Relints(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.initialize(t)
+
+	// Open with an error.
+	h.notifyWithParams(t, "textDocument/didOpen", DidOpenTextDocumentParams{
+		TextDocument: TextDocumentItem{
+			URI:        "file:///tmp/save.js",
+			LanguageID: "javascript",
+			Version:    1,
+			Text:       "var x = 1;\n",
+		},
+	})
+
+	// Read diagnostics from open (should have errors).
+	msg := h.readMessage(t)
+	if msg.Method != "textDocument/publishDiagnostics" {
+		t.Fatalf("expected publishDiagnostics on open, got %q", msg.Method)
+	}
+
+	var params PublishDiagnosticsParams
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		t.Fatalf("unmarshal params: %v", err)
+	}
+	if len(params.Diagnostics) == 0 {
+		t.Fatal("expected diagnostics on open")
+	}
+
+	// Update doc store directly to clean content, then save.
+	h.srv.docs.Update("/tmp/save.js", []byte("const x = 1;\n"))
+
+	h.notifyWithParams(t, "textDocument/didSave", DidSaveTextDocumentParams{
+		TextDocument: TextDocumentIdentifier{
+			URI: "file:///tmp/save.js",
+		},
+	})
+
+	// Read diagnostics from save (should be clean).
+	msg = h.readMessage(t)
+	if msg.Method != "textDocument/publishDiagnostics" {
+		t.Fatalf("expected publishDiagnostics on save, got %q", msg.Method)
+	}
+
+	if err := json.Unmarshal(msg.Params, &params); err != nil {
+		t.Fatalf("unmarshal params: %v", err)
+	}
+	if len(params.Diagnostics) != 0 {
+		t.Fatalf("expected 0 diagnostics after fix, got %d", len(params.Diagnostics))
+	}
+
+	h.notify(t, "exit")
+	h.wait(t)
+}
+
+func TestServer_DidOpen_NonJSFile(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.initialize(t)
+
+	// Open a non-JS file — should not produce any diagnostics notification.
+	h.notifyWithParams(t, "textDocument/didOpen", DidOpenTextDocumentParams{
+		TextDocument: TextDocumentItem{
+			URI:        "file:///tmp/readme.md",
+			LanguageID: "markdown",
+			Version:    1,
+			Text:       "var x = 1;\n",
+		},
+	})
+
+	// Send a request to verify the server is still responsive
+	// (no notification was sent for the .md file).
+	resp := h.request(t, 2, "textDocument/hover", nil)
+	if resp.Error == nil || resp.Error.Code != CodeMethodNotFound {
+		t.Fatalf("expected MethodNotFound, got %v", resp.Error)
+	}
+
+	h.notify(t, "exit")
+	h.wait(t)
+}
+
+func TestDocStore_OpenGetClose(t *testing.T) {
+	t.Parallel()
+
+	ds := newDocStore()
+
+	// Get on empty store returns false.
+	_, ok := ds.Get("/tmp/file.js")
+	if ok {
+		t.Fatal("expected false for missing doc")
+	}
+
+	// Open and get.
+	ds.Open("/tmp/file.js", []byte("hello"))
+	content, ok := ds.Get("/tmp/file.js")
+	if !ok {
+		t.Fatal("expected true after Open")
+	}
+	if string(content) != "hello" {
+		t.Fatalf("expected 'hello', got %q", content)
+	}
+
+	// Get returns a copy (mutating it doesn't affect the store).
+	content[0] = 'X'
+	content2, _ := ds.Get("/tmp/file.js")
+	if string(content2) != "hello" {
+		t.Fatal("Get should return a copy, but store was mutated")
+	}
+
+	// Close and verify gone.
+	ds.Close("/tmp/file.js")
+	_, ok = ds.Get("/tmp/file.js")
+	if ok {
+		t.Fatal("expected false after Close")
+	}
+}
+
+func TestDocStore_Update(t *testing.T) {
+	t.Parallel()
+
+	ds := newDocStore()
+
+	// Update on non-existent doc is a no-op.
+	ds.Update("/tmp/missing.js", []byte("new"))
+	_, ok := ds.Get("/tmp/missing.js")
+	if ok {
+		t.Fatal("update on missing doc should not create it")
+	}
+
+	// Open, then update.
+	ds.Open("/tmp/file.js", []byte("old"))
+	ds.Update("/tmp/file.js", []byte("new"))
+
+	content, ok := ds.Get("/tmp/file.js")
+	if !ok {
+		t.Fatal("expected doc to exist after update")
+	}
+	if string(content) != "new" {
+		t.Fatalf("expected 'new', got %q", content)
+	}
+}
+
+func TestPathToURI(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		path string
+		want string
+	}{
+		{"/tmp/file.js", "file:///tmp/file.js"},
+		{"/a/b/c.ts", "file:///a/b/c.ts"},
+	}
+
+	for _, tt := range tests {
+		got := PathToURI(tt.path)
+		if got != tt.want {
+			t.Errorf("PathToURI(%q) = %q, want %q", tt.path, got, tt.want)
 		}
 	}
 }

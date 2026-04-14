@@ -28,7 +28,7 @@ Full spec: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 cmd/ralf → internal/cli → internal/engine, internal/config, internal/project
 internal/engine → internal/parser
 internal/project → internal/parser, internal/engine
-internal/lsp → internal/engine, internal/config (will add: internal/project, internal/formatter)
+internal/lsp → internal/engine, internal/config, internal/project, internal/crossfile, internal/parser (will add: internal/formatter)
 internal/formatter → internal/parser
 internal/plugin → internal/engine (plugin SDK types)
 internal/config → standalone (no internal deps)

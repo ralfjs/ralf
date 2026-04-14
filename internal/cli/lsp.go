@@ -58,10 +58,7 @@ func runLSP(cmd *cobra.Command) error {
 
 	var graph *project.Graph
 	if crossfile.HasActiveRules(cfg) {
-		graph = project.NewGraph(
-			make(map[string][]project.ExportInfo),
-			make(map[string][]project.ImportInfo),
-		)
+		slog.Warn("cross-file rules are configured but the LSP project graph is not initialized from the workspace; cross-file diagnostics will be populated incrementally as files are opened")
 	}
 
 	srv := lsp.NewServer(eng, cfg, graph)

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -156,15 +158,14 @@ type message struct {
 	Params  json.RawMessage `json:"params,omitempty"`
 }
 
-// readMessage reads the next JSON-RPC message (response or notification).
-func (h *testHarness) readMessage(t *testing.T) message {
-	t.Helper()
-
+// tryReadMessage reads the next JSON-RPC message without calling t.Fatal,
+// making it safe to call from a non-test goroutine.
+func (h *testHarness) tryReadMessage() (message, error) {
 	contentLen := -1
 	for {
 		line, err := h.client.r.ReadString('\n')
 		if err != nil {
-			t.Fatalf("read message header: %v", err)
+			return message{}, fmt.Errorf("read message header: %w", err)
 		}
 		line = stripCRLF(line)
 		if line == "" {
@@ -180,20 +181,55 @@ func (h *testHarness) readMessage(t *testing.T) message {
 	}
 
 	if contentLen < 0 {
-		t.Fatal("missing Content-Length in message")
+		return message{}, fmt.Errorf("missing Content-Length in message")
 	}
 
 	body := make([]byte, contentLen)
 	if _, err := io.ReadFull(h.client.r, body); err != nil {
-		t.Fatalf("read message body: %v", err)
+		return message{}, fmt.Errorf("read message body: %w", err)
 	}
 
 	var msg message
 	if err := json.Unmarshal(body, &msg); err != nil {
-		t.Fatalf("decode message: %v (body: %s)", err, body)
+		return message{}, fmt.Errorf("decode message: %w (body: %s)", err, body)
 	}
 
+	return msg, nil
+}
+
+// readMessage reads the next JSON-RPC message (response or notification).
+func (h *testHarness) readMessage(t *testing.T) message {
+	t.Helper()
+	msg, err := h.tryReadMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
 	return msg
+}
+
+// readMessageTimeout reads the next message with a timeout. The read runs in
+// a separate goroutine using tryReadMessage (no t.Fatal from non-test goroutine).
+func (h *testHarness) readMessageTimeout(t *testing.T, d time.Duration) message {
+	t.Helper()
+	type result struct {
+		msg message
+		err error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		msg, err := h.tryReadMessage()
+		ch <- result{msg, err}
+	}()
+	select {
+	case r := <-ch:
+		if r.err != nil {
+			t.Fatalf("readMessageTimeout: %v", r.err)
+		}
+		return r.msg
+	case <-time.After(d):
+		t.Fatal("timed out waiting for message")
+		return message{}
+	}
 }
 
 // readResp reads a JSON-RPC response from the client side.
@@ -884,17 +920,8 @@ func TestServer_DidChange_Debounced(t *testing.T) {
 		})
 	}
 
-	// Wait for debounced diagnostics with a timeout instead of a fixed sleep.
-	msgCh := make(chan message, 1)
-	go func() {
-		msgCh <- h.readMessage(t)
-	}()
-
-	select {
-	case msg = <-msgCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for publishDiagnostics after debounce")
-	}
+	// Wait for debounced diagnostics with a timeout.
+	msg = h.readMessageTimeout(t, 2*time.Second)
 	if msg.Method != "textDocument/publishDiagnostics" {
 		t.Fatalf("expected publishDiagnostics after debounce, got %q", msg.Method)
 	}
@@ -1077,8 +1104,11 @@ func TestPathToURI(t *testing.T) {
 			t.Errorf("PathToURI(%q) = %q, want %q", tt.path, got, tt.want)
 		}
 		// Round-trip: PathToURI → URIToPath should recover the original path.
-		if roundTrip := URIToPath(got); roundTrip != tt.path {
-			t.Errorf("round-trip failed: URIToPath(PathToURI(%q)) = %q", tt.path, roundTrip)
+		// Use filepath.FromSlash so the comparison works on Windows where
+		// URIToPath returns backslash-separated paths.
+		want := filepath.FromSlash(tt.path)
+		if roundTrip := URIToPath(got); roundTrip != want {
+			t.Errorf("round-trip failed: URIToPath(PathToURI(%q)) = %q, want %q", tt.path, roundTrip, want)
 		}
 	}
 }

@@ -93,10 +93,13 @@ func byteColToUTF16(source []byte, lineStarts []int, line1Based, byteCol int) in
 	}
 
 	// Slow path: decode runes and count UTF-16 code units.
+	// Bound the slice to [start:end] so DecodeRune cannot read past the target
+	// column (e.g. when byteCol lands mid-rune).
+	segment := source[start:end]
 	utf16Offset := 0
-	i := start
-	for i < end {
-		r, size := utf8.DecodeRune(source[i:])
+	i := 0
+	for i < len(segment) {
+		r, size := utf8.DecodeRune(segment[i:])
 		if r == utf8.RuneError && size <= 1 {
 			utf16Offset++
 			i++

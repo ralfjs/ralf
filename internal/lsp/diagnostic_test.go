@@ -179,6 +179,23 @@ func TestByteColToUTF16_FourByte(t *testing.T) {
 	}
 }
 
+func TestByteColToUTF16_MidRune(t *testing.T) {
+	t.Parallel()
+
+	// "café" — é is 2 bytes (\xc3\xa9). A byteCol landing between the two
+	// bytes of é must not read past end and should treat the partial rune as
+	// a single RuneError (1 UTF-16 unit).
+	source := []byte("caf\xc3\xa9\n")
+	lineStarts := buildLineIndex(source)
+
+	// byteCol=4 lands on the second byte of é (the \xa9).
+	got := byteColToUTF16(source, lineStarts, 1, 4)
+	// Bytes 0..3: c(1) a(1) f(1) + 1 byte of é decoded as RuneError → 4 UTF-16 units.
+	if got != 4 {
+		t.Errorf("mid-rune byteCol: want 4, got %d", got)
+	}
+}
+
 func TestByteColToUTF16_InvalidLine(t *testing.T) {
 	t.Parallel()
 

@@ -321,7 +321,7 @@ func (s *Server) handleDidClose(req *Request) {
 	s.docs.Close(path)
 
 	slog.Debug("didClose", "path", path)
-	s.publishDiagnostics(params.TextDocument.URI, []LDiagnostic{})
+	s.publishDiagnostics(PathToURI(path), []LDiagnostic{})
 }
 
 // --- Lint loop and diagnostics ---

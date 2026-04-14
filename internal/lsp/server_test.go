@@ -681,6 +681,10 @@ func TestURIToPath_Basic(t *testing.T) {
 		{"file:///path/with%20spaces/file.ts", "/path/with spaces/file.ts"},
 		{"file:///a/b/c.js", "/a/b/c.js"},
 		{"/fallback/path", "/fallback/path"},
+		// Windows drive letter.
+		{"file:///C:/Users/test/file.js", "C:/Users/test/file.js"},
+		// UNC path.
+		{"file://server/share/file.js", "//server/share/file.js"},
 	}
 
 	for _, tt := range tests {
@@ -880,11 +884,17 @@ func TestServer_DidChange_Debounced(t *testing.T) {
 		})
 	}
 
-	// Wait for debounce to fire.
-	time.Sleep(200 * time.Millisecond)
+	// Wait for debounced diagnostics with a timeout instead of a fixed sleep.
+	msgCh := make(chan message, 1)
+	go func() {
+		msgCh <- h.readMessage(t)
+	}()
 
-	// Should get at least one publish with diagnostics (from the final var content).
-	msg = h.readMessage(t)
+	select {
+	case msg = <-msgCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for publishDiagnostics after debounce")
+	}
 	if msg.Method != "textDocument/publishDiagnostics" {
 		t.Fatalf("expected publishDiagnostics after debounce, got %q", msg.Method)
 	}
@@ -1055,6 +1065,10 @@ func TestPathToURI(t *testing.T) {
 		{"/a/b/c.ts", "file:///a/b/c.ts"},
 		{"/path/with spaces/file.ts", "file:///path/with%20spaces/file.ts"},
 		{"/path/with#hash/file.js", "file:///path/with%23hash/file.js"},
+		// Windows drive letter (forward-slash form, works on any OS).
+		{"C:/Users/test/file.js", "file:///C:/Users/test/file.js"},
+		// UNC path (forward-slash form).
+		{"//server/share/file.js", "file://server/share/file.js"},
 	}
 
 	for _, tt := range tests {

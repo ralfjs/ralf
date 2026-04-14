@@ -386,10 +386,26 @@ func (s *Server) lintAndPublish(ctx context.Context, path string) {
 			update := s.graph.UpdateFile(path, exports, imports)
 			if update.GraphChanged {
 				crossDiags := crossfile.Run(s.graph, s.cfg)
+
+				// Group cross-file diagnostics by file.
+				crossByFile := make(map[string][]engine.Diagnostic)
 				for _, cd := range crossDiags {
-					if cd.File == path {
-						engineDiags = append(engineDiags, cd)
+					crossByFile[cd.File] = append(crossByFile[cd.File], cd)
+				}
+				engineDiags = append(engineDiags, crossByFile[path]...)
+
+				// Publish updated diagnostics for other affected open files.
+				for otherPath, otherCross := range crossByFile {
+					if otherPath == path {
+						continue
 					}
+					otherContent, open := s.docs.Get(otherPath)
+					if !open {
+						continue
+					}
+					otherDiags := s.eng.LintFile(ctx, otherPath, otherContent)
+					otherDiags = append(otherDiags, otherCross...)
+					s.publishDiagnostics(PathToURI(otherPath), convertDiagnostics(otherDiags, otherContent))
 				}
 			}
 		} else {

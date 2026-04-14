@@ -170,7 +170,7 @@ See the **[Configuration Guide](docs/CONFIGURATION.md)** for full syntax: rule t
 | Milestone | Key Deliverable |
 |---|---|
 | **v0.1** | Linter MVP — 61 per-file rules, CLI, config, SARIF, migration |
-| **v0.2** | Project-aware — SQLite cache, module graph, LSP, VS Code |
+| **v0.2** | Project-aware — SQLite cache, module graph, cross-file rules, LSP, VS Code |
 | **v0.3** | Formatter — dprint WASM, import sorting |
 | **v0.4** | WASM plugins — Go/Rust/AS SDKs |
 | **v1.0** | Type-aware rules via typescript-go, scope analysis, CFG |

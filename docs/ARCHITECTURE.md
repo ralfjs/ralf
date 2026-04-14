@@ -133,7 +133,7 @@ Go link: `CGO_LDFLAGS="-L<path> -lrure"`
 
 ### LSP
 
-Go has established LSP patterns from `gopls`. Use `golang.org/x/tools/gopls/internal/protocol` or `gorilla/jsonrpc2`.
+Custom JSON-RPC 2.0 transport over stdio (`internal/lsp/transport.go`) for minimal dependencies. Server skeleton implements initialize/shutdown/exit lifecycle. Push diagnostics, code actions, and navigation planned for Phase 2.
 
 ### File Watching
 
@@ -697,12 +697,11 @@ internal/
     scanner.go               # initial project scan
     hasher.go                # xxhash content hashing
 
-  lsp/
-    server.go                # JSON-RPC handler
-    diagnostics.go           # push diagnostics to editor
-    formatting.go            # on-save / on-type formatting
-    codelens.go              # inline code actions
-    completion.go            # rule name completion in config
+  lsp/                         # ✅ Skeleton implemented
+    server.go                # Server struct, dispatch loop, lifecycle handlers
+    transport.go             # JSON-RPC 2.0 framing (Content-Length over stdio)
+    protocol.go              # LSP type definitions (Request, Response, capabilities)
+    uri.go                   # file:// URI ↔ path conversion
 
   config/                      # ✅ Implemented (Sprint 1)
     config.go                # Config/RuleConfig/Severity types, matcher stubs (AST, Imports, Naming, Where)
@@ -808,7 +807,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 
 | Week | Task | Deliverable |
 |---|---|---|
-| 27 | LSP server core | `internal/lsp/server.go`: JSON-RPC over stdio. Initialize, shutdown, didOpen, didChange, didSave, didClose. |
+| 27 | ✅ LSP server core | `internal/lsp/server.go`: JSON-RPC over stdio. Initialize, shutdown, exit lifecycle. `ralf lsp` CLI command. |
 | 28 | Push diagnostics | `textDocument/publishDiagnostics`: lint on open, re-lint on change (debounced), push results. Cross-file diagnostics from cache. |
 | 29 | Code actions | `textDocument/codeAction`: quick fixes for auto-fixable rules. "Fix all" action. |
 | 30 | VS Code extension | TypeScript extension: language client, status bar, config intellisense (JSON schema for `.ralfrc.*`). |
@@ -1998,11 +1997,11 @@ yourlinter/
 │   │   ├── scanner.go           # Initial project scan
 │   │   └── hasher.go            # xxhash content hashing
 │   │
-│   ├── lsp/
-│   │   ├── server.go            # JSON-RPC handler
-│   │   ├── diagnostics.go       # Push diagnostics to editor
-│   │   ├── formatting.go        # On-save / on-type formatting
-│   │   └── codelens.go          # Inline code actions
+│   ├── lsp/                       # ✅ Skeleton implemented
+│   │   ├── server.go            # Server struct, dispatch loop, lifecycle handlers
+│   │   ├── transport.go         # JSON-RPC 2.0 framing (Content-Length over stdio)
+│   │   ├── protocol.go          # LSP type definitions (Request, Response, capabilities)
+│   │   └── uri.go               # file:// URI ↔ path conversion
 │   │
 │   ├── config/
 │   │   ├── loader.go            # Parse .ralfrc.{js,json,yaml,toml}

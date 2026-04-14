@@ -78,6 +78,7 @@ Documentation: https://github.com/ralfjs/ralf`,
 
 	cmd.AddCommand(lintCmd())
 	cmd.AddCommand(initCmd())
+	cmd.AddCommand(lspCmd())
 
 	return cmd
 }

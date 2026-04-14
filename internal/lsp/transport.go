@@ -98,7 +98,7 @@ func (t *Transport) WriteNotification(n *Notification) error {
 func (t *Transport) writeJSON(v any) error {
 	body, err := json.Marshal(v)
 	if err != nil {
-		return fmt.Errorf("marshal response: %w", err)
+		return fmt.Errorf("marshal message: %w", err)
 	}
 
 	t.wm.Lock()

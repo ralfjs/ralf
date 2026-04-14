@@ -18,6 +18,11 @@ func URIToPath(uri string) string {
 }
 
 // PathToURI converts an absolute filesystem path to a file:// URI.
+// It percent-encodes special characters so the result round-trips with URIToPath.
 func PathToURI(path string) string {
-	return "file://" + path
+	u := &url.URL{
+		Scheme: "file",
+		Path:   path,
+	}
+	return u.String()
 }

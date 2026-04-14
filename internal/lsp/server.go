@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"time"
 
 	"github.com/ralfjs/ralf/internal/config"
@@ -40,6 +39,7 @@ type Server struct {
 	state     int // stateEmpty → stateInitialized → stateShutdown
 	exit      int // -1 while running; 0 or 1 once exit received
 
+	ctx     context.Context // Run context; cancelled on shutdown/disconnect
 	docs    *docStore
 	lintReq chan string   // file paths needing debounced lint
 	done    chan struct{} // closed when lintLoop exits
@@ -64,6 +64,7 @@ func NewServer(eng *engine.Engine, cfg *config.Config, graph *project.Graph) *Se
 // or the context is cancelled.
 func (s *Server) Run(ctx context.Context, r io.Reader, w io.Writer) error {
 	s.transport = NewTransport(r, w)
+	s.ctx = ctx
 
 	go s.lintLoop(ctx)
 	defer func() {
@@ -272,7 +273,7 @@ func (s *Server) handleDidOpen(req *Request) {
 	s.docs.Open(path, []byte(params.TextDocument.Text))
 
 	slog.Debug("didOpen", "path", path)
-	s.lintAndPublish(context.Background(), path)
+	s.lintAndPublish(s.ctx, path)
 }
 
 func (s *Server) handleDidChange(req *Request) {
@@ -306,7 +307,7 @@ func (s *Server) handleDidSave(req *Request) {
 
 	path := URIToPath(params.TextDocument.URI)
 	slog.Debug("didSave", "path", path)
-	s.lintAndPublish(context.Background(), path)
+	s.lintAndPublish(s.ctx, path)
 }
 
 func (s *Server) handleDidClose(req *Request) {
@@ -373,12 +374,8 @@ func (s *Server) lintAndPublish(ctx context.Context, path string) {
 
 	content, ok := s.docs.Get(path)
 	if !ok {
-		var err error
-		content, err = os.ReadFile(path) //nolint:gosec // path originates from editor URI
-		if err != nil {
-			slog.Debug("cannot read file for lint", "path", path, "error", err)
-			return
-		}
+		// Document not open — skip to avoid stale publishes after didClose.
+		return
 	}
 
 	engineDiags := s.eng.LintFile(ctx, path, content)

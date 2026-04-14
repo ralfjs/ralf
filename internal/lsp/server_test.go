@@ -1053,12 +1053,18 @@ func TestPathToURI(t *testing.T) {
 	}{
 		{"/tmp/file.js", "file:///tmp/file.js"},
 		{"/a/b/c.ts", "file:///a/b/c.ts"},
+		{"/path/with spaces/file.ts", "file:///path/with%20spaces/file.ts"},
+		{"/path/with#hash/file.js", "file:///path/with%23hash/file.js"},
 	}
 
 	for _, tt := range tests {
 		got := PathToURI(tt.path)
 		if got != tt.want {
 			t.Errorf("PathToURI(%q) = %q, want %q", tt.path, got, tt.want)
+		}
+		// Round-trip: PathToURI → URIToPath should recover the original path.
+		if roundTrip := URIToPath(got); roundTrip != tt.path {
+			t.Errorf("round-trip failed: URIToPath(PathToURI(%q)) = %q", tt.path, roundTrip)
 		}
 	}
 }

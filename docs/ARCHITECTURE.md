@@ -133,7 +133,7 @@ Go link: `CGO_LDFLAGS="-L<path> -lrure"`
 
 ### LSP
 
-Custom JSON-RPC 2.0 transport over stdio (`internal/lsp/transport.go`) for minimal dependencies. Server skeleton implements initialize/shutdown/exit lifecycle. Push diagnostics, code actions, and navigation planned for Phase 2.
+Custom JSON-RPC 2.0 transport over stdio (`internal/lsp/transport.go`) for minimal dependencies. Server implements initialize/shutdown/exit lifecycle and push diagnostics (`textDocument/publishDiagnostics`): lint on open, debounced re-lint on change, re-lint on save, cross-file diagnostics via module graph. Code actions and navigation planned.
 
 ### File Watching
 
@@ -803,18 +803,20 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 25 | ✅ Cross-file rules | New `internal/crossfile` package. `Scope: "cross-file"` on RuleConfig. 3 built-in rules: `no-unused-exports` (symbol query), `no-circular-deps` (Tarjan's SCC), `no-dead-modules` (entry point exclusion). Configurable `entryPoints`. |
 | 26 | ✅ File watcher | `internal/project/watcher.go`: fsnotify integration, debounced batching (100ms default), content hash dedup (skip unchanged files), cascade invalidation (export change → re-lint dependents via `Graph.ImportedBy`). CLI: `ralf lint --watch`. Cross-file rules re-evaluated on graph changes. |
 
-**Month 7-8 — LSP + VS Code**
+**Month 7-8 — LSP + Editor Extensions**
 
 | Week | Task | Deliverable |
 |---|---|---|
 | 27 | ✅ LSP server core | `internal/lsp/server.go`: JSON-RPC over stdio. Initialize, shutdown, exit lifecycle. `ralf lsp` CLI command. |
-| 28 | Push diagnostics | `textDocument/publishDiagnostics`: lint on open, re-lint on change (debounced), push results. Cross-file diagnostics from cache. |
+| 28 | ✅ Push diagnostics | `textDocument/publishDiagnostics`: lint on open, re-lint on change (debounced 100ms), re-lint on save, clear on close. In-memory document store. Cross-file diagnostics via graph when exports change. `internal/lsp/diagnostic.go` handles engine→LSP conversion with UTF-16 offset mapping (ASCII fast path). Benchmarks: convert 100 diags 9.5μs, UTF-16 ASCII 9ns, multibyte 43ns. |
 | 29 | Code actions | `textDocument/codeAction`: quick fixes for auto-fixable rules. "Fix all" action. |
-| 30 | VS Code extension | TypeScript extension: language client, status bar, config intellisense (JSON schema for `.ralfrc.*`). |
-| 31 | Workspace diagnostics | `workspace/diagnostic`: project-wide cross-file errors in Problems panel. Efficient pull-based diagnostics. |
-| 32 | LSP extras | Hover (rule description on squiggle), go-to-definition (import → export via graph), find references (symbol → all importers). |
+| 30 | Workspace diagnostics | `workspace/diagnostic`: project-wide cross-file errors in Problems panel. Efficient pull-based diagnostics. |
+| 31 | LSP extras | Hover (rule description on squiggle), go-to-definition (import → export via graph), find references (symbol → all importers). |
+| 32 | VS Code extension | TypeScript extension: language client (`vscode-languageclient`), status bar, config intellisense (JSON schema for `.ralfrc.*`), commands palette. |
+| 33 | Zed extension | Rust extension via `zed_extension_api` crate, LSP client configuration in `extension.toml`. |
+| 34 | WebStorm plugin | LSP client plugin (IntelliJ Platform, Kotlin), run configuration integration for `ralf lint`. |
 
-**v0.2 deliverable:** `yourlinter lsp`, VS Code extension. Project cache, module graph, cross-file rules. Watch mode with cascade invalidation. All v0.1 features plus project-awareness.
+**v0.2 deliverable:** `yourlinter lsp`, editor extensions (VS Code, Zed, WebStorm). Project cache, module graph, cross-file rules. Watch mode with cascade invalidation. All v0.1 features plus project-awareness.
 
 ---
 
@@ -849,7 +851,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 43 | Migration tools | `--from-biome`, `--from-prettier` config converters. Rule mapping tables. Migration report. |
 | 44 | Release prep | Benchmark regression suite. dprint WASM bundled in binary (embed). Documentation. |
 
-**v0.3 deliverable:** `yourlinter format`, auto-fix (`--fix`, `--fix-dry-run`), format-on-save in VS Code. Import sorting. Migration from Biome/Prettier.
+**v0.3 deliverable:** `yourlinter format`, auto-fix (`--fix`, `--fix-dry-run`), format-on-save in editors. Import sorting. Migration from Biome/Prettier.
 
 ---
 
@@ -904,9 +906,9 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 61 | Monorepo support | Workspace config, workspace-aware module graph, cross-workspace import rules. |
 | 62 | Performance audit | Profile on real-world codebases (10K+ files). Optimize hot paths. Memory audit. |
 | 63 | Stability | Edge case fixes. Error recovery hardening. Large file handling. Malicious config protection. |
-| 64 | v1.0 release | Documentation site. Blog post. Product Hunt / HN launch. npm, homebrew, GitHub Releases, Docker, VS Code marketplace. |
+| 64 | v1.0 release | Documentation site. Blog post. Product Hunt / HN launch. npm, homebrew, GitHub Releases, Docker, VS Code marketplace, Zed extensions, JetBrains marketplace. |
 
-**v1.0 deliverable:** Full linter + formatter with type-aware rules, cross-file analysis, WASM plugins, LSP, VS Code extension, monorepo support. Production-ready.
+**v1.0 deliverable:** Full linter + formatter with type-aware rules, cross-file analysis, WASM plugins, LSP, editor extensions (VS Code, Zed, WebStorm), monorepo support. Production-ready.
 
 ---
 
@@ -915,7 +917,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | Milestone | Month | Key Deliverable | Rules |
 |---|---|---|---|
 | **v0.1** | 5 | Linter MVP — regex + AST patterns, CLI | 50 built-in |
-| **v0.2** | 8 | Project-aware — cache, module graph, LSP, VS Code | 50 + cross-file |
+| **v0.2** | 8 | Project-aware — cache, module graph, LSP, editor extensions | 50 + cross-file |
 | **v0.3** | 11 | Formatter — dprint WASM, auto-fix, import sorting | 70 + fixes |
 | **v0.4** | 13 | WASM plugins — Go/Rust/AS SDKs, npm distribution | 70 + user WASM |
 | **v1.0** | 16 | Type-aware — typescript-go, scope, CFG, production | 100+ |
@@ -1434,22 +1436,43 @@ Performance:
 
 ---
 
-## VS Code Extension
+## Editor Extensions
+
+All editor extensions share the same LSP binary (`ralf lsp`) and JSON Schema for config intellisense.
 
 ### Architecture
 
 ```
 ┌─────────────┐     stdio      ┌──────────────────────┐
-│  VS Code    │◄──────────────►│  yourlinter lsp      │
-│  Extension  │   JSON-RPC     │  (same binary)       │
+│  VS Code    │◄──────────────►│                      │
+├─────────────┤   JSON-RPC     │  ralf lsp            │
+│  Zed        │◄──────────────►│  (same binary)       │
+├─────────────┤                │                      │
+│  WebStorm   │◄──────────────►│                      │
 └──────┬──────┘                └──────────────────────┘
        │
-       │  Extension provides:
-       ├─ Language client (vscode-languageclient)
-       ├─ Status bar item (diagnostics count, running state)
+       │  Each extension provides:
+       ├─ Language/LSP client
+       ├─ Status bar / tool window integration
        ├─ Config file intellisense (.ralfrc.js schema)
-       └─ Commands palette integration
+       └─ Editor-specific UI (commands palette, run configs, etc.)
 ```
+
+### VS Code
+- TypeScript extension using `vscode-languageclient`
+- Status bar item (diagnostics count, running state)
+- Commands palette integration
+- Published to VS Code Marketplace
+
+### Zed
+- Rust extension via `zed_extension_api` crate
+- LSP client configuration in `extension.toml`
+- Published to Zed Extensions registry
+
+### WebStorm
+- LSP client plugin (IntelliJ Platform, Kotlin)
+- Run configuration integration for `ralf lint`
+- Published to JetBrains Marketplace
 
 ### Features
 
@@ -1777,6 +1800,8 @@ Pre-built librure archives for all targets are checked into the repo or built in
 | **Docker** | `ghcr.io/org/yourlinter:latest` |
 | **Go install** | `go install github.com/org/yourlinter@latest` (requires CGo toolchain) |
 | **VS Code Marketplace** | Extension bundles LSP binary for each platform |
+| **Zed Extensions** | Rust extension, downloads LSP binary on install |
+| **JetBrains Marketplace** | Plugin bundles LSP binary for each platform |
 
 ### npm Wrapper Pattern (like esbuild)
 

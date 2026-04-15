@@ -57,6 +57,35 @@ func BenchmarkTransport_WriteResponse(b *testing.B) {
 	}
 }
 
+func BenchmarkTransport_WriteNotification(b *testing.B) {
+	tr := NewTransport(bytes.NewReader(nil), io.Discard)
+
+	n := &Notification{
+		JSONRPC: "2.0",
+		Method:  "textDocument/publishDiagnostics",
+		Params: PublishDiagnosticsParams{
+			URI: "file:///tmp/test.js",
+			Diagnostics: []LDiagnostic{
+				{
+					Range:    Range{Start: Position{0, 0}, End: Position{0, 3}},
+					Severity: SeverityError,
+					Source:   "ralf",
+					Message:  "Use let or const instead of var",
+					Code:     "no-var",
+				},
+			},
+		},
+	}
+
+	b.ResetTimer()
+
+	for range b.N {
+		if err := tr.WriteNotification(n); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func BenchmarkTransport_Roundtrip(b *testing.B) {
 	// Simulate a full request/response cycle over pipes.
 	// A single long-lived server goroutine reads requests and responds.

@@ -6,8 +6,10 @@ import (
 	"os"
 
 	"github.com/ralfjs/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/crossfile"
 	"github.com/ralfjs/ralf/internal/engine"
 	"github.com/ralfjs/ralf/internal/lsp"
+	"github.com/ralfjs/ralf/internal/project"
 	"github.com/spf13/cobra"
 )
 
@@ -54,7 +56,12 @@ func runLSP(cmd *cobra.Command) error {
 		return nil
 	}
 
-	srv := lsp.NewServer(eng, cfg)
+	var graph *project.Graph
+	if crossfile.HasActiveRules(cfg) {
+		slog.Warn("cross-file rules are configured but the LSP project graph is not initialized from the workspace; cross-file diagnostics are disabled until a workspace graph is provided")
+	}
+
+	srv := lsp.NewServer(eng, cfg, graph)
 
 	slog.Info("ralf LSP server starting")
 

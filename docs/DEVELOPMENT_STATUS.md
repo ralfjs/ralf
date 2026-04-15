@@ -89,12 +89,14 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 | Feature | Status | Description |
 |---|---|---|
 | LSP server skeleton | ✅ Implemented | JSON-RPC over stdio, initialize/shutdown/exit lifecycle |
-| Push diagnostics | Planned | Real-time lint errors in editor |
+| Push diagnostics | ✅ Implemented | Lint on open/change (debounced)/save, `textDocument/publishDiagnostics`, cross-file diagnostics via graph |
 | Quick fixes | Planned | Code actions for auto-fixable rules |
 | Format on save | Planned | Integrated formatter |
 | Go to definition | Planned | Import → export via module graph |
 | Find references | Planned | All importers of a symbol |
 | VS Code extension | Planned | Language client + config intellisense |
+| Zed extension | Planned | Rust extension via zed_extension_api |
+| WebStorm plugin | Planned | LSP client plugin, run configuration |
 
 ### Auto-Fix
 

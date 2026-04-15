@@ -90,10 +90,15 @@ func (t *Transport) WriteResponse(resp *Response) error {
 	return t.writeJSON(resp)
 }
 
+// WriteNotification sends a JSON-RPC notification (no ID, no response expected).
+func (t *Transport) WriteNotification(n *Notification) error {
+	return t.writeJSON(n)
+}
+
 func (t *Transport) writeJSON(v any) error {
 	body, err := json.Marshal(v)
 	if err != nil {
-		return fmt.Errorf("marshal response: %w", err)
+		return fmt.Errorf("marshal message: %w", err)
 	}
 
 	t.wm.Lock()

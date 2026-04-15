@@ -968,8 +968,9 @@ func TestServer_DidSave_Relints(t *testing.T) {
 		t.Fatal("expected diagnostics on open")
 	}
 
-	// Update doc store directly to clean content, then save.
-	h.srv.docs.Update("/tmp/save.js", []byte("const x = 1;\n"))
+	// Update doc store directly to clean content, then save. Use FromSlash so
+	// the key matches the server's URIToPath result on Windows too.
+	h.srv.docs.Update(filepath.FromSlash("/tmp/save.js"), []byte("const x = 1;\n"))
 
 	h.notifyWithParams(t, "textDocument/didSave", DidSaveTextDocumentParams{
 		TextDocument: TextDocumentIdentifier{

@@ -63,7 +63,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-No changes yet.
+### Features
+
+* **lsp:** add LSP server skeleton with JSON-RPC transport and CLI command ([#58](https://github.com/ralfjs/ralf/issues/58))
+* **lsp:** add push diagnostics with document sync and debounced linting ([#59](https://github.com/ralfjs/ralf/issues/59))
+* **lsp:** add code actions with quick fixes, per-rule fix-all, and source.fixAll
+* **rules:** add cross-file lint rules using module graph ([#56](https://github.com/ralfjs/ralf/issues/56))
+* **project:** wire incremental graph extraction into lint pipeline ([#54](https://github.com/ralfjs/ralf/issues/54))
+* **project:** add file watcher with fsnotify and cascade invalidation ([#57](https://github.com/ralfjs/ralf/issues/57))
 
 ## [0.1.0] — Linter MVP
 

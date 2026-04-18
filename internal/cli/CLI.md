@@ -123,7 +123,8 @@ Migration starts from all 61 built-in rules, overriding severities from the sour
 - **Transport:** JSON-RPC 2.0 over stdio (stdout for messages, stderr for logs)
 - **Config:** Auto-discovers `.ralfrc.*` in cwd (same as `ralf lint`)
 - **Lifecycle:** initialize → initialized → shutdown → exit
-- **Capabilities advertised:** TextDocumentSync (full), CodeAction, Definition, References, Hover
+- **Capabilities advertised:** TextDocumentSync (full), CodeAction (`quickfix`, `source.fixAll`), Definition, References, Hover
+- **Code actions:** Per-diagnostic quick fixes for rules with `fix`, per-rule "Fix all" actions, `source.fixAll` for all auto-fixable problems. Reuses engine conflict resolution for overlapping fixes.
 
 Editors launch this process as a language server. The server loads the lint engine once on initialize and handles requests until the client sends exit.
 

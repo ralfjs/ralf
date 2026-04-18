@@ -133,7 +133,7 @@ Go link: `CGO_LDFLAGS="-L<path> -lrure"`
 
 ### LSP
 
-Custom JSON-RPC 2.0 transport over stdio (`internal/lsp/transport.go`) for minimal dependencies. Server implements initialize/shutdown/exit lifecycle and push diagnostics (`textDocument/publishDiagnostics`): lint on open, debounced re-lint on change, re-lint on save, cross-file diagnostics via module graph. Code actions and navigation planned.
+Custom JSON-RPC 2.0 transport over stdio (`internal/lsp/transport.go`) for minimal dependencies. Server implements initialize/shutdown/exit lifecycle, push diagnostics (`textDocument/publishDiagnostics`): lint on open, debounced re-lint on change, re-lint on save, cross-file diagnostics via module graph. Code actions (`textDocument/codeAction`): per-diagnostic quick fixes, per-rule fix-all, `source.fixAll` — reuses engine fix infrastructure and `ApplyFixes` conflict resolution. Diagnostic cache with staleness detection avoids redundant re-lints. Navigation planned.
 
 ### File Watching
 
@@ -697,10 +697,13 @@ internal/
     scanner.go               # initial project scan
     hasher.go                # xxhash content hashing
 
-  lsp/                         # ✅ Skeleton implemented
-    server.go                # Server struct, dispatch loop, lifecycle handlers
+  lsp/                         # ✅ Server + diagnostics + code actions
+    server.go                # Server struct, dispatch loop, lifecycle handlers, diagnostic cache
     transport.go             # JSON-RPC 2.0 framing (Content-Length over stdio)
-    protocol.go              # LSP type definitions (Request, Response, capabilities)
+    protocol.go              # LSP type definitions (Request, Response, capabilities, CodeAction, WorkspaceEdit)
+    codeaction.go            # textDocument/codeAction handler: quick fixes, per-rule fix-all, source.fixAll
+    diagnostic.go            # Engine→LSP diagnostic conversion, UTF-16 offset mapping, byteOffsetToPosition
+    doc.go                   # In-memory document store for open files
     uri.go                   # file:// URI ↔ path conversion
 
   config/                      # ✅ Implemented (Sprint 1)
@@ -809,7 +812,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 |---|---|---|
 | 27 | ✅ LSP server core | `internal/lsp/server.go`: JSON-RPC over stdio. Initialize, shutdown, exit lifecycle. `ralf lsp` CLI command. |
 | 28 | ✅ Push diagnostics | `textDocument/publishDiagnostics`: lint on open, re-lint on change (debounced 100ms), re-lint on save, clear on close. In-memory document store. Cross-file diagnostics via graph when exports change. `internal/lsp/diagnostic.go` handles engine→LSP conversion with UTF-16 offset mapping (ASCII fast path). Benchmarks: convert 100 diags 9.5μs, UTF-16 ASCII 9ns, multibyte 43ns. |
-| 29 | Code actions | `textDocument/codeAction`: quick fixes for auto-fixable rules. "Fix all" action. |
+| 29 | ✅ Code actions | `textDocument/codeAction`: per-diagnostic quick fix, per-rule "Fix all '<rule>'" action, `source.fixAll`. Advertises `quickfix` and `source.fixAll` kinds. Diagnostic cache with staleness fallback (re-lints if source changed since last publish). Reuses `engine.ApplyFixes` for conflict resolution. `internal/lsp/codeaction.go`. |
 | 30 | Workspace diagnostics | `workspace/diagnostic`: project-wide cross-file errors in Problems panel. Efficient pull-based diagnostics. |
 | 31 | LSP extras | Hover (rule description on squiggle), go-to-definition (import → export via graph), find references (symbol → all importers). |
 | 32 | VS Code extension | TypeScript extension: language client (`vscode-languageclient`), status bar, config intellisense (JSON schema for `.ralfrc.*`), commands palette. |
@@ -840,7 +843,7 @@ Assumes 2 senior Go engineers full-time. Solo developer: multiply by 1.8-2x.
 | 37 | ✅ Fix infrastructure | `internal/engine/fix.go`: Fix/Conflict types (replacement, deletion, delete-statement). Single-pass forward application with exact-alloc output buffer. Overlap detection (leftmost wins). `Diagnostic.Fix` optional field. Wired into `compiledRegex` + `compiledPattern`. 7 unit tests, 6 integration tests, 3 benchmarks. |
 | 38 | ✅ Template fixes | `fix: "const $NAME = $VALUE"` — string field on `RuleConfig`, substitution using captured metavariables from pattern match. Captures collected via unified `matchNode`/`matchChildren` with optional bindings map. |
 | 39 | Partial: safe vs unsafe fixes | `--fix` and `--fix-dry-run` implemented in CLI (atomic writes, unified diff output). `--fix-unsafe` and safe/unsafe categorization deferred. |
-| 40 | Fix in LSP | Code actions return fixes. "Fix all auto-fixable" command. Format after fix. |
+| 40 | ✅ Partial: Fix in LSP | Code actions return fixes (done in Phase 2, task 29). "Fix all auto-fixable" command (done). Format after fix deferred to formatter integration. |
 
 **Month 10-11 — Import Fixer + Polish**
 
@@ -2022,10 +2025,13 @@ yourlinter/
 │   │   ├── scanner.go           # Initial project scan
 │   │   └── hasher.go            # xxhash content hashing
 │   │
-│   ├── lsp/                       # ✅ Skeleton implemented
-│   │   ├── server.go            # Server struct, dispatch loop, lifecycle handlers
+│   ├── lsp/                       # ✅ Server + diagnostics + code actions
+│   │   ├── server.go            # Server struct, dispatch loop, lifecycle handlers, diagnostic cache
 │   │   ├── transport.go         # JSON-RPC 2.0 framing (Content-Length over stdio)
-│   │   ├── protocol.go          # LSP type definitions (Request, Response, capabilities)
+│   │   ├── protocol.go          # LSP type definitions (Request, Response, capabilities, CodeAction, WorkspaceEdit)
+│   │   ├── codeaction.go        # textDocument/codeAction handler: quick fixes, fix-all, source.fixAll
+│   │   ├── diagnostic.go        # Engine→LSP diagnostic conversion, UTF-16 offset mapping
+│   │   ├── doc.go               # In-memory document store for open files
 │   │   └── uri.go               # file:// URI ↔ path conversion
 │   │
 │   ├── config/

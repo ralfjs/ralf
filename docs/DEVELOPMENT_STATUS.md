@@ -63,7 +63,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 | AST patterns in config | ✅ Implemented | `pattern: "console.log($$$)"` — native matching |
 | Structural queries in config | ✅ Implemented | `ast: { kind, name, parent, not }` + `naming: { match }` |
 | Capture + assertions | Planned | `capture: { name: "$X" }`, `assert: { "$X": ... }` |
-| Cross-file rules | Planned | `scope: "cross-file"` — module graph queries |
+| Cross-file rules | ✅ Implemented | `scope: "cross-file"` — no-unused-exports, no-circular-deps, no-dead-modules via module graph |
 | WASM plugin escape hatch | Planned | Imperative rules in Go/Rust/AS compiled to WASM |
 
 ### Formatter
@@ -90,7 +90,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 |---|---|---|
 | LSP server skeleton | ✅ Implemented | JSON-RPC over stdio, initialize/shutdown/exit lifecycle |
 | Push diagnostics | ✅ Implemented | Lint on open/change (debounced)/save, `textDocument/publishDiagnostics`, cross-file diagnostics via graph |
-| Quick fixes | Planned | Code actions for auto-fixable rules |
+| Quick fixes | ✅ Implemented | `textDocument/codeAction`: per-diagnostic quick fix, per-rule fix-all, `source.fixAll`. Reuses engine fix + conflict resolution. Diagnostic cache with staleness fallback. |
 | Format on save | Planned | Integrated formatter |
 | Go to definition | Planned | Import → export via module graph |
 | Find references | Planned | All importers of a symbol |

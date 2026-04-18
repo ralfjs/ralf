@@ -347,8 +347,11 @@ func TestServer_InitializeShutdownExit(t *testing.T) {
 	if result.Capabilities.TextDocumentSync.Change != SyncFull {
 		t.Fatalf("expected SyncFull, got %d", result.Capabilities.TextDocumentSync.Change)
 	}
-	if !result.Capabilities.CodeActionProvider {
+	if result.Capabilities.CodeActionProvider == nil {
 		t.Fatal("expected CodeActionProvider")
+	}
+	if len(result.Capabilities.CodeActionProvider.CodeActionKinds) != 2 {
+		t.Fatalf("expected 2 code action kinds, got %d", len(result.Capabilities.CodeActionProvider.CodeActionKinds))
 	}
 	if !result.Capabilities.DefinitionProvider {
 		t.Fatal("expected DefinitionProvider")

@@ -35,6 +35,7 @@ type cachedLint struct {
 	lspDiags    []LDiagnostic
 	source      []byte
 	lineStarts  []int
+	gen         uint64 // docStore generation at lint time
 }
 
 // Server is the ralf LSP server. It owns the lint engine and project state,
@@ -450,6 +451,7 @@ func (s *Server) lintAndPublish(ctx context.Context, path string) {
 		lspDiags:    lspDiags,
 		source:      content,
 		lineStarts:  lineStarts,
+		gen:         s.docs.Gen(path),
 	}
 	s.cacheMu.Unlock()
 

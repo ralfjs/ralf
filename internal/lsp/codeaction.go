@@ -1,7 +1,6 @@
 package lsp
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -40,11 +39,13 @@ func (s *Server) handleCodeAction(req *Request) {
 // getCachedLint returns the cached lint result for the path if it matches the
 // current document content. If the cache is stale, it re-lints synchronously.
 func (s *Server) getCachedLint(path string, content []byte) *cachedLint {
+	currentGen := s.docs.Gen(path)
+
 	s.cacheMu.Lock()
 	cl, ok := s.lintCache[path]
 	s.cacheMu.Unlock()
 
-	if ok && bytes.Equal(cl.source, content) {
+	if ok && cl.gen == currentGen {
 		return cl
 	}
 
@@ -61,6 +62,7 @@ func (s *Server) getCachedLint(path string, content []byte) *cachedLint {
 		lspDiags:    lspDiags,
 		source:      content,
 		lineStarts:  lineStarts,
+		gen:         currentGen,
 	}
 
 	s.cacheMu.Lock()
@@ -227,17 +229,18 @@ func applyFixesAsEdits(source []byte, lineStarts []int, fixes []engine.Fix) []Te
 	// ApplyFixes sorts and removes conflicts, returning the new source.
 	// We need the non-conflicting subset, not the new source.
 	// Re-use ApplyFixes for conflict detection: after calling it, reconstruct
-	// which fixes were applied by diffing against the conflict set.
+	// which fixes were applied by consuming the reported conflicts as a multiset.
 	_, conflicts := engine.ApplyFixes(source, fixes)
 
-	conflictSet := make(map[engine.Fix]bool, len(conflicts))
+	conflictCounts := make(map[engine.Fix]int, len(conflicts))
 	for _, c := range conflicts {
-		conflictSet[c.Fix] = true
+		conflictCounts[c.Fix]++
 	}
 
 	edits := make([]TextEdit, 0, len(fixes)-len(conflicts))
 	for _, f := range fixes {
-		if conflictSet[f] {
+		if conflictCounts[f] > 0 {
+			conflictCounts[f]--
 			continue
 		}
 		if f.StartByte < 0 || f.EndByte < f.StartByte || f.EndByte > len(source) {

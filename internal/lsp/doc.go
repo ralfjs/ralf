@@ -6,10 +6,12 @@ import "sync"
 type docStore struct {
 	mu   sync.Mutex
 	docs map[string]*openDoc // keyed by absolute file path
+	gen  uint64              // monotonic generation counter, incremented on every content change
 }
 
 type openDoc struct {
 	content []byte
+	gen     uint64 // generation at which content was last set
 }
 
 func newDocStore() *docStore {
@@ -20,7 +22,8 @@ func newDocStore() *docStore {
 func (ds *docStore) Open(path string, content []byte) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
-	ds.docs[path] = &openDoc{content: content}
+	ds.gen++
+	ds.docs[path] = &openDoc{content: content, gen: ds.gen}
 }
 
 // Update replaces the content of an already-open document.
@@ -28,7 +31,9 @@ func (ds *docStore) Update(path string, content []byte) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	if doc, ok := ds.docs[path]; ok {
+		ds.gen++
 		doc.content = content
+		doc.gen = ds.gen
 	}
 }
 
@@ -51,4 +56,16 @@ func (ds *docStore) Get(path string) ([]byte, bool) {
 	cp := make([]byte, len(doc.content))
 	copy(cp, doc.content)
 	return cp, true
+}
+
+// Gen returns the generation counter for the document's current content.
+// Returns 0 if the document is not open.
+func (ds *docStore) Gen(path string) uint64 {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	doc, ok := ds.docs[path]
+	if !ok {
+		return 0
+	}
+	return doc.gen
 }

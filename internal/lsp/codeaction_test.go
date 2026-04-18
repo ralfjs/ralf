@@ -530,7 +530,7 @@ func TestRangesOverlap(t *testing.T) {
 			"no overlap", Range{Position{0, 0}, Position{0, 5}}, Range{Position{1, 0}, Position{1, 5}}, false,
 		},
 		{
-			"touching", Range{Position{0, 0}, Position{0, 5}}, Range{Position{0, 5}, Position{0, 10}}, true,
+			"touching", Range{Position{0, 0}, Position{0, 5}}, Range{Position{0, 5}, Position{0, 10}}, false,
 		},
 		{
 			"contained", Range{Position{0, 0}, Position{0, 10}}, Range{Position{0, 3}, Position{0, 7}}, true,

@@ -350,8 +350,12 @@ func TestServer_InitializeShutdownExit(t *testing.T) {
 	if result.Capabilities.CodeActionProvider == nil {
 		t.Fatal("expected CodeActionProvider")
 	}
-	if len(result.Capabilities.CodeActionProvider.CodeActionKinds) != 2 {
-		t.Fatalf("expected 2 code action kinds, got %d", len(result.Capabilities.CodeActionProvider.CodeActionKinds))
+	gotKinds := make(map[CodeActionKind]bool)
+	for _, kind := range result.Capabilities.CodeActionProvider.CodeActionKinds {
+		gotKinds[kind] = true
+	}
+	if !gotKinds[CodeActionQuickFix] || !gotKinds[CodeActionSourceFixAll] {
+		t.Fatalf("expected code action kinds [quickfix source.fixAll], got %v", result.Capabilities.CodeActionProvider.CodeActionKinds)
 	}
 	if !result.Capabilities.DefinitionProvider {
 		t.Fatal("expected DefinitionProvider")

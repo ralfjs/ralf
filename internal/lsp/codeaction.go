@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ralfjs/ralf/internal/engine"
+	"github.com/ralfjs/ralf/internal/parser"
 )
 
 func (s *Server) handleCodeAction(req *Request) {
@@ -48,6 +49,9 @@ func (s *Server) getCachedLint(path string, content []byte) *cachedLint {
 	}
 
 	// Cache miss or stale — re-lint synchronously.
+	if _, ok := parser.LangFromPath(path); !ok {
+		return nil
+	}
 	engineDiags := s.eng.LintFile(s.ctx, path, content)
 	lineStarts := buildLineIndex(content)
 	lspDiags := convertDiagnosticsWithIndex(engineDiags, content, lineStarts)
@@ -276,14 +280,15 @@ func kindAllowed(kind CodeActionKind, only []CodeActionKind) bool {
 }
 
 // rangesOverlap returns true if two LSP ranges overlap.
+// LSP ranges are end-exclusive, so ranges that only touch do not overlap.
 func rangesOverlap(a, b Range) bool {
-	return posLE(a.Start, b.End) && posLE(b.Start, a.End)
+	return posLT(a.Start, b.End) && posLT(b.Start, a.End)
 }
 
-// posLE returns true if a is less-than-or-equal to b.
-func posLE(a, b Position) bool {
+// posLT returns true if a is strictly less-than b.
+func posLT(a, b Position) bool {
 	if a.Line != b.Line {
 		return a.Line < b.Line
 	}
-	return a.Character <= b.Character
+	return a.Character < b.Character
 }

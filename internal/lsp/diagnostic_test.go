@@ -77,7 +77,10 @@ func TestPositionToByteOffset(t *testing.T) {
 func TestPositionToByteOffset_RoundTrip(t *testing.T) {
 	t.Parallel()
 
-	// Every byte offset should round-trip through position and back.
+	// Each rune-boundary byte offset (including len(source)) should round-trip
+	// through byteOffsetToPosition → positionToByteOffset back to itself.
+	// Offsets inside a multi-byte UTF-8 sequence are not valid cursor positions
+	// and are deliberately skipped.
 	sources := []string{
 		"hello\nworld",
 		"a\nbb\nccc",
@@ -90,7 +93,6 @@ func TestPositionToByteOffset_RoundTrip(t *testing.T) {
 			t.Parallel()
 			b := []byte(src)
 			starts := buildLineIndex(b)
-			// Walk rune boundaries; skip offsets inside multi-byte sequences.
 			for i := 0; i <= len(b); {
 				pos := byteOffsetToPosition(b, starts, i)
 				got := positionToByteOffset(b, starts, pos)

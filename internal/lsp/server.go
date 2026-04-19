@@ -400,7 +400,7 @@ func (s *Server) lintAndPublish(ctx context.Context, path string) {
 		return
 	}
 
-	content, ok := s.docs.Get(path)
+	content, gen, ok := s.docs.GetWithGen(path)
 	if !ok {
 		// Document not open — skip to avoid stale publishes after didClose.
 		return
@@ -451,7 +451,7 @@ func (s *Server) lintAndPublish(ctx context.Context, path string) {
 		lspDiags:    lspDiags,
 		source:      content,
 		lineStarts:  lineStarts,
-		gen:         s.docs.Gen(path),
+		gen:         gen,
 	}
 	s.cacheMu.Unlock()
 

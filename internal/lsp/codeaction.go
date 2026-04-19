@@ -20,13 +20,13 @@ func (s *Server) handleCodeAction(req *Request) {
 	path := URIToPath(params.TextDocument.URI)
 	uri := PathToURI(path)
 
-	content, ok := s.docs.Get(path)
+	content, gen, ok := s.docs.GetWithGen(path)
 	if !ok {
 		s.sendResult(req, []CodeAction{})
 		return
 	}
 
-	cached := s.getCachedLint(path, content)
+	cached := s.getCachedLint(path, content, gen)
 	if cached == nil {
 		s.sendResult(req, []CodeAction{})
 		return
@@ -38,14 +38,13 @@ func (s *Server) handleCodeAction(req *Request) {
 
 // getCachedLint returns the cached lint result for the path if it matches the
 // current document content. If the cache is stale, it re-lints synchronously.
-func (s *Server) getCachedLint(path string, content []byte) *cachedLint {
-	currentGen := s.docs.Gen(path)
-
+// The gen parameter must be obtained atomically with content via GetWithGen.
+func (s *Server) getCachedLint(path string, content []byte, gen uint64) *cachedLint {
 	s.cacheMu.Lock()
 	cl, ok := s.lintCache[path]
 	s.cacheMu.Unlock()
 
-	if ok && cl.gen == currentGen {
+	if ok && cl.gen == gen {
 		return cl
 	}
 
@@ -62,7 +61,7 @@ func (s *Server) getCachedLint(path string, content []byte) *cachedLint {
 		lspDiags:    lspDiags,
 		source:      content,
 		lineStarts:  lineStarts,
-		gen:         currentGen,
+		gen:         gen,
 	}
 
 	s.cacheMu.Lock()

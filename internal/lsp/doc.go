@@ -58,14 +58,16 @@ func (ds *docStore) Get(path string) ([]byte, bool) {
 	return cp, true
 }
 
-// Gen returns the generation counter for the document's current content.
-// Returns 0 if the document is not open.
-func (ds *docStore) Gen(path string) uint64 {
+// GetWithGen returns a copy of the document content and its generation
+// counter atomically. The bool is false if the document is not open.
+func (ds *docStore) GetWithGen(path string) (content []byte, gen uint64, ok bool) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	doc, ok := ds.docs[path]
 	if !ok {
-		return 0
+		return nil, 0, false
 	}
-	return doc.gen
+	cp := make([]byte, len(doc.content))
+	copy(cp, doc.content)
+	return cp, doc.gen, true
 }

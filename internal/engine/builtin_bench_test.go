@@ -128,8 +128,9 @@ func BenchmarkLintE2E_Builtin(b *testing.B) {
 	}
 }
 
-// BenchmarkLintE2E_AllRules exercises all 61 built-in rules (regex, pattern,
+// BenchmarkLintE2E_AllRules exercises all per-file rules (regex, pattern,
 // structural, builtin) via RecommendedConfig. 50 files × 100 lines.
+// Cross-file rules are not exercised here (they run in the CLI layer).
 // This is the closest benchmark to real-world zero-config usage.
 func BenchmarkLintE2E_AllRules(b *testing.B) {
 	const (

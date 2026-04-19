@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 // FieldError describes a single validation problem.
@@ -64,10 +66,33 @@ func Validate(cfg *Config) error {
 		}
 	}
 
+	// Validate entry point glob patterns.
+	for i, ep := range cfg.EntryPoints {
+		trimmed := strings.TrimSpace(ep)
+		if trimmed == "" {
+			errs = append(errs, FieldError{Rule: "config", Field: fmt.Sprintf("entryPoints[%d]", i), Message: "entry point glob must not be empty"})
+			continue
+		}
+		if ep != trimmed {
+			errs = append(errs, FieldError{Rule: "config", Field: fmt.Sprintf("entryPoints[%d]", i), Message: "entry point glob must not have leading or trailing whitespace"})
+			continue
+		}
+		if _, err := doublestar.Match(trimmed, ""); err != nil {
+			errs = append(errs, FieldError{Rule: "config", Field: fmt.Sprintf("entryPoints[%d]", i), Message: fmt.Sprintf("invalid glob syntax: %v", err)})
+		}
+	}
+
 	if len(errs) > 0 {
 		return &ValidationError{Errors: errs}
 	}
 	return nil
+}
+
+// crossFileRules is the allowlist of builtin rules that support scope "cross-file".
+var crossFileRules = map[string]bool{
+	"no-unused-exports": true,
+	"no-circular-deps":  true,
+	"no-dead-modules":   true,
 }
 
 func validateRule(name string, rule *RuleConfig, errs *[]FieldError) {
@@ -78,6 +103,38 @@ func validateRule(name string, rule *RuleConfig, errs *[]FieldError) {
 		*errs = append(*errs, FieldError{Rule: name, Field: "severity", Message: "required"})
 	default:
 		*errs = append(*errs, FieldError{Rule: name, Field: "severity", Message: fmt.Sprintf("invalid value %q (must be error, warn, or off)", rule.Severity)})
+	}
+
+	// Validate scope field.
+	if rule.Scope != "" && rule.Scope != "cross-file" {
+		*errs = append(*errs, FieldError{Rule: name, Field: "scope", Message: fmt.Sprintf("invalid scope %q (must be empty or \"cross-file\")", rule.Scope)})
+	}
+
+	// Cross-file rules must use builtin matcher only and must be in the allowlist.
+	if rule.Scope == "cross-file" {
+		// Cross-file scope is not allowed under overrides.
+		isOverride := strings.HasPrefix(name, "overrides[")
+		if isOverride {
+			baseName := name
+			if idx := strings.LastIndex(name, "."); idx != -1 && idx+1 < len(name) {
+				baseName = name[idx+1:]
+			}
+			*errs = append(*errs, FieldError{Rule: name, Field: "scope", Message: fmt.Sprintf("scope \"cross-file\" is not supported under overrides; move rule %q to top-level rules", baseName)})
+			return
+		}
+		if !rule.Builtin {
+			*errs = append(*errs, FieldError{Rule: name, Field: "scope", Message: "scope \"cross-file\" requires builtin: true"})
+		}
+		if !crossFileRules[name] {
+			*errs = append(*errs, FieldError{Rule: name, Field: "scope", Message: fmt.Sprintf("scope \"cross-file\" is not supported for rule %q", name)})
+		}
+		if rule.Regex != "" || rule.Pattern != "" || rule.AST != nil || rule.Imports != nil {
+			*errs = append(*errs, FieldError{Rule: name, Field: "scope", Message: "scope \"cross-file\" cannot have regex, pattern, ast, or imports matchers"})
+		}
+		if rule.Naming != nil {
+			*errs = append(*errs, FieldError{Rule: name, Field: "naming", Message: "scope \"cross-file\" cannot have naming configuration"})
+		}
+		return // skip normal matcher validation for cross-file rules
 	}
 
 	matcherCount := countMatchers(rule)

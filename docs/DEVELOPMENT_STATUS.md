@@ -63,7 +63,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 | AST patterns in config | ✅ Implemented | `pattern: "console.log($$$)"` — native matching |
 | Structural queries in config | ✅ Implemented | `ast: { kind, name, parent, not }` + `naming: { match }` |
 | Capture + assertions | Planned | `capture: { name: "$X" }`, `assert: { "$X": ... }` |
-| Cross-file rules | Planned | `scope: "cross-file"` — module graph queries |
+| Cross-file rules | ✅ Implemented | `scope: "cross-file"` — no-unused-exports, no-circular-deps, no-dead-modules via module graph |
 | WASM plugin escape hatch | Planned | Imperative rules in Go/Rust/AS compiled to WASM |
 
 ### Formatter
@@ -78,23 +78,25 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 
 | Feature | Status | Description |
 |---|---|---|
-| SQLite project cache | Planned | Per-file cache with content hashing |
-| Module graph | Planned | Import/export dependency tracking |
-| Cross-file rules | Planned | Unused exports, circular deps, layer violations, dead modules |
-| File watcher | Planned | fsnotify + cascade invalidation |
-| Incremental re-analysis | Planned | Only changed files + their dependents |
+| SQLite project cache | ✅ Implemented | Per-file cache with xxhash content hashing, WAL mode |
+| Module graph | ✅ Implemented | Import/export extraction, specifier resolution, incremental updates |
+| Cross-file rules | ✅ Implemented | no-unused-exports, no-circular-deps, no-dead-modules |
+| File watcher | ✅ Implemented | fsnotify + debounced cascade invalidation, `ralf lint --watch` |
+| Incremental re-analysis | ✅ Implemented | Content hash dedup, export-change cascade to dependents |
 
 ### LSP + Editor Integration
 
 | Feature | Status | Description |
 |---|---|---|
-| LSP server | Planned | JSON-RPC over stdio |
-| Push diagnostics | Planned | Real-time lint errors in editor |
-| Quick fixes | Planned | Code actions for auto-fixable rules |
+| LSP server skeleton | ✅ Implemented | JSON-RPC over stdio, initialize/shutdown/exit lifecycle |
+| Push diagnostics | ✅ Implemented | Lint on open/change (debounced)/save, `textDocument/publishDiagnostics`, cross-file diagnostics via graph |
+| Quick fixes | ✅ Implemented | `textDocument/codeAction`: per-diagnostic quick fix, per-rule fix-all, `source.fixAll`. Reuses engine fix + conflict resolution. Diagnostic cache with staleness fallback. |
 | Format on save | Planned | Integrated formatter |
 | Go to definition | Planned | Import → export via module graph |
 | Find references | Planned | All importers of a symbol |
 | VS Code extension | Planned | Language client + config intellisense |
+| Zed extension | Planned | Rust extension via zed_extension_api |
+| WebStorm plugin | Planned | LSP client plugin, run configuration |
 
 ### Auto-Fix
 
@@ -112,7 +114,7 @@ Go + rure-go is **3.3x faster** than Rust parallel and **6.1x faster** than Rust
 | `ralf format` | Planned | Format files |
 | `ralf check` | Planned | Lint + format check (for CI) |
 | `ralf init` | ✅ Implemented | Generate config, migrate from ESLint/Biome |
-| `ralf lsp` | Planned | Start LSP server |
+| `ralf lsp` | ✅ Implemented | Start LSP server (stdio) |
 | `ralf debug` | Planned | Inspect rules, AST, module graph |
 | Output formats | ✅ Implemented | Stylish, JSON, compact, GitHub Actions, SARIF |
 

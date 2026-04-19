@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/ralfjs/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/crossfile"
 	"github.com/ralfjs/ralf/internal/engine"
+	"github.com/ralfjs/ralf/internal/project"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +25,8 @@ func lintCmd() *cobra.Command {
 		maxWarnings int
 		fix         bool
 		fixDryRun   bool
+		noCache     bool
+		watch       bool
 	)
 
 	cmd := &cobra.Command{
@@ -34,7 +40,7 @@ func lintCmd() *cobra.Command {
   ralf lint --fix src/
   ralf lint --max-warnings 0 src/`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLint(cmd, args, format, threads, maxWarnings, fix, fixDryRun)
+			return runLint(cmd, args, format, threads, maxWarnings, fix, fixDryRun, noCache, watch)
 		},
 	}
 
@@ -43,15 +49,23 @@ func lintCmd() *cobra.Command {
 	cmd.Flags().IntVar(&maxWarnings, "max-warnings", -1, "max warnings before non-zero exit (-1 = unlimited)")
 	cmd.Flags().BoolVar(&fix, "fix", false, "apply auto-fixes and write files back")
 	cmd.Flags().BoolVar(&fixDryRun, "fix-dry-run", false, "show unified diffs without writing")
+	cmd.Flags().BoolVar(&noCache, "no-cache", false, "disable result caching")
+	cmd.Flags().BoolVar(&watch, "watch", false, "watch project root for changes and re-lint (path args set initial scope, watching covers full project)")
 
 	return cmd
 }
 
-func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarnings int, fix, fixDryRun bool) error {
+func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarnings int, fix, fixDryRun, noCache, watch bool) error {
 	w := cmd.ErrOrStderr()
 
 	if fix && fixDryRun {
 		_, _ = fmt.Fprintln(w, "Error: --fix and --fix-dry-run are mutually exclusive")
+		exitCode = ExitUsageError
+		return nil
+	}
+
+	if watch && (fix || fixDryRun) {
+		_, _ = fmt.Fprintln(w, "Error: --watch cannot be combined with --fix or --fix-dry-run")
 		exitCode = ExitUsageError
 		return nil
 	}
@@ -109,7 +123,7 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 		return nil
 	}
 
-	result := eng.Lint(cmd.Context(), files, threads)
+	result := lintWithCache(cmd, eng, cfg, files, threads, noCache, fix || fixDryRun)
 
 	for _, fe := range result.Errors {
 		_, _ = fmt.Fprintf(w, "Error reading %s: %v\n", fe.File, fe.Err)
@@ -159,19 +173,26 @@ func runLint(cmd *cobra.Command, args []string, format string, threads, maxWarni
 
 	errCount, warnCount := countBySeverity(result.Diagnostics)
 
-	if errCount > 0 {
-		exitCode = ExitLintErrors
+	if !watch {
+		if errCount > 0 {
+			exitCode = ExitLintErrors
+			return nil
+		}
+		if maxWarnings >= 0 && warnCount > maxWarnings {
+			_, _ = fmt.Fprintf(w, "Too many warnings (%d), max allowed is %d\n",
+				warnCount, maxWarnings)
+			exitCode = ExitLintErrors
+			return nil
+		}
 		return nil
 	}
 
-	if maxWarnings >= 0 && warnCount > maxWarnings {
-		_, _ = fmt.Fprintf(w, "Too many warnings (%d), max allowed is %d\n",
-			warnCount, maxWarnings)
+	// Watch mode: set exit code from initial lint, then enter watch loop.
+	if errCount > 0 || (maxWarnings >= 0 && warnCount > maxWarnings) {
 		exitCode = ExitLintErrors
-		return nil
 	}
 
-	return nil
+	return runWatch(cmd, eng, cfg, formatter, noCache, maxWarnings)
 }
 
 // fixID uniquely identifies a fix by file, byte range, and replacement text.
@@ -371,6 +392,279 @@ func splitLines(s string) []string {
 	return lines
 }
 
+// lintWithCache runs the lint pipeline with optional caching.
+// When caching is enabled, files are read once, hashed, and looked up in the cache.
+// Cache misses are linted via LintSources, and results are stored back.
+func lintWithCache(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, files []string, threads int, noCache, isFixMode bool) *engine.Result {
+	ctx := cmd.Context()
+
+	// Determine whether to use cache.
+	useCache := !noCache && !isFixMode
+	var cache *project.Cache
+	if useCache {
+		configHash, err := project.HashConfig(cfg)
+		if err != nil {
+			slog.Debug("cache disabled: config hash failed", "error", err)
+		} else {
+			c, err := project.Open(ctx, projectRootDir(), configHash)
+			if err != nil {
+				slog.Debug("cache disabled: open failed", "error", err)
+			} else {
+				cache = c
+				defer func() { _ = cache.Close() }()
+			}
+		}
+	}
+
+	// If no cache, fall back to the standard path.
+	if cache == nil {
+		return eng.Lint(ctx, files, threads)
+	}
+
+	// Read files, hash, partition into cache hits vs misses.
+	type readFile struct {
+		path string
+		hash uint64
+	}
+	var (
+		cachedDiags []engine.Diagnostic
+		toLint      []engine.FileSource
+		readFiles   []readFile
+		readErrors  []engine.FileError
+	)
+
+	for _, filePath := range files {
+		if ctx.Err() != nil {
+			break
+		}
+		source, err := os.ReadFile(filePath) //nolint:gosec // paths from discoverFiles
+		if err != nil {
+			readErrors = append(readErrors, engine.FileError{File: filePath, Err: err})
+			continue
+		}
+
+		h := project.HashFile(source)
+
+		diags, hit, err := cache.Lookup(ctx, filePath, h)
+		if err != nil {
+			slog.Debug("cache lookup error, linting file", "file", filePath, "error", err)
+		}
+		if hit {
+			cachedDiags = append(cachedDiags, diags...)
+			continue
+		}
+
+		toLint = append(toLint, engine.FileSource{Path: filePath, Source: source})
+		readFiles = append(readFiles, readFile{path: filePath, hash: h})
+	}
+
+	// Lint cache-miss files.
+	var result *engine.Result
+	if len(toLint) > 0 {
+		result = eng.LintSources(ctx, toLint, threads)
+	} else {
+		result = &engine.Result{}
+	}
+	result.Errors = append(result.Errors, readErrors...)
+
+	// Store fresh results in cache. Skip on cancellation to avoid persisting
+	// partial results that would cause false cache hits on subsequent runs.
+	if len(readFiles) > 0 && ctx.Err() == nil {
+		freshByFile := make(map[string][]engine.Diagnostic, len(readFiles))
+		for _, d := range result.Diagnostics {
+			freshByFile[d.File] = append(freshByFile[d.File], d)
+		}
+
+		entries := make([]project.CacheEntry, len(readFiles))
+		for i, rf := range readFiles {
+			var modTimeNS int64
+			if fi, err := os.Stat(rf.path); err == nil {
+				modTimeNS = fi.ModTime().UnixNano()
+			}
+			entries[i] = project.CacheEntry{
+				Path:        rf.path,
+				ContentHash: rf.hash,
+				ModTimeNS:   modTimeNS,
+				Diagnostics: freshByFile[rf.path],
+			}
+		}
+		if err := cache.StoreBatch(ctx, entries); err != nil {
+			slog.Debug("cache store failed", "error", err)
+		}
+	}
+
+	// Extract graph data for cache-miss files and store in cache.
+	if len(toLint) > 0 && ctx.Err() == nil {
+		graphEntries := make([]project.FileGraphEntry, 0, len(toLint))
+		for _, fs := range toLint {
+			if ctx.Err() != nil {
+				break
+			}
+			imports, exports, err := project.ExtractFile(ctx, fs.Path, fs.Source)
+			if err != nil {
+				// Store empty graph entry to clear stale data for this path.
+				slog.Debug("extract failed, storing empty graph entry", "file", fs.Path, "error", err)
+				graphEntries = append(graphEntries, project.FileGraphEntry{Path: fs.Path})
+				continue
+			}
+			graphEntries = append(graphEntries, project.FileGraphEntry{
+				Path:    fs.Path,
+				Exports: exports,
+				Imports: imports,
+			})
+		}
+		if len(graphEntries) > 0 && ctx.Err() == nil {
+			if err := cache.StoreFileGraphBatch(ctx, graphEntries); err != nil {
+				slog.Debug("graph store failed", "error", err)
+			}
+		}
+	}
+
+	// Backfill graph data for cache-hit files that predate graph extraction.
+	// Short-circuit: skip if backfill has already completed (marker in meta table).
+	if ctx.Err() == nil && !cache.IsGraphBackfillDone(ctx) {
+		linted := make(map[string]struct{}, len(toLint))
+		for _, fs := range toLint {
+			linted[fs.Path] = struct{}{}
+		}
+		var cachedPaths []string
+		for _, filePath := range files {
+			if _, ok := linted[filePath]; !ok {
+				cachedPaths = append(cachedPaths, filePath)
+			}
+		}
+
+		backfillComplete := false
+		if len(cachedPaths) == 0 {
+			backfillComplete = true
+		} else {
+			missing, err := cache.FilesMissingGraphData(ctx, cachedPaths)
+			switch {
+			case err != nil:
+				slog.Debug("graph migration check failed", "error", err)
+			case len(missing) == 0:
+				backfillComplete = true
+			default:
+				slog.Debug("backfilling graph data", "files", len(missing))
+				var backfillEntries []project.FileGraphEntry
+				for _, filePath := range missing {
+					if ctx.Err() != nil {
+						break
+					}
+					source, err := os.ReadFile(filePath) //nolint:gosec // paths from discoverFiles
+					if err != nil {
+						continue
+					}
+					imports, exports, err := project.ExtractFile(ctx, filePath, source)
+					if err != nil {
+						continue
+					}
+					backfillEntries = append(backfillEntries, project.FileGraphEntry{
+						Path:    filePath,
+						Exports: exports,
+						Imports: imports,
+					})
+				}
+				if len(backfillEntries) > 0 && ctx.Err() == nil {
+					if err := cache.StoreFileGraphBatch(ctx, backfillEntries); err != nil {
+						slog.Debug("graph backfill store failed", "error", err)
+					} else if len(backfillEntries) == len(missing) {
+						backfillComplete = true
+					}
+				}
+			}
+		}
+
+		if backfillComplete && ctx.Err() == nil {
+			if err := cache.MarkGraphBackfillDone(ctx); err != nil {
+				slog.Debug("failed to mark graph backfill done", "error", err)
+			}
+		}
+	}
+
+	// Clean up graph data for deleted files.
+	// Skip on pure warm runs (zero cache misses) as an optimization — deletions
+	// without other changes are rare and will be caught on the next cold/incremental run.
+	if ctx.Err() == nil && (len(toLint) > 0 || len(readErrors) > 0) {
+		if err := cache.CleanupStalePaths(ctx, files); err != nil {
+			slog.Debug("graph cleanup failed", "error", err)
+		}
+	}
+
+	// Build module graph and run cross-file rules.
+	// Skip graph build entirely when no cross-file rules are active.
+	hasCrossFileDiags := false
+	if ctx.Err() == nil && crossfile.HasActiveRules(cfg) {
+		graph, err := project.BuildGraph(ctx, cache)
+		if err != nil {
+			slog.Debug("graph build failed, skipping cross-file rules", "error", err)
+		} else {
+			crossDiags := crossfile.Run(graph, cfg)
+			if len(crossDiags) > 0 {
+				result.Diagnostics = append(result.Diagnostics, crossDiags...)
+				hasCrossFileDiags = true
+			}
+		}
+	}
+
+	// Merge cached + fresh + cross-file diagnostics.
+	if len(cachedDiags) > 0 {
+		all := make([]engine.Diagnostic, 0, len(cachedDiags)+len(result.Diagnostics))
+		all = append(all, cachedDiags...)
+		all = append(all, result.Diagnostics...)
+		result.Diagnostics = all
+	}
+	if hasCrossFileDiags {
+		// Full sort: cross-file diagnostics can interleave with per-file
+		// diagnostics for the same file, breaking contiguous-chunk precondition.
+		sort.SliceStable(result.Diagnostics, func(i, j int) bool {
+			di, dj := result.Diagnostics[i], result.Diagnostics[j]
+			if di.File != dj.File {
+				return di.File < dj.File
+			}
+			if di.Line != dj.Line {
+				return di.Line < dj.Line
+			}
+			if di.Col != dj.Col {
+				return di.Col < dj.Col
+			}
+			return di.Rule < dj.Rule
+		})
+	} else {
+		// No cross-file diagnostics — chunks are contiguous, use fast chunked sort.
+		engine.SortDiagChunksByFile(result.Diagnostics)
+	}
+
+	if ctx.Err() != nil {
+		slog.Debug("lint cache summary (partial)",
+			"processed", len(toLint)+len(readErrors),
+			"linted", len(toLint),
+			"errors", len(readErrors))
+	} else {
+		slog.Debug("lint cache summary",
+			"total", len(files),
+			"cached", len(files)-len(toLint)-len(readErrors),
+			"linted", len(toLint),
+			"errors", len(readErrors))
+	}
+
+	return result
+}
+
+// projectRootDir returns the project root for cache storage.
+// Derives at call time to respect working directory changes (e.g. in tests).
+func projectRootDir() string {
+	if configPath != "" {
+		return filepath.Dir(configPath)
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		slog.Debug("failed to get working directory for project root", "error", err)
+		return cachedCwd
+	}
+	return dir
+}
+
 func loadConfig() (*config.Config, error) {
 	var (
 		cfg *config.Config
@@ -419,4 +713,115 @@ func countBySeverity(diags []engine.Diagnostic) (errCount, warnCount int) {
 		}
 	}
 	return errCount, warnCount
+}
+
+// runWatch enters watch mode: monitors files for changes and re-lints incrementally.
+func runWatch(cmd *cobra.Command, eng *engine.Engine, cfg *config.Config, formatter Formatter, noCache bool, maxWarnings int) error {
+	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	w := cmd.ErrOrStderr()
+	out := cmd.OutOrStdout()
+
+	root, err := filepath.Abs(projectRootDir())
+	if err != nil {
+		_, _ = fmt.Fprintln(w, "Error resolving project root:", err)
+		exitCode = ExitInternal
+		return nil
+	}
+
+	var cache *project.Cache
+	if !noCache {
+		configHash, hashErr := project.HashConfig(cfg)
+		if hashErr != nil {
+			slog.Debug("watch cache disabled: config hash failed", "error", hashErr)
+		} else {
+			c, openErr := project.Open(ctx, root, configHash)
+			if openErr != nil {
+				slog.Debug("watch cache disabled: open failed", "error", openErr)
+			} else {
+				cache = c
+			}
+		}
+	}
+	if cache == nil {
+		// Watch mode always needs a cache for incremental hash dedup and graph
+		// persistence. When --no-cache is set, the initial lint skips caching but
+		// the watcher still uses it for change detection. Open with configHash=0.
+		c, openErr := project.Open(ctx, root, 0)
+		if openErr != nil {
+			_, _ = fmt.Fprintln(w, "Error opening cache:", openErr)
+			exitCode = ExitInternal
+			return nil
+		}
+		cache = c
+	}
+	defer func() { _ = cache.Close() }()
+
+	graph, err := project.BuildGraph(ctx, cache)
+	if err != nil {
+		slog.Debug("graph build failed, starting with empty graph", "error", err)
+		graph = project.NewGraph(
+			make(map[string][]project.ExportInfo),
+			make(map[string][]project.ImportInfo),
+		)
+	}
+
+	watcher, err := project.NewWatcher(project.WatcherConfig{
+		Root:           root,
+		IgnorePatterns: cfg.Ignores,
+	}, cache, graph, eng)
+	if err != nil {
+		_, _ = fmt.Fprintln(w, "Error starting watcher:", err)
+		exitCode = ExitInternal
+		return nil
+	}
+	defer func() { _ = watcher.Close() }()
+
+	_, _ = fmt.Fprintln(w, "Watching for changes... (press Ctrl+C to stop)")
+
+	go func() { _ = watcher.Run(ctx) }()
+
+	// Track diagnostics to recompute exit code on each event.
+	fileDiags := make(map[string][]engine.Diagnostic)
+	var latestCrossDiags []engine.Diagnostic
+
+	for ev := range watcher.Events() {
+		if len(ev.Diags) > 0 {
+			if err := formatter.Format(out, ev.Diags); err != nil {
+				slog.Error("format watch output", "error", err)
+			}
+			fileDiags[ev.Path] = ev.Diags
+		} else if ev.Path != "" {
+			_, _ = fmt.Fprintf(w, "%s: no issues\n", ev.Path)
+			delete(fileDiags, ev.Path)
+		}
+		if ev.GraphChanged && crossfile.HasActiveRules(cfg) {
+			latestCrossDiags = crossfile.Run(graph, cfg)
+			if len(latestCrossDiags) > 0 {
+				if err := formatter.Format(out, latestCrossDiags); err != nil {
+					slog.Error("format cross-file output", "error", err)
+				}
+			}
+		}
+
+		// Recompute exit code from current diagnostic state.
+		var errs, warns int
+		for _, diags := range fileDiags {
+			e, wa := countBySeverity(diags)
+			errs += e
+			warns += wa
+		}
+		ce, cw := countBySeverity(latestCrossDiags)
+		errs += ce
+		warns += cw
+		if errs > 0 || (maxWarnings >= 0 && warns > maxWarnings) {
+			exitCode = ExitLintErrors
+		} else {
+			exitCode = 0
+		}
+	}
+
+	_, _ = fmt.Fprintln(w, "Watcher stopped.")
+	return nil
 }

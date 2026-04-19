@@ -81,7 +81,7 @@ func compileBuiltinRules(rules map[string]config.RuleConfig) ([]compiledBuiltin,
 	var errs []error
 	for name := range rules {
 		rule := rules[name]
-		if rule.Severity == config.SeverityOff || !rule.Builtin {
+		if rule.Severity == config.SeverityOff || !rule.Builtin || rule.Scope == "cross-file" {
 			continue
 		}
 		def, ok := builtinDefs[name]

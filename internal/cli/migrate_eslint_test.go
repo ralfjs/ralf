@@ -33,8 +33,8 @@ func TestMigrateESLint_BasicJSON(t *testing.T) {
 		t.Errorf("expected eqeqeq off, got %s", cfg.Rules["eqeqeq"].Severity)
 	}
 	// All 61 builtins should be present.
-	if len(cfg.Rules) != 61 {
-		t.Errorf("expected 61 rules, got %d", len(cfg.Rules))
+	if len(cfg.Rules) != 64 {
+		t.Errorf("expected 64 rules, got %d", len(cfg.Rules))
 	}
 }
 

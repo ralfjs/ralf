@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -423,6 +424,184 @@ func TestValidateImportsValid(t *testing.T) {
 	}
 	if err := Validate(cfg); err != nil {
 		t.Errorf("valid imports config failed validation: %v", err)
+	}
+}
+
+func TestValidateCrossFileNamingRejected(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"no-unused-exports": {
+				Severity: SeverityError,
+				Builtin:  true,
+				Scope:    "cross-file",
+				Naming:   &NamingMatcher{Match: "^[a-z]"},
+			},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for cross-file rule with naming")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	found := false
+	for _, e := range ve.Errors {
+		if e.Field == "naming" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected naming field error for cross-file rule")
+	}
+}
+
+func TestValidateCrossFileUnknownRule(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"eqeqeq": {
+				Severity: SeverityError,
+				Builtin:  true,
+				Scope:    "cross-file",
+			},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for unsupported cross-file rule name")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	found := false
+	for _, e := range ve.Errors {
+		if e.Field == "scope" && e.Rule == "eqeqeq" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected scope error for unsupported cross-file rule")
+	}
+}
+
+func TestValidateEntryPointsValid(t *testing.T) {
+	cfg := &Config{
+		Rules:       map[string]RuleConfig{},
+		EntryPoints: []string{"**/index.ts", "src/main.js"},
+	}
+	if err := Validate(cfg); err != nil {
+		t.Errorf("valid entry points should pass: %v", err)
+	}
+}
+
+func TestValidateEntryPointsInvalidGlob(t *testing.T) {
+	cfg := &Config{
+		Rules:       map[string]RuleConfig{},
+		EntryPoints: []string{"[invalid"},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for invalid entry point glob")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	found := false
+	for _, e := range ve.Errors {
+		if e.Field == "entryPoints[0]" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected entryPoints[0] field error")
+	}
+}
+
+func TestValidateEntryPointsEmpty(t *testing.T) {
+	cfg := &Config{
+		Rules:       map[string]RuleConfig{},
+		EntryPoints: []string{"**/index.ts", ""},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for empty entry point")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	found := false
+	for _, e := range ve.Errors {
+		if e.Field == "entryPoints[1]" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected entryPoints[1] field error")
+	}
+}
+
+func TestValidateEntryPointsWhitespace(t *testing.T) {
+	cfg := &Config{
+		Rules:       map[string]RuleConfig{},
+		EntryPoints: []string{" **/index.ts"},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for whitespace entry point")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	found := false
+	for _, e := range ve.Errors {
+		if e.Field == "entryPoints[0]" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected entryPoints[0] field error for whitespace")
+	}
+}
+
+func TestValidateCrossFileInOverride(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleConfig{
+			"ok": {Severity: SeverityError, Regex: "x"},
+		},
+		Overrides: []Override{
+			{
+				Files: []string{"*.ts"},
+				Rules: map[string]RuleConfig{
+					"no-unused-exports": {
+						Severity: SeverityError,
+						Builtin:  true,
+						Scope:    "cross-file",
+					},
+				},
+			},
+		},
+	}
+	err := Validate(cfg)
+	if err == nil {
+		t.Fatal("expected validation error for cross-file rule in override")
+	}
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	found := false
+	for _, e := range ve.Errors {
+		if e.Field == "scope" && strings.Contains(e.Message, "not supported under overrides") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected scope error about cross-file not supported under overrides")
 	}
 }
 

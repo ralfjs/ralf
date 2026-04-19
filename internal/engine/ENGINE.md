@@ -184,4 +184,3 @@ Node.js builtins are recognized via a package-level set + `node:` prefix. Type i
 
 Planned but not implemented:
 - **Complexity**: cyclomatic complexity (`complexity: { max: 10 }`)
-- **Cross-file**: module graph queries (`scope: "cross-file"`)

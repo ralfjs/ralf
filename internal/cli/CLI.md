@@ -15,12 +15,15 @@ cmd/ralf/main.go
             │    ├─ --threads (int)
             │    ├─ --max-warnings (int)
             │    ├─ --fix
-            │    └─ --fix-dry-run
-            └─ init
-                 ├─ --from-eslint
-                 ├─ --from-biome
-                 ├─ --force
-                 └─ --format (json|yaml|toml)
+            │    ├─ --fix-dry-run
+            │    ├─ --no-cache
+            │    └─ --watch
+            ├─ init
+            │    ├─ --from-eslint
+            │    ├─ --from-biome
+            │    ├─ --force
+            │    └─ --format (json|yaml|toml)
+            └─ lsp (no flags; JSON-RPC server over stdio)
 ```
 
 `Execute` returns an int exit code — `main.go` calls `os.Exit(cli.Execute())`.
@@ -84,6 +87,9 @@ ralf lint --format github src/
 # Fail on any warnings
 ralf lint --max-warnings 0 src/
 
+# Watch for changes and re-lint
+ralf lint --watch
+
 # Generate default config
 ralf init
 
@@ -110,6 +116,18 @@ ralf init --force
 
 Migration starts from all 61 built-in rules, overriding severities from the source config. Unmapped rules are listed in a migration report on stderr.
 
+## LSP Command
+
+`ralf lsp` starts the Language Server Protocol server over stdin/stdout (JSON-RPC 2.0).
+
+- **Transport:** JSON-RPC 2.0 over stdio (stdout for messages, stderr for logs)
+- **Config:** Auto-discovers `.ralfrc.*` in cwd (same as `ralf lint`)
+- **Lifecycle:** initialize → initialized → shutdown → exit
+- **Capabilities advertised:** TextDocumentSync (full), CodeAction (`quickfix`, `source.fixAll`), Definition, References, Hover
+- **Code actions:** Per-diagnostic quick fixes for rules with `fix`, per-rule "Fix all" actions, `source.fixAll` for all auto-fixable problems. Reuses engine conflict resolution for overlapping fixes.
+
+Editors launch this process as a language server. The server loads the lint engine once on initialize and handles requests until the client sends exit.
+
 ## Files
 
 | File | Responsibility |
@@ -118,6 +136,7 @@ Migration starts from all 61 built-in rules, overriding severities from the sour
 | `discover.go` | File discovery: walk, filter, ignore |
 | `lint.go` | Lint subcommand: load config → engine → discover → lint → format |
 | `init.go` | Init subcommand: generate config, migration dispatch, serialization |
+| `lsp.go` | LSP subcommand: load config → engine → start JSON-RPC server |
 | `migrate_eslint.go` | ESLint config parser, rule mapping table, severity conversion |
 | `migrate_biome.go` | Biome config parser, rule mapping table, JSONC stripping |
 | `format.go` | Output formatters: stylish, JSON, compact, GitHub, SARIF |

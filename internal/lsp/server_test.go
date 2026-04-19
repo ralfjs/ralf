@@ -347,8 +347,15 @@ func TestServer_InitializeShutdownExit(t *testing.T) {
 	if result.Capabilities.TextDocumentSync.Change != SyncFull {
 		t.Fatalf("expected SyncFull, got %d", result.Capabilities.TextDocumentSync.Change)
 	}
-	if !result.Capabilities.CodeActionProvider {
+	if result.Capabilities.CodeActionProvider == nil {
 		t.Fatal("expected CodeActionProvider")
+	}
+	gotKinds := make(map[CodeActionKind]bool)
+	for _, kind := range result.Capabilities.CodeActionProvider.CodeActionKinds {
+		gotKinds[kind] = true
+	}
+	if !gotKinds[CodeActionQuickFix] || !gotKinds[CodeActionSourceFixAll] {
+		t.Fatalf("expected code action kinds [quickfix source.fixAll], got %v", result.Capabilities.CodeActionProvider.CodeActionKinds)
 	}
 	if !result.Capabilities.DefinitionProvider {
 		t.Fatal("expected DefinitionProvider")

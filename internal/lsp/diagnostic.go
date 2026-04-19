@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"sort"
 	"unicode/utf8"
 
 	"github.com/ralfjs/ralf/internal/config"
@@ -10,11 +11,17 @@ import (
 // convertDiagnostics maps engine diagnostics to LSP diagnostics.
 // Returns an empty non-nil slice when there are no diagnostics.
 func convertDiagnostics(engineDiags []engine.Diagnostic, source []byte) []LDiagnostic {
+	return convertDiagnosticsWithIndex(engineDiags, source, buildLineIndex(source))
+}
+
+// convertDiagnosticsWithIndex maps engine diagnostics to LSP diagnostics
+// using a pre-built line index. Returns an empty non-nil slice when there
+// are no diagnostics.
+func convertDiagnosticsWithIndex(engineDiags []engine.Diagnostic, source []byte, lineStarts []int) []LDiagnostic {
 	if len(engineDiags) == 0 {
 		return []LDiagnostic{}
 	}
 
-	lineStarts := buildLineIndex(source)
 	lspDiags := make([]LDiagnostic, 0, len(engineDiags))
 	for i := range engineDiags {
 		lspDiags = append(lspDiags, convertDiagnostic(&engineDiags[i], source, lineStarts))
@@ -113,4 +120,19 @@ func byteColToUTF16(source []byte, lineStarts []int, line1Based, byteCol int) in
 		i += size
 	}
 	return utf16Offset
+}
+
+// byteOffsetToPosition converts a byte offset in source to a 0-based LSP
+// Position (line in 0-based, character in UTF-16 code units).
+func byteOffsetToPosition(source []byte, lineStarts []int, offset int) Position {
+	idx := sort.SearchInts(lineStarts, offset+1) - 1
+	if idx < 0 {
+		idx = 0
+	}
+	line1 := idx + 1
+	byteCol := offset - lineStarts[idx]
+	return Position{
+		Line:      line1 - 1,
+		Character: byteColToUTF16(source, lineStarts, line1, byteCol),
+	}
 }

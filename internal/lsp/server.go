@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/ralfjs/ralf/internal/config"
@@ -28,6 +29,15 @@ const (
 // lintDebounce is the delay before processing queued didChange lint requests.
 const lintDebounce = 100 * time.Millisecond
 
+// cachedLint stores the last lint result for a file, used by code actions.
+type cachedLint struct {
+	engineDiags []engine.Diagnostic
+	lspDiags    []LDiagnostic
+	source      []byte
+	lineStarts  []int
+	gen         uint64 // docStore generation at lint time
+}
+
 // Server is the ralf LSP server. It owns the lint engine and project state,
 // and communicates with the editor over a JSON-RPC 2.0 transport.
 type Server struct {
@@ -43,19 +53,23 @@ type Server struct {
 	docs    *docStore
 	lintReq chan string   // file paths needing debounced lint
 	done    chan struct{} // closed when lintLoop exits
+
+	cacheMu   sync.Mutex
+	lintCache map[string]*cachedLint // path → last lint result
 }
 
 // NewServer creates an LSP server with the given engine and config.
 // The graph parameter may be nil when no cross-file rules are active.
 func NewServer(eng *engine.Engine, cfg *config.Config, graph *project.Graph) *Server {
 	return &Server{
-		eng:     eng,
-		cfg:     cfg,
-		graph:   graph,
-		exit:    -1,
-		docs:    newDocStore(),
-		lintReq: make(chan string, 64),
-		done:    make(chan struct{}),
+		eng:       eng,
+		cfg:       cfg,
+		graph:     graph,
+		exit:      -1,
+		docs:      newDocStore(),
+		lintReq:   make(chan string, 64),
+		done:      make(chan struct{}),
+		lintCache: make(map[string]*cachedLint),
 	}
 }
 
@@ -144,6 +158,14 @@ func (s *Server) dispatch(req *Request) bool {
 			return false
 		}
 		s.handleDidClose(req)
+	case "textDocument/codeAction":
+		if s.state != stateReady {
+			if !req.IsNotification() {
+				s.sendError(req, CodeServerNotInit, "server not initialized")
+			}
+			return false
+		}
+		s.handleCodeAction(req)
 	default:
 		if s.state != stateReady {
 			// Silently ignore notifications before ready.
@@ -188,7 +210,9 @@ func (s *Server) handleInitialize(req *Request) {
 				Change:    SyncFull,
 				Save:      &SaveOptions{IncludeText: false},
 			},
-			CodeActionProvider: true,
+			CodeActionProvider: &CodeActionOptions{
+				CodeActionKinds: []CodeActionKind{CodeActionQuickFix, CodeActionSourceFixAll},
+			},
 			DefinitionProvider: true,
 			ReferencesProvider: true,
 			HoverProvider:      true,
@@ -320,6 +344,10 @@ func (s *Server) handleDidClose(req *Request) {
 	path := URIToPath(params.TextDocument.URI)
 	s.docs.Close(path)
 
+	s.cacheMu.Lock()
+	delete(s.lintCache, path)
+	s.cacheMu.Unlock()
+
 	slog.Debug("didClose", "path", path)
 	s.publishDiagnostics(PathToURI(path), []LDiagnostic{})
 }
@@ -372,7 +400,7 @@ func (s *Server) lintAndPublish(ctx context.Context, path string) {
 		return
 	}
 
-	content, ok := s.docs.Get(path)
+	content, gen, ok := s.docs.GetWithGen(path)
 	if !ok {
 		// Document not open — skip to avoid stale publishes after didClose.
 		return
@@ -414,7 +442,19 @@ func (s *Server) lintAndPublish(ctx context.Context, path string) {
 	}
 
 	uri := PathToURI(path)
-	lspDiags := convertDiagnostics(engineDiags, content)
+	lineStarts := buildLineIndex(content)
+	lspDiags := convertDiagnosticsWithIndex(engineDiags, content, lineStarts)
+
+	s.cacheMu.Lock()
+	s.lintCache[path] = &cachedLint{
+		engineDiags: engineDiags,
+		lspDiags:    lspDiags,
+		source:      content,
+		lineStarts:  lineStarts,
+		gen:         gen,
+	}
+	s.cacheMu.Unlock()
+
 	s.publishDiagnostics(uri, lspDiags)
 }
 

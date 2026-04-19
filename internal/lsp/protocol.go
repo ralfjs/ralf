@@ -62,11 +62,25 @@ type ServerInfo struct {
 // ServerCapabilities declares what the server supports.
 type ServerCapabilities struct {
 	TextDocumentSync   *TextDocumentSyncOptions `json:"textDocumentSync,omitempty"`
-	CodeActionProvider bool                     `json:"codeActionProvider,omitempty"`
+	CodeActionProvider *CodeActionOptions       `json:"codeActionProvider,omitempty"`
 	DefinitionProvider bool                     `json:"definitionProvider,omitempty"`
 	ReferencesProvider bool                     `json:"referencesProvider,omitempty"`
 	HoverProvider      bool                     `json:"hoverProvider,omitempty"`
 }
+
+// CodeActionOptions declares the code action kinds the server supports.
+type CodeActionOptions struct {
+	CodeActionKinds []CodeActionKind `json:"codeActionKinds,omitempty"`
+}
+
+// CodeActionKind is a hierarchical string identifying a class of code action.
+type CodeActionKind string
+
+// Supported code action kinds.
+const (
+	CodeActionQuickFix     CodeActionKind = "quickfix"
+	CodeActionSourceFixAll CodeActionKind = "source.fixAll"
+)
 
 // TextDocumentSyncOptions describes how the server wants document changes.
 type TextDocumentSyncOptions struct {
@@ -175,4 +189,39 @@ type DidCloseTextDocumentParams struct {
 // TextDocumentIdentifier identifies a text document by URI.
 type TextDocumentIdentifier struct {
 	URI string `json:"uri"`
+}
+
+// --- Code action types ---
+
+// CodeActionParams is sent by the client in textDocument/codeAction.
+type CodeActionParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+	Range        Range                  `json:"range"`
+	Context      CodeActionContext      `json:"context"`
+}
+
+// CodeActionContext carries the diagnostics the code action should address.
+type CodeActionContext struct {
+	Diagnostics []LDiagnostic    `json:"diagnostics"`
+	Only        []CodeActionKind `json:"only,omitempty"`
+}
+
+// CodeAction represents a change the editor can perform on behalf of the user.
+type CodeAction struct {
+	Title       string         `json:"title"`
+	Kind        CodeActionKind `json:"kind,omitempty"`
+	Diagnostics []LDiagnostic  `json:"diagnostics,omitempty"`
+	IsPreferred bool           `json:"isPreferred,omitempty"`
+	Edit        *WorkspaceEdit `json:"edit,omitempty"`
+}
+
+// WorkspaceEdit represents changes to many resources managed in the workspace.
+type WorkspaceEdit struct {
+	Changes map[string][]TextEdit `json:"changes,omitempty"`
+}
+
+// TextEdit is a textual edit applicable to a text document.
+type TextEdit struct {
+	Range   Range  `json:"range"`
+	NewText string `json:"newText"`
 }

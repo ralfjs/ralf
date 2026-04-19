@@ -156,8 +156,9 @@ func (n Node) HasError() bool {
 }
 
 // NamedDescendantForByteRange returns the smallest named descendant node
-// spanning the byte range [start, end]. Returns a null node if the range
-// is outside this node's bounds.
+// spanning the half-open byte range [start, end). end == len(source) is
+// legal and denotes the end of source. For a point query pass start == end.
+// Returns a null node if the range is outside this node's bounds.
 func (n Node) NamedDescendantForByteRange(start, end uint) Node {
 	return newNode(n.inner.NamedDescendantForByteRange(start, end))
 }

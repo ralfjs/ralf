@@ -166,19 +166,22 @@ func positionToByteOffset(source []byte, lineStarts []int, pos Position) int {
 		return lineStart
 	}
 
+	// Scan only the prefix up to the requested character (clamped to end of
+	// line). If that prefix is all ASCII, UTF-16 offset == byte offset — bytes
+	// after the prefix can't affect the mapping.
+	scanEnd := lineStart + pos.Character
+	if scanEnd > lineEnd {
+		scanEnd = lineEnd
+	}
 	allASCII := true
-	for i := lineStart; i < lineEnd; i++ {
+	for i := lineStart; i < scanEnd; i++ {
 		if source[i] >= 0x80 {
 			allASCII = false
 			break
 		}
 	}
 	if allASCII {
-		off := lineStart + pos.Character
-		if off > lineEnd {
-			return lineEnd
-		}
-		return off
+		return scanEnd
 	}
 
 	offset := lineStart

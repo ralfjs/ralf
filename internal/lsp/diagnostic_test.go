@@ -2,10 +2,113 @@ package lsp
 
 import (
 	"testing"
+	"unicode/utf8"
 
 	"github.com/ralfjs/ralf/internal/config"
 	"github.com/ralfjs/ralf/internal/engine"
 )
+
+func TestPositionToByteOffset(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		source string
+		line   int
+		char   int
+		want   int
+	}{
+		// ASCII, single line
+		{"ascii start", "hello", 0, 0, 0},
+		{"ascii mid", "hello", 0, 3, 3},
+		{"ascii end", "hello", 0, 5, 5},
+		{"ascii char past end clamps", "hello", 0, 99, 5},
+
+		// ASCII, multiple lines — line end stops before '\n'
+		{"line 0 start", "hello\nworld", 0, 0, 0},
+		{"line 0 end (before newline)", "hello\nworld", 0, 5, 5},
+		{"line 0 past end clamps", "hello\nworld", 0, 99, 5},
+		{"line 1 start", "hello\nworld", 1, 0, 6},
+		{"line 1 end", "hello\nworld", 1, 5, 11},
+		{"line 1 past end clamps", "hello\nworld", 1, 99, 11},
+
+		// Out-of-range clamping
+		{"line past end", "hello\nworld", 99, 0, 11},
+		{"negative line", "hello\nworld", -1, 5, 0},
+		{"negative char", "hello\nworld", 1, -1, 6},
+
+		// Empty source / empty line
+		{"empty source", "", 0, 0, 0},
+		{"empty source, line past end", "", 5, 5, 0},
+		{"empty line", "a\n\nb", 1, 0, 2},
+		{"empty line char past end", "a\n\nb", 1, 5, 2},
+
+		// Multi-byte UTF-8, single UTF-16 code unit: é = 0xC3 0xA9, 1 UTF-16 unit
+		{"utf-8 é: before", "aéb", 0, 0, 0},
+		{"utf-8 é: after a", "aéb", 0, 1, 1},
+		{"utf-8 é: after é", "aéb", 0, 2, 3},
+		{"utf-8 é: after b", "aéb", 0, 3, 4},
+
+		// UTF-16 surrogate pair: 𝐀 (U+1D400) = 4 bytes UTF-8, 2 UTF-16 units
+		{"surrogate: before", "a𝐀b", 0, 0, 0},
+		{"surrogate: after a", "a𝐀b", 0, 1, 1},
+		{"surrogate: inside pair clamps to rune start", "a𝐀b", 0, 2, 1},
+		{"surrogate: after pair", "a𝐀b", 0, 3, 5},
+		{"surrogate: after b", "a𝐀b", 0, 4, 6},
+
+		// Round-trip spot check against byteOffsetToPosition
+		{"after multi-byte and pair", "aé𝐀", 0, 4, 7},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			src := []byte(tc.source)
+			starts := buildLineIndex(src)
+			got := positionToByteOffset(src, starts, Position{Line: tc.line, Character: tc.char})
+			if got != tc.want {
+				t.Errorf("source=%q pos={line:%d char:%d}: got %d, want %d",
+					tc.source, tc.line, tc.char, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPositionToByteOffset_RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Every byte offset should round-trip through position and back.
+	sources := []string{
+		"hello\nworld",
+		"a\nbb\nccc",
+		"aéb\n𝐀",
+		"",
+		"x",
+	}
+	for _, src := range sources {
+		t.Run(src, func(t *testing.T) {
+			t.Parallel()
+			b := []byte(src)
+			starts := buildLineIndex(b)
+			// Walk rune boundaries; skip offsets inside multi-byte sequences.
+			for i := 0; i <= len(b); {
+				pos := byteOffsetToPosition(b, starts, i)
+				got := positionToByteOffset(b, starts, pos)
+				if got != i {
+					t.Errorf("offset %d → pos %+v → offset %d", i, pos, got)
+				}
+				if i == len(b) {
+					break
+				}
+				_, size := utf8.DecodeRune(b[i:])
+				if size <= 0 {
+					size = 1
+				}
+				i += size
+			}
+		})
+	}
+}
 
 func TestConvertDiagnostics_Empty(t *testing.T) {
 	t.Parallel()

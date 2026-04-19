@@ -79,3 +79,40 @@ func BenchmarkByteColToUTF16_Multibyte(b *testing.B) {
 		byteColToUTF16(source, lineStarts, 1, 25)
 	}
 }
+
+func BenchmarkPositionToByteOffset_ASCII(b *testing.B) {
+	source := []byte("const fooBarBaz = calculateValue(alpha, beta, gamma);\n")
+	lineStarts := buildLineIndex(source)
+	pos := Position{Line: 0, Character: 30}
+
+	b.ResetTimer()
+	for range b.N {
+		positionToByteOffset(source, lineStarts, pos)
+	}
+}
+
+func BenchmarkPositionToByteOffset_Multibyte(b *testing.B) {
+	// Mirror BenchmarkByteColToUTF16_Multibyte: "const café_naïve = 'über';\n"
+	source := []byte("const caf\xc3\xa9_na\xc3\xafve = '\xc3\xbcber';\n")
+	lineStarts := buildLineIndex(source)
+	pos := Position{Line: 0, Character: 22}
+
+	b.ResetTimer()
+	for range b.N {
+		positionToByteOffset(source, lineStarts, pos)
+	}
+}
+
+func BenchmarkPositionToByteOffset_MultiLineASCII(b *testing.B) {
+	source := make([]byte, 0, 200*80)
+	for range 200 {
+		source = append(source, []byte("const x = someFunction(arg1, arg2, arg3); // comment padding\n")...)
+	}
+	lineStarts := buildLineIndex(source)
+	pos := Position{Line: 150, Character: 20}
+
+	b.ResetTimer()
+	for range b.N {
+		positionToByteOffset(source, lineStarts, pos)
+	}
+}

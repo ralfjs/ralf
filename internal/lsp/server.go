@@ -51,6 +51,7 @@ type Server struct {
 
 	ctx     context.Context // Run context; cancelled on shutdown/disconnect
 	docs    *docStore
+	parses  *parseCache   // owns parse trees for open documents
 	lintReq chan string   // file paths needing debounced lint
 	done    chan struct{} // closed when lintLoop exits
 
@@ -67,6 +68,7 @@ func NewServer(eng *engine.Engine, cfg *config.Config, graph *project.Graph) *Se
 		graph:     graph,
 		exit:      -1,
 		docs:      newDocStore(),
+		parses:    newParseCache(),
 		lintReq:   make(chan string, 64),
 		done:      make(chan struct{}),
 		lintCache: make(map[string]*cachedLint),
@@ -84,6 +86,7 @@ func (s *Server) Run(ctx context.Context, r io.Reader, w io.Writer) error {
 	defer func() {
 		close(s.lintReq)
 		<-s.done
+		s.parses.Close()
 	}()
 
 	for {
@@ -343,6 +346,7 @@ func (s *Server) handleDidClose(req *Request) {
 
 	path := URIToPath(params.TextDocument.URI)
 	s.docs.Close(path)
+	s.parses.Invalidate(path)
 
 	s.cacheMu.Lock()
 	delete(s.lintCache, path)
@@ -406,10 +410,12 @@ func (s *Server) lintAndPublish(ctx context.Context, path string) {
 		return
 	}
 
-	engineDiags := s.eng.LintFile(ctx, path, content)
+	// Parse once per generation; engine + graph extractor share the tree.
+	tree := s.parses.Get(ctx, path, content, gen)
+	engineDiags := s.eng.LintFileWithTree(ctx, path, content, tree)
 
 	if s.graph != nil && crossfile.HasActiveRules(s.cfg) {
-		imports, exports, err := project.ExtractFile(ctx, path, content)
+		imports, exports, err := project.ExtractFileWithTree(ctx, path, content, tree)
 		if err == nil {
 			update := s.graph.UpdateFile(path, exports, imports)
 			if update.GraphChanged {
@@ -427,11 +433,12 @@ func (s *Server) lintAndPublish(ctx context.Context, path string) {
 					if otherPath == path {
 						continue
 					}
-					otherContent, open := s.docs.Get(otherPath)
+					otherContent, otherGen, open := s.docs.GetWithGen(otherPath)
 					if !open {
 						continue
 					}
-					otherDiags := s.eng.LintFile(ctx, otherPath, otherContent)
+					otherTree := s.parses.Get(ctx, otherPath, otherContent, otherGen)
+					otherDiags := s.eng.LintFileWithTree(ctx, otherPath, otherContent, otherTree)
 					otherDiags = append(otherDiags, otherCross...)
 					s.publishDiagnostics(PathToURI(otherPath), convertDiagnostics(otherDiags, otherContent))
 				}

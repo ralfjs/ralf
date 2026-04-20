@@ -4,9 +4,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/ralfjs/ralf/internal/config"
+	"github.com/ralfjs/ralf/internal/parser"
 )
 
 func TestNew(t *testing.T) {
@@ -64,6 +66,41 @@ func TestNew(t *testing.T) {
 			t.Fatalf("expected 1 import rule, got %d", len(eng.importRules))
 		}
 	})
+}
+
+func TestLintFileWithTree_ParityWithLintFile(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleConfig{
+			"no-var":         {Severity: config.SeverityError, Regex: `\bvar\b`, Message: "No var"},
+			"no-console-log": {Severity: config.SeverityWarn, Pattern: "console.log($$$)", Message: "No console.log"},
+		},
+	}
+	eng, errs := New(cfg)
+	if len(errs) != 0 {
+		t.Fatalf("compile: %v", errs)
+	}
+
+	source := []byte("var x = 1;\nconsole.log(x);\nvar y = 2;")
+
+	// Baseline: let the engine parse.
+	baseline := eng.LintFile(context.Background(), "test.js", source)
+
+	// WithTree: parse separately and pass the tree in.
+	p := parser.NewParser(parser.LangJS)
+	t.Cleanup(p.Close)
+	tree, err := p.Parse(context.Background(), source, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	t.Cleanup(tree.Close)
+
+	withTree := eng.LintFileWithTree(context.Background(), "test.js", source, tree)
+
+	if !reflect.DeepEqual(baseline, withTree) {
+		t.Errorf("diagnostics differ\nLintFile:         %+v\nLintFileWithTree: %+v", baseline, withTree)
+	}
 }
 
 func TestLintFile(t *testing.T) {

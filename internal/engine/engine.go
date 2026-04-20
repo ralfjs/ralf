@@ -75,6 +75,10 @@ func resolveRule(effective map[string]config.RuleConfig, name, message, filePath
 // LintFile lints a single file's source and returns diagnostics.
 // It applies config overrides for the file path, evaluates Where predicates,
 // and runs all matching regex, pattern, structural, and import rules.
+//
+// LintFile parses tree-sitter internally when AST-based rules are active.
+// Callers that already have a parsed tree should use LintFileWithTree to
+// avoid re-parsing.
 func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) []Diagnostic {
 	effective := config.Merge(e.cfg, filePath)
 	lineStarts := buildLineIndex(source)
@@ -163,6 +167,78 @@ func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) [
 	// Sort within file by line, col, rule so Lint only needs to merge by filename.
 	slices.SortFunc(diags, compareDiagsWithinFile)
 
+	return diags
+}
+
+// LintFileWithTree is like LintFile but uses a pre-parsed tree. When tree is
+// nil, LintFileWithTree falls back to LintFile (parses internally). When tree
+// is non-nil, the caller retains ownership — the engine does not close it.
+// The tree must have been parsed from the same source bytes.
+func (e *Engine) LintFileWithTree(ctx context.Context, filePath string, source []byte, tree *parser.Tree) []Diagnostic {
+	if tree == nil {
+		return e.LintFile(ctx, filePath, source)
+	}
+
+	effective := config.Merge(e.cfg, filePath)
+	lineStarts := buildLineIndex(source)
+
+	diags := make([]Diagnostic, 0, len(e.regexRules)+len(e.patternRules)+len(e.structuralRules)+len(e.importRules)+len(e.builtinRules))
+
+	acquireCGo()
+	defer releaseCGo()
+
+	for i := range e.regexRules {
+		cr := &e.regexRules[i]
+		sev, msg, ok := resolveRule(effective, cr.name, cr.message, filePath)
+		if !ok {
+			continue
+		}
+		active := *cr
+		active.severity = sev
+		active.message = msg
+		found := matchRegex(active, source, lineStarts, 0)
+		setFilePath(found, filePath)
+		diags = append(diags, found...)
+	}
+
+	activePatterns := resolvePatternRules(e.patternRules, effective, filePath)
+	activeStructural := resolveStructuralRules(e.structuralRules, effective, filePath)
+	activeImports := resolveImportRules(e.importRules, effective, filePath)
+	activeBuiltins := resolveBuiltinRules(e.builtinRules, effective, filePath)
+
+	if len(activePatterns) > 0 {
+		found := matchPatterns(ctx, activePatterns, tree, source, lineStarts)
+		for j := range found {
+			found[j].File = filePath
+		}
+		diags = append(diags, found...)
+	}
+
+	if len(activeStructural) > 0 {
+		found := matchStructural(ctx, activeStructural, tree, source, lineStarts)
+		for j := range found {
+			found[j].File = filePath
+		}
+		diags = append(diags, found...)
+	}
+
+	if len(activeImports) > 0 {
+		found := matchImports(ctx, activeImports, tree, source, lineStarts)
+		setFilePath(found, filePath)
+		diags = append(diags, found...)
+	}
+
+	if len(activeBuiltins) > 0 {
+		found := matchBuiltins(activeBuiltins, tree, source, lineStarts)
+		for j := range found {
+			found[j].File = filePath
+		}
+		diags = append(diags, found...)
+	}
+
+	sup := parseSuppressComments(source)
+	diags = filterSuppressed(diags, sup)
+	slices.SortFunc(diags, compareDiagsWithinFile)
 	return diags
 }
 

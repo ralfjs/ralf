@@ -45,7 +45,7 @@ Result                sorted diagnostics + file errors
 | `fix.go` | `Fix`/`Conflict` types, `ApplyFixes` (single-pass, conflict detection), `expandToStatement` |
 | `semaphore.go` | CGo concurrency limiter (`acquireCGo`/`releaseCGo`) |
 | `where.go` | `matchesWhere` — evaluates `config.WherePredicate` against file paths |
-| `engine.go` | `Engine` orchestrator: `New`, `LintFile`, `Lint`, `resolveRule`, `sortDiagChunksByFile` |
+| `engine.go` | `Engine` orchestrator: `New`, `LintFile`, `LintFileWithTree` (pre-parsed tree variant for LSP), `Lint`, `resolveRule`, `sortDiagChunksByFile` |
 
 ## Diagnostic Conventions
 
@@ -165,7 +165,7 @@ Uses **tree-sitter** to parse pattern strings as JavaScript and build a `pattern
 - `matchNode`: structural comparison — kind match for literals, exact text for leaves, recursive child matching
 - `matchChildrenRec`: recursive backtracking for variadic support — tries consuming max→0 target children
 - Trailing anonymous nodes (`;`) in target are stripped when pattern omits them
-- Parser created per-file inside `LintFile` (tree-sitter `Parser` is NOT thread-safe). Parser creation is cheap. CGo semaphore already held by `LintFile`.
+- Parser created per-file inside `LintFile` (tree-sitter `Parser` is NOT thread-safe). Parser creation is cheap. CGo semaphore already held by `LintFile`. `LintFileWithTree` skips this step and reuses the tree supplied by the caller (LSP parse cache).
 - Non-JS/TS files: `LangFromPath` guard skips pattern rules gracefully
 
 ## Import Matcher

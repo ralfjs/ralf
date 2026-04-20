@@ -411,7 +411,8 @@ func (s *Server) lintAndPublish(ctx context.Context, path string) {
 	}
 
 	// Parse once per generation; engine + graph extractor share the tree.
-	tree := s.parses.Get(ctx, path, content, gen)
+	tree, releaseTree := s.parses.Get(ctx, path, content, gen)
+	defer releaseTree()
 	engineDiags := s.eng.LintFileWithTree(ctx, path, content, tree)
 
 	if s.graph != nil && crossfile.HasActiveRules(s.cfg) {
@@ -437,8 +438,9 @@ func (s *Server) lintAndPublish(ctx context.Context, path string) {
 					if !open {
 						continue
 					}
-					otherTree := s.parses.Get(ctx, otherPath, otherContent, otherGen)
+					otherTree, releaseOther := s.parses.Get(ctx, otherPath, otherContent, otherGen)
 					otherDiags := s.eng.LintFileWithTree(ctx, otherPath, otherContent, otherTree)
+					releaseOther()
 					otherDiags = append(otherDiags, otherCross...)
 					s.publishDiagnostics(PathToURI(otherPath), convertDiagnostics(otherDiags, otherContent))
 				}

@@ -174,8 +174,15 @@ func (e *Engine) LintFile(ctx context.Context, filePath string, source []byte) [
 // nil, LintFileWithTree falls back to LintFile (parses internally). When tree
 // is non-nil, the caller retains ownership — the engine does not close it.
 // The tree must have been parsed from the same source bytes.
+//
+// For unsupported file types (see parser.LangFromPath), LintFileWithTree
+// delegates to LintFile regardless of tree, matching LintFile's semantics
+// of running only regex rules on such files.
 func (e *Engine) LintFileWithTree(ctx context.Context, filePath string, source []byte, tree *parser.Tree) []Diagnostic {
 	if tree == nil {
+		return e.LintFile(ctx, filePath, source)
+	}
+	if _, ok := parser.LangFromPath(filePath); !ok {
 		return e.LintFile(ctx, filePath, source)
 	}
 

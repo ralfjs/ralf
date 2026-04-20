@@ -19,13 +19,16 @@ func ExtractFile(ctx context.Context, filePath string, source []byte) ([]ImportI
 // When tree is nil, it parses internally. When tree is non-nil the caller
 // retains ownership; the tree is not closed by this function. The tree
 // must have been parsed from the same source bytes.
+//
+// Unsupported file types return the same error as ExtractFile regardless
+// of whether a tree is provided.
 func ExtractFileWithTree(ctx context.Context, filePath string, source []byte, tree *parser.Tree) ([]ImportInfo, []ExportInfo, error) {
-	if tree == nil {
-		lang, ok := parser.LangFromPath(filePath)
-		if !ok {
-			return nil, nil, fmt.Errorf("unsupported file type: %s", filePath)
-		}
+	lang, ok := parser.LangFromPath(filePath)
+	if !ok {
+		return nil, nil, fmt.Errorf("unsupported file type: %s", filePath)
+	}
 
+	if tree == nil {
 		p := parser.NewParser(lang)
 		parsed, err := p.Parse(ctx, source, nil)
 		p.Close()

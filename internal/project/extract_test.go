@@ -207,3 +207,48 @@ func TestExtractFile_UnsupportedType(t *testing.T) {
 		t.Error("expected error for unsupported file type")
 	}
 }
+
+func TestExtractFileWithTree_ParityWithExtractFile(t *testing.T) {
+	t.Parallel()
+
+	source := []byte(`import { foo, bar } from './utils';
+import Baz from './baz';
+export function alpha() {}
+export const beta = 1;
+export { gamma } from './other';`)
+
+	// Baseline: internal parse.
+	baseImports, baseExports, err := ExtractFile(context.Background(), "test.js", source)
+	if err != nil {
+		t.Fatalf("ExtractFile: %v", err)
+	}
+
+	// WithTree: pre-parsed.
+	p := parser.NewParser(parser.LangJS)
+	t.Cleanup(p.Close)
+	tree, err := p.Parse(context.Background(), source, nil)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	t.Cleanup(tree.Close)
+
+	withImports, withExports, err := ExtractFileWithTree(context.Background(), "test.js", source, tree)
+	if err != nil {
+		t.Fatalf("ExtractFileWithTree: %v", err)
+	}
+
+	if len(baseImports) != len(withImports) || len(baseExports) != len(withExports) {
+		t.Fatalf("parity: baseline %d imports %d exports, withTree %d imports %d exports",
+			len(baseImports), len(baseExports), len(withImports), len(withExports))
+	}
+	for i := range baseImports {
+		if baseImports[i] != withImports[i] {
+			t.Errorf("import[%d]: base=%+v with=%+v", i, baseImports[i], withImports[i])
+		}
+	}
+	for i := range baseExports {
+		if baseExports[i] != withExports[i] {
+			t.Errorf("export[%d]: base=%+v with=%+v", i, baseExports[i], withExports[i])
+		}
+	}
+}

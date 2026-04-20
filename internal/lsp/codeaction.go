@@ -52,7 +52,9 @@ func (s *Server) getCachedLint(path string, content []byte, gen uint64) *cachedL
 	if _, ok := parser.LangFromPath(path); !ok {
 		return nil
 	}
-	engineDiags := s.eng.LintFile(s.ctx, path, content)
+	tree, releaseTree := s.parses.Get(s.ctx, path, content, gen)
+	defer releaseTree()
+	engineDiags := s.eng.LintFileWithTree(s.ctx, path, content, tree)
 	lineStarts := buildLineIndex(content)
 	lspDiags := convertDiagnosticsWithIndex(engineDiags, content, lineStarts)
 

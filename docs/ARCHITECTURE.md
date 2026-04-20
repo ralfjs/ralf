@@ -667,7 +667,7 @@ internal/
     regex.go                 # compiledRegex, compileRegexRules, matchRegex (rure-go via CGo)
     semaphore.go             # CGo concurrency limiter (NumCPU bound)
     where.go                 # matchesWhere — Where predicate evaluation (doublestar globs)
-    engine.go                # Engine orchestrator: New, LintFile, Lint (parallel via errgroup)
+    engine.go                # Engine orchestrator: New, LintFile, LintFileWithTree (pre-parsed variant), Lint (parallel via errgroup)
     ast_pattern.go           # AST pattern matching ("console.log($$$)" syntax), capture bindings for fix templates
     fix.go                   # Auto-fix: Fix/Conflict types, ApplyFixes (single-pass, conflict detection), expandToStatement
     structural.go            # Structural AST queries: kind, name (exact/regex), parent, not. Symbol ID optimization (KindID)
